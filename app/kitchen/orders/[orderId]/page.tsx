@@ -1,4 +1,6 @@
 import { prisma } from "../../../../lib/prisma";
+import { getGuestNames } from "@/lib/guest-names-store";
+import { guestNameFromMap } from "@/lib/guest-name-utils";
 
 export default async function OrderPage({
   params,
@@ -9,6 +11,7 @@ export default async function OrderPage({
     where: { id: params.orderId },
     include: { items: true },
   });
+  const guestNames = order ? getGuestNames(order.id) : null;
 
   if (!order) {
     return <div className="p-6">Commande introuvable.</div>;
@@ -28,10 +31,14 @@ export default async function OrderPage({
         <ul className="space-y-3">
           {order.items.map((it) => (
             <li key={it.id} className="flex items-center justify-between gap-4 border-b border-[rgba(120,110,98,0.14)] pb-2 last:border-0">
-              <span>
-                {it.name}{" "}
-                {it.personId ? <em className="surface-muted-text">({it.personId})</em> : null}
-              </span>
+              <div>
+                <span className="font-medium">{it.qty} × {it.name}</span>{" "}
+                {it.personId ? (
+                  <em className="surface-muted-text">
+                    ({guestNameFromMap(guestNames ?? undefined, it.personId)})
+                  </em>
+                ) : null}
+              </div>
               <span className="tabular-nums text-sm surface-muted-text">
                 {((it.price ?? 0) / 100).toFixed(2)} €
               </span>

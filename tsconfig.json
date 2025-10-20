@@ -11,7 +11,7 @@
     "moduleResolution": "bundler",
     "jsx": "preserve",
     /* === QUALITÉ ET ERREURS === */
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,

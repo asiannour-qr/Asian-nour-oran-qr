@@ -1,10 +1,21 @@
 // app/table/[id]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { setTableComment, useTableComment } from "@/lib/cart";
+import {
+    guestNameFallback,
+    guestNameFromMap,
+    sanitizeGuestNameInput,
+    sanitizeGuestNamesRecord,
+} from "@/lib/guest-name-utils";
+import {
+    getDefaultGuestNames,
+    loadGuestNamesForTable,
+    persistGuestNamesForTable,
+    resetGuestNames as resetGuestNamesForTable,
+} from "@/lib/guest-names-store";
 
 type MenuItem = {
     id: string;
@@ -62,6 +73,23 @@ export default function TablePage() {
     // ⚠️ dossier = app/table/[id] : le param s’appelle "id"
     const params = useParams<{ id: string }>();
     const tableId = params?.id ?? "1";
+    const router = useRouter();
+    const landingCheckRef = useRef(false);
+
+    useEffect(() => {
+        if (landingCheckRef.current) return;
+        landingCheckRef.current = true;
+
+        if (process.env.NEXT_PUBLIC_SHOW_MENU_LANDING !== "1") return;
+        if (typeof window === "undefined") return;
+
+        const skipFlag = window.sessionStorage.getItem("skipMenuLanding");
+        if (skipFlag === "1") {
+            window.sessionStorage.removeItem("skipMenuLanding");
+            return;
+        }
+        router.replace(`/carte/${tableId}`);
+    }, [router, tableId]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -74,7 +102,66 @@ export default function TablePage() {
     const [activePerson, setActivePerson] = useState<string>("P1");
     const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
     const [expandedPersons, setExpandedPersons] = useState<Set<string>>(() => new Set());
-    const tableComment = useTableComment();
+    const [tableComment, setTableComment] = useState("");
+    const [guestNames, setGuestNames] = useState<Record<string, string>>(() => getDefaultGuestNames(1));
+    const guestNamesStorageKey = useMemo(() => `guestNames:table:${tableId}`, [tableId]);
+    const guestNamesPersistedRef = useRef<Record<string, string>>({});
+    const [showGuestNameEditor, setShowGuestNameEditor] = useState(false);
+    const previousPeopleCountRef = useRef<number>(peopleCount);
+
+    const updateGuestNames = useCallback(
+        (updater: (prev: Record<string, string>) => Record<string, string>, persist: boolean) => {
+            setGuestNames((prev) => {
+                const nextDraft = updater(prev);
+                const sanitizedNext = sanitizeGuestNamesRecord(nextDraft, { count: peopleCount });
+
+                if (persist) {
+                    guestNamesPersistedRef.current = sanitizedNext;
+                    if (Object.keys(sanitizedNext).length === 0) {
+                        resetGuestNamesForTable(tableId);
+                    } else {
+                        persistGuestNamesForTable(tableId, sanitizedNext);
+                    }
+                }
+
+                return sanitizedNext;
+            });
+        },
+        [peopleCount, tableId]
+    );
+
+    const getGuestNameForPersonId = useCallback(
+        (personId: string) => guestNameFromMap(guestNames, personId),
+        [guestNames]
+    );
+
+    const getGuestNameForIndex = useCallback(
+        (index: number) => getGuestNameForPersonId(`P${index}`),
+        [getGuestNameForPersonId]
+    );
+
+    const handleGuestNameChange = useCallback(
+        (index: number, value: string) => {
+            const sanitized = sanitizeGuestNameInput(value);
+            updateGuestNames((prev) => {
+                const next = { ...prev };
+                const key = String(index);
+                if (sanitized && sanitized !== guestNameFallback(index)) {
+                    next[key] = sanitized;
+                } else {
+                    delete next[key];
+                }
+                return next;
+            }, true);
+        },
+        [updateGuestNames]
+    );
+
+    const resetGuestNamesState = useCallback(() => {
+        const defaults = resetGuestNamesForTable(tableId);
+        guestNamesPersistedRef.current = defaults;
+        setGuestNames(defaults);
+    }, [tableId]);
 
     async function loadAll() {
         setLoading(true);
@@ -113,9 +200,48 @@ export default function TablePage() {
     }, [tableId]);
 
     useEffect(() => {
+        const loaded = loadGuestNamesForTable(tableId);
+        guestNamesPersistedRef.current = loaded;
+        setGuestNames(loaded);
+    }, [guestNamesStorageKey, tableId]);
+
+    useEffect(() => {
         if (typeof window === "undefined") return;
         window.localStorage.setItem(`table:${tableId}:people`, String(peopleCount));
     }, [peopleCount, tableId]);
+
+    useEffect(() => {
+        const previous = previousPeopleCountRef.current;
+        if (peopleCount < previous) {
+            updateGuestNames((prev) => {
+                const next = { ...prev };
+                let changed = false;
+                for (const key of Object.keys(next)) {
+                    if (Number(key) > peopleCount) {
+                        delete next[key];
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            }, false);
+        } else if (peopleCount > previous) {
+            updateGuestNames((prev) => {
+                const next = { ...prev };
+                let changed = false;
+                for (let i = previous + 1; i <= peopleCount; i += 1) {
+                    const key = String(i);
+                    const persisted = guestNamesPersistedRef.current[key];
+                    const sanitized = sanitizeGuestNameInput(persisted);
+                    if (sanitized && sanitized !== guestNameFallback(i)) {
+                        next[key] = sanitized;
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            }, false);
+        }
+        previousPeopleCountRef.current = peopleCount;
+    }, [peopleCount, updateGuestNames]);
 
     useEffect(() => {
         if (!cartDrawerOpen) return;
@@ -332,7 +458,7 @@ export default function TablePage() {
 
     function clearEntireCart() {
         setCart([]);
-        setTableComment(null);
+        setTableComment("");
         setCartDrawerOpen(false);
         setExpandedPersons(new Set());
     }
@@ -498,7 +624,7 @@ export default function TablePage() {
         }
         const label = detailParts.length > 0 ? `${menu.name} — ${detailParts.join(" • ")}` : menu.name;
         addToCartLine(label, menu.priceCents, activePerson);
-        toast.success(`Menu ajouté pour ${activePerson}`);
+        toast.success(`Menu ajouté pour ${getGuestNameForPersonId(activePerson)}`);
         setComposeState(null);
         setComposeErrors({});
     }
@@ -553,11 +679,13 @@ export default function TablePage() {
     async function submitOrder() {
         if (cart.length === 0) return toast.error("Panier vide");
         try {
-            const sanitizedComment = (tableComment ?? "").trim();
-            const payload = {
+            const trimmedComment = tableComment.trim();
+            const guestNamesPayload = sanitizeGuestNamesRecord(guestNames, { count: peopleCount });
+
+            const payload: Record<string, unknown> = {
                 tableId: String(tableId),
                 total: totalCents,
-                tableComment: sanitizedComment ? sanitizedComment : null,
+                tableComment: trimmedComment ? trimmedComment : null,
                 peopleCount: Math.max(1, Math.min(12, Number(peopleCount) || 1)),
                 items: cart.map((l) => ({
                     name: String(l.name),
@@ -566,6 +694,10 @@ export default function TablePage() {
                     personId: l.personId,
                 })),
             };
+
+            if (Object.keys(guestNamesPayload).length > 0) {
+                payload.guestNames = guestNamesPayload;
+            }
 
             const res = await fetch(`/api/tables/${tableId}/submit`, {
                 method: "POST",
@@ -584,10 +716,17 @@ export default function TablePage() {
             }
 
             toast.success("Commande envoyée !");
-            setCartDrawerOpen(false);
-            setExpandedPersons(new Set());
             setCart([]);
-            setTableComment(null);
+            resetGuestNamesState();
+            setPeopleCount(1);
+            setActivePerson("P1");
+            setExpandedPersons(new Set());
+            setTableComment("");
+            setShowGuestNameEditor(false);
+            setComposeState(null);
+            setComposeErrors({});
+            setCartDrawerOpen(false);
+            router.refresh();
         } catch (e: any) {
             console.error(e);
             toast.error(e?.message || "Erreur d’envoi");
@@ -596,420 +735,514 @@ export default function TablePage() {
 
     return (
         <>
-        <main className="page-shell space-y-8">
-            <Toaster position="top-right" />
-
-            <header className="surface-card-strong px-6 py-6 space-y-2">
-                <span className="chip">Commande en cours</span>
-                <h1 className="text-3xl font-semibold">Asian Nour — Table {tableId}</h1>
-                <p className="surface-muted-text text-sm">
-                    Composez votre menu ou sélectionnez vos plats à la carte. Les commandes sont envoyées
-                    directement en cuisine.
-                </p>
-                <div className="flex flex-wrap items-center gap-4 pt-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs uppercase tracking-[0.2em] surface-muted-text">
-                            Convives
+            <header className="sticky top-0 z-40 border-b border-[rgba(190,127,57,0.22)] bg-[rgba(245,239,230,0.85)] backdrop-blur-md">
+                <div className="mx-auto flex h-14 items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
+                    <div className="flex items-center gap-3">
+                        <span className="text-base font-semibold text-[var(--color-heading)] sm:text-lg">Asian Nour</span>
+                        <span className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[rgba(255,252,247,0.88)] px-3 py-1 text-xs font-medium text-[var(--color-heading)]">
+                            Table {tableId}
                         </span>
-                        <button
-                            className="btn-ghost px-3 py-1"
-                            onClick={() => adjustPeople(-1)}
-                            title="Réduire le nombre de convives"
-                        >
-                            −
-                        </button>
-                        <span className="px-3 py-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-strong)] font-semibold">
-                            {peopleCount}
-                        </span>
-                        <button
-                            className="btn-ghost px-3 py-1"
-                            onClick={() => adjustPeople(1)}
-                            title="Augmenter le nombre de convives"
-                        >
-                            +
-                        </button>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {personIds.map((pid) => {
-                            const isActive = pid === activePerson;
-                            return (
-                                <button
-                                    key={pid}
-                                    className={`px-3 py-1 rounded-full border transition ${
-                                        isActive
-                                            ? "border-transparent bg-[var(--color-accent)] text-white"
-                                            : "border-[var(--color-border)] bg-[var(--color-surface-strong)]"
-                                    }`}
-                                    onClick={() => setActivePerson(pid)}
-                                >
-                                    {pid}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <button
+                        type="button"
+                        onClick={openCartDrawer}
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(190,127,57,0.35)] bg-[rgba(255,252,247,0.92)] text-[var(--color-heading)] shadow-[0_10px_28px_rgba(61,47,33,0.15)] transition focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(190,127,57,0.55)] hover:bg-[rgba(217,168,108,0.18)] active:translate-y-[1px] sm:h-11 sm:w-11"
+                        aria-label={
+                            cartItemCount > 0
+                                ? `Ouvrir le panier (${cartItemCount} article${cartItemCount > 1 ? "s" : ""})`
+                                : "Ouvrir le panier"
+                        }
+                    >
+                        <svg
+                            className="h-5 w-5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M6.5 7.5h11l-1.1 8.2a2 2 0 0 1-2 1.8H9.6a2 2 0 0 1-2-1.7L6.5 7.5Z" />
+                            <path d="M9 7.5l.8-2.9A1.2 1.2 0 0 1 11 3.5h2a1.2 1.2 0 0 1 1.2 1.1L15 7.5" />
+                            <circle cx="9.5" cy="19" r="1" />
+                            <circle cx="14.5" cy="19" r="1" />
+                        </svg>
+                        {cartItemCount > 0 && (
+                            <span
+                                className="absolute -top-1.5 -right-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--color-accent-strong)] px-1 text-[11px] font-semibold leading-none text-[var(--color-on-accent)]"
+                                aria-hidden="true"
+                            >
+                                {cartItemCount}
+                            </span>
+                        )}
+                    </button>
                 </div>
             </header>
+            <main className="page-shell space-y-8">
+                <Toaster position="top-right" />
 
-            {/* Mini cart bar */}
-            <div className="sticky top-0 z-40">
-                <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm sm:text-base font-semibold">
-                        Panier — {cartItemCount} article(s) — {euro(totalCents)}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            className="btn-ghost"
-                            onClick={clearEntireCart}
-                            disabled={!hasCartItems}
-                        >
-                            Vider
-                        </button>
-                        <button
-                            className="btn-primary"
-                            onClick={openCartDrawer}
-                            disabled={!hasCartItems}
-                        >
-                            Ouvrir
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* À la carte */}
-            <section className="space-y-5">
-                <div className="section-heading mb-0">
-                    <h2 className="section-heading__title text-2xl">À la carte</h2>
-                    <p className="section-heading__subtitle">
-                        Parcourez la carte et ajoutez librement vos envies au panier de la table.
+                <header className="surface-card-strong px-6 py-6 space-y-2">
+                    <span className="chip">Commande en cours</span>
+                    <h1 className="text-3xl font-semibold">Asian Nour — Table {tableId}</h1>
+                    <p className="surface-muted-text text-sm">
+                        Composez votre menu ou sélectionnez vos plats à la carte. Les commandes sont envoyées
+                        directement en cuisine.
                     </p>
-                </div>
+                    <div className="flex flex-wrap items-center gap-4 pt-1">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase tracking-[0.2em] surface-muted-text">
+                                Convives
+                            </span>
+                            <button
+                                className="btn-ghost px-3 py-1"
+                                onClick={() => adjustPeople(-1)}
+                                title="Réduire le nombre de convives"
+                            >
+                                −
+                            </button>
+                            <span className="px-3 py-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-strong)] font-semibold">
+                                {peopleCount}
+                            </span>
+                            <button
+                                className="btn-ghost px-3 py-1"
+                                onClick={() => adjustPeople(1)}
+                                title="Augmenter le nombre de convives"
+                            >
+                                +
+                            </button>
+                        </div>
 
-                {loading ? (
-                    <div className="surface-muted-text">Chargement…</div>
-                ) : (
-                    <>
-                        {menus.length > 0 && (
-                            <article className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xl font-semibold">Menus chauds à composer</h3>
-                                    <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">Formules guidées</span>
-                                </div>
-                                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {menus.map((m) => (
-                                        <div key={m.id} className="surface-card px-5 py-5 rounded-2xl flex flex-col gap-3">
-                                            <div>
-                                                <div className="text-lg font-semibold">{m.name}</div>
-                                                <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
-                                            </div>
-                                            <button className="btn-primary" onClick={() => composeMenu(m)}>
-                                                Composer pour {activePerson}
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </article>
-                        )}
-
-                        {Array.from(itemsByCategory.entries())
-                            .filter(([cat]) => !HIDDEN_MENU_CATEGORIES.has(cat))
-                            .map(([cat, list]) => {
-                                const title = cat === "Boxes" ? "Nos BOX" : cat;
+                        <div className="flex flex-wrap items-center gap-2">
+                            {personIds.map((pid) => {
+                                const isActive = pid === activePerson;
+                                const displayName = getGuestNameForPersonId(pid);
                                 return (
-                                    <article key={cat} className="space-y-3">
-                                        <h3 className="text-xl font-semibold">{title}</h3>
-                                        <div className="grid sm:grid-cols-2 gap-4">
-                                            {list.map((it) => (
-                                                <div key={it.id} className="surface-card px-5 py-4 flex items-center justify-between gap-4">
-                                                    <div>
-                                                        <div className="font-medium">{it.name}</div>
-                                                        <div className="surface-muted-text text-sm">{euro(it.priceCents)}</div>
-                                                        {it.description ? (
-                                                            <p className="text-xs surface-muted-text mt-1 max-w-xs">{it.description}</p>
-                                                        ) : null}
-                                                    </div>
-                                                    <button className="btn-soft" onClick={() => addToCartLine(it.name, it.priceCents)}>
-                                                        Ajouter à {activePerson}
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </article>
+                                    <button
+                                        key={pid}
+                                        className={`px-3 py-1 rounded-full border transition ${isActive
+                                                ? "border-transparent bg-[var(--color-accent)] text-white"
+                                                : "border-[var(--color-border)] bg-[var(--color-surface-strong)]"
+                                            }`}
+                                        onClick={() => setActivePerson(pid)}
+                                        title={`Convive ${pid}`}
+                                    >
+                                        {displayName}
+                                    </button>
                                 );
                             })}
-                    </>
-                )}
-            </section>
-
-            {hasCartItems && !cartDrawerOpen && (
-                <button
-                    className="sm:hidden fixed bottom-5 right-5 z-50 rounded-full bg-[var(--color-accent)] text-white px-4 py-3 shadow-elevated flex items-center gap-2"
-                    onClick={openCartDrawer}
-                >
-                    <span className="font-semibold">Panier</span>
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-[var(--color-accent)] text-xs font-bold">
-                        {cartItemCount}
-                    </span>
-                </button>
-            )}
-        </main>
-
-        {composeState && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                <div className="surface-card w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-elevated">
-                    <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-xl font-semibold">Composer {composeState.menu.name}</h3>
-                        <span className="text-sm surface-muted-text">Total menu&nbsp;: {euro(composeState.menu.priceCents)}</span>
-                    </div>
-
-                    {(() => {
-                        const summary = composeState.steps
-                            .map((step) => {
-                                const selectedIds = composeState.selectionMap[step.group.id] ?? [];
-                                const items = selectedIds
-                                    .map((id) => menuItemMap.get(id))
-                                    .filter((it): it is MenuItem => Boolean(it));
-                                if (!items.length) return null;
-                                return {
-                                    id: step.group.id,
-                                    name: step.group.name,
-                                    value: items.map((it) => it.name).join(step.multi ? " + " : ", "),
-                                };
-                            })
-                            .filter(Boolean) as { id: string; name: string; value: string }[];
-                        if (!summary.length) return null;
-                        return (
-                            <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
-                                {summary.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between gap-2">
-                                        <span className="font-medium">{item.name}</span>
-                                        <span className="surface-muted-text">{item.value}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })()}
-
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-                        {composeState.steps.map((step) => {
-                            const selectedIds = composeState.selectionMap[step.group.id] ?? [];
-                            const instruction = requirementText(step);
-                            const error = composeErrors[step.group.id];
-
-                            return (
-                                <section
-                                    key={step.group.id}
-                                    className={`rounded-xl border px-4 py-3 space-y-2 ${
-                                        error ? "border-red-400 bg-red-50/60" : "border-[var(--color-border)] bg-[var(--color-surface)]"
-                                    }`}
-                                >
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="font-medium">{step.group.name}</div>
-                                        <span className="text-xs surface-muted-text uppercase tracking-[0.18em]">
-                                            {step.displayCategory || step.group.categoryFilter}
-                                        </span>
-                                    </div>
-                                    {step.xorKey && (
-                                        <p className="text-xs font-medium text-amber-600">
-                                            Choisissez UNE entrée OU UNE paire de yakitoris.
-                                        </p>
-                                    )}
-
-                                    {step.options.length === 0 ? (
-                                        <div className="text-xs surface-muted-text">
-                                            Aucun plat trouvé pour cette étape. Contactez le serveur.
-                                        </div>
-                                    ) : step.multi ? (
-                                        <div className="space-y-2">
-                                            {step.options.map((opt) => {
-                                                const checked = selectedIds.includes(opt.id);
-                                                return (
-                                                    <label
-                                                        key={opt.id}
-                                                        className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm"
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={checked}
-                                                            onChange={() => handleCheckboxToggle(step, opt.id)}
-                                                            className="w-4 h-4"
-                                                        />
-                                                        <span className="flex-1">
-                                                            {step.includeCategory
-                                                                ? `${opt.name} — ${opt.category}`
-                                                                : opt.name}
-                                                        </span>
-                                                    </label>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <select
-                                            value={selectedIds[0] ?? ""}
-                                            onChange={(e) => handleSingleSelect(step, e.target.value || null)}
-                                            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                                        >
-                                            <option value="">— Sélectionner —</option>
-                                            {step.options.map((opt) => (
-                                                <option key={opt.id} value={opt.id}>
-                                                    {step.includeCategory ? `${opt.name} — ${opt.category}` : opt.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
-
-                                    <p className="text-xs surface-muted-text">{instruction}</p>
-                                    {error && <p className="text-xs text-red-600">{error}</p>}
-                                </section>
-                            );
-                        })}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                        <div className="text-sm surface-muted-text">
-                            Ajouté pour <span className="font-semibold">{activePerson}</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <button className="btn-ghost" onClick={cancelCompose}>
-                                Annuler
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                className="btn-soft"
+                                type="button"
+                                onClick={() => setShowGuestNameEditor((value) => !value)}
+                            >
+                                {showGuestNameEditor ? "Fermer" : "Nommer les convives"}
+                            </button>
+                            <button
+                                className="btn-ghost text-xs"
+                                type="button"
+                                onClick={resetGuestNamesState}
+                            >
+                                Réinitialiser convives
+                            </button>
+                        </div>
+                    </div>
+
+                    {showGuestNameEditor ? (
+                        <div className="mt-4 rounded-2xl border border-[rgba(190,127,57,0.18)] bg-[rgba(255,252,247,0.72)] px-4 py-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold text-[var(--color-heading)] uppercase tracking-[0.16em]">
+                                    Noms des convives
+                                </h3>
+                                <span className="text-xs surface-muted-text">16 caractères max</span>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                                {personIds.map((pid, idx) => {
+                                    const index = idx + 1;
+                                    const key = String(index);
+                                    const value = guestNames[key] ?? "";
+                                    const placeholder = guestNameFallback(index);
+                                    return (
+                                        <label key={pid} className="flex flex-col gap-1 text-sm">
+                                            <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
+                                                Convive {index}
+                                            </span>
+                                            <input
+                                                value={value}
+                                                onChange={(e) => handleGuestNameChange(index, e.target.value)}
+                                                placeholder={placeholder}
+                                                maxLength={16}
+                                            />
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : null}
+                </header>
+
+                {/* Mini cart bar */}
+                <div className="sticky top-0 z-40">
+                    <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-sm sm:text-base font-semibold">
+                            Panier — {cartItemCount} article(s) — {euro(totalCents)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                className="btn-ghost"
+                                onClick={clearEntireCart}
+                                disabled={!hasCartItems}
+                            >
+                                Vider
                             </button>
                             <button
                                 className="btn-primary"
-                                onClick={confirmCompose}
-                                disabled={Object.keys(composeErrors).length > 0}
+                                onClick={openCartDrawer}
+                                disabled={!hasCartItems}
                             >
-                                Ajouter ({euro(composeState.menu.priceCents)})
+                                Ouvrir
                             </button>
                         </div>
                     </div>
                 </div>
-            </div>
-        )}
 
-        {cartDrawerOpen && (
-            <div className="fixed inset-0 z-40 flex">
-                <div className="absolute inset-0 bg-black/40" onClick={closeCartDrawer} />
-                <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated">
-                    <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-                        <div>
-                            <div className="text-lg font-semibold">Mon panier</div>
-                            <div className="text-xs surface-muted-text">{cartItemCount} article(s) — {euro(totalCents)}</div>
-                        </div>
-                        <button className="btn-ghost" onClick={closeCartDrawer}>
-                            Fermer
-                        </button>
-                    </header>
-
-                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium" htmlFor="cart-comment">
-                                Commentaire (optionnel)
-                            </label>
-                            <textarea
-                                id="cart-comment"
-                                value={tableComment ?? ""}
-                                onChange={(e) => setTableComment(e.target.value)}
-                                rows={3}
-                                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm"
-                                placeholder="Allergies, cuisson, etc."
-                            />
-                        </div>
-
-                        {personIds.map((pid) => {
-                            const lines = cartByPerson.get(pid) ?? [];
-                            const subtotal = lines.reduce((s, l) => s + l.priceCents * l.qty, 0);
-                            const count = lines.reduce((s, l) => s + l.qty, 0);
-                            const expanded = expandedPersons.has(pid);
-                            return (
-                                <div key={pid} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-strong)]">
-                                    <button
-                                        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-                                        onClick={() => togglePersonPanel(pid)}
-                                    >
-                                        <div>
-                                            <div className="font-semibold">{pid}</div>
-                                            <div className="text-xs surface-muted-text">
-                                                {count} article(s) — {euro(subtotal)}
-                                            </div>
-                                        </div>
-                                        <span className="text-lg font-semibold">
-                                            {expanded ? "−" : "+"}
-                                        </span>
-                                    </button>
-                                    {expanded && (
-                                        <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
-                                            <div className="flex items-center justify-between text-xs surface-muted-text">
-                                                <span>
-                                                    Sous-total&nbsp;{euro(subtotal)}
-                                                </span>
-                                                <button
-                                                    className="btn-ghost text-xs"
-                                                    onClick={() => clearPersonCart(pid)}
-                                                    disabled={lines.length === 0}
-                                                >
-                                                    Vider {pid}
-                                                </button>
-                                            </div>
-                                            {lines.length === 0 ? (
-                                                <div className="text-sm surface-muted-text">Aucun plat pour {pid}.</div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    {lines.map((line) => (
-                                                        <div
-                                                            key={`${line.personId}:${line.id}`}
-                                                            className="flex items-start justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
-                                                        >
-                                                            <div className="flex-1">
-                                                                <div className="font-medium text-sm leading-snug">{line.name}</div>
-                                                                <div className="text-xs surface-muted-text">{euro(line.priceCents)}</div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <button
-                                                                    className="px-2 py-1 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent-soft)] transition"
-                                                                    onClick={() => decFromCart(line.id, line.personId)}
-                                                                    title="Retirer"
-                                                                >
-                                                                    −
-                                                                </button>
-                                                                <span className="w-8 text-center text-sm font-semibold">{line.qty}</span>
-                                                                <button
-                                                                    className="px-2 py-1 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent-soft)] transition"
-                                                                    onClick={() => addToCartLine(line.name, line.priceCents, line.personId)}
-                                                                    title="Ajouter"
-                                                                >
-                                                                    +
-                                                                </button>
-                                                                <button
-                                                                    className="px-2 py-1 rounded-full border border-red-300 text-red-600 hover:bg-red-50 transition"
-                                                                    onClick={() => removeLineFromCart(line.id, line.personId)}
-                                                                    title="Supprimer"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                {/* À la carte */}
+                <section className="space-y-5">
+                    <div className="section-heading mb-0">
+                        <h2 className="section-heading__title text-2xl">À la carte</h2>
+                        <p className="section-heading__subtitle">
+                            Parcourez la carte et ajoutez librement vos envies au panier de la table.
+                        </p>
                     </div>
 
-                    <footer className="px-6 py-4 border-t border-[var(--color-border)] space-y-3">
-                        <div className="flex items-center justify-between font-semibold">
-                            <span>Total</span>
-                            <span>{euro(totalCents)}</span>
+                    {loading ? (
+                        <div className="surface-muted-text">Chargement…</div>
+                    ) : (
+                        <>
+                            {menus.length > 0 && (
+                                <article className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xl font-semibold">Menus chauds à composer</h3>
+                                        <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">Formules guidées</span>
+                                    </div>
+                                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                                        {menus.map((m) => (
+                                            <div key={m.id} className="surface-card px-5 py-5 rounded-2xl flex flex-col gap-3">
+                                                <div>
+                                                    <div className="text-lg font-semibold">{m.name}</div>
+                                                    <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
+                                                </div>
+                                                <button className="btn-primary" onClick={() => composeMenu(m)}>
+                                                    Composer pour {getGuestNameForPersonId(activePerson)}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </article>
+                            )}
+
+                            {Array.from(itemsByCategory.entries())
+                                .filter(([cat]) => !HIDDEN_MENU_CATEGORIES.has(cat))
+                                .map(([cat, list]) => {
+                                    const title = cat === "Boxes" ? "Nos BOX" : cat;
+                                    return (
+                                        <article key={cat} className="space-y-3">
+                                            <h3 className="text-xl font-semibold">{title}</h3>
+                                            <div className="grid sm:grid-cols-2 gap-4">
+                                                {list.map((it) => (
+                                                    <div key={it.id} className="surface-card px-5 py-4 flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <div className="font-medium">{it.name}</div>
+                                                            <div className="surface-muted-text text-sm">{euro(it.priceCents)}</div>
+                                                            {it.description ? (
+                                                                <p className="text-xs surface-muted-text mt-1 max-w-xs">{it.description}</p>
+                                                            ) : null}
+                                                        </div>
+                                                        <button className="btn-soft" onClick={() => addToCartLine(it.name, it.priceCents)}>
+                                                            Ajouter à {getGuestNameForPersonId(activePerson)}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                        </>
+                    )}
+                </section>
+
+                {hasCartItems && !cartDrawerOpen && (
+                    <button
+                        className="sm:hidden fixed bottom-5 right-5 z-50 rounded-full bg-[var(--color-accent)] text-white px-4 py-3 shadow-elevated flex items-center gap-2"
+                        onClick={openCartDrawer}
+                    >
+                        <span className="font-semibold">Panier</span>
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-[var(--color-accent)] text-xs font-bold">
+                            {cartItemCount}
+                        </span>
+                    </button>
+                )}
+            </main>
+
+            {composeState && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="surface-card w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-elevated">
+                        <div className="flex items-start justify-between gap-3">
+                            <h3 className="text-xl font-semibold">Composer {composeState.menu.name}</h3>
+                            <span className="text-sm surface-muted-text">Total menu&nbsp;: {euro(composeState.menu.priceCents)}</span>
                         </div>
-                        <button className="btn-primary w-full" onClick={submitOrder} disabled={!hasCartItems}>
-                            Envoyer la commande
-                        </button>
-                    </footer>
-                </aside>
-            </div>
-        )}
+
+                        {(() => {
+                            const summary = composeState.steps
+                                .map((step) => {
+                                    const selectedIds = composeState.selectionMap[step.group.id] ?? [];
+                                    const items = selectedIds
+                                        .map((id) => menuItemMap.get(id))
+                                        .filter((it): it is MenuItem => Boolean(it));
+                                    if (!items.length) return null;
+                                    return {
+                                        id: step.group.id,
+                                        name: step.group.name,
+                                        value: items.map((it) => it.name).join(step.multi ? " + " : ", "),
+                                    };
+                                })
+                                .filter(Boolean) as { id: string; name: string; value: string }[];
+                            if (!summary.length) return null;
+                            return (
+                                <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
+                                    {summary.map((item) => (
+                                        <div key={item.id} className="flex items-center justify-between gap-2">
+                                            <span className="font-medium">{item.name}</span>
+                                            <span className="surface-muted-text">{item.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                            {composeState.steps.map((step) => {
+                                const selectedIds = composeState.selectionMap[step.group.id] ?? [];
+                                const instruction = requirementText(step);
+                                const error = composeErrors[step.group.id];
+
+                                return (
+                                    <section
+                                        key={step.group.id}
+                                        className={`rounded-xl border px-4 py-3 space-y-2 ${error ? "border-red-400 bg-red-50/60" : "border-[var(--color-border)] bg-[var(--color-surface)]"
+                                            }`}
+                                    >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="font-medium">{step.group.name}</div>
+                                            <span className="text-xs surface-muted-text uppercase tracking-[0.18em]">
+                                                {step.displayCategory || step.group.categoryFilter}
+                                            </span>
+                                        </div>
+                                        {step.xorKey && (
+                                            <p className="text-xs font-medium text-amber-600">
+                                                Choisissez UNE entrée OU UNE paire de yakitoris.
+                                            </p>
+                                        )}
+
+                                        {step.options.length === 0 ? (
+                                            <div className="text-xs surface-muted-text">
+                                                Aucun plat trouvé pour cette étape. Contactez le serveur.
+                                            </div>
+                                        ) : step.multi ? (
+                                            <div className="space-y-2">
+                                                {step.options.map((opt) => {
+                                                    const checked = selectedIds.includes(opt.id);
+                                                    return (
+                                                        <label
+                                                            key={opt.id}
+                                                            className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => handleCheckboxToggle(step, opt.id)}
+                                                                className="w-4 h-4"
+                                                            />
+                                                            <span className="flex-1">
+                                                                {step.includeCategory
+                                                                    ? `${opt.name} — ${opt.category}`
+                                                                    : opt.name}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedIds[0] ?? ""}
+                                                onChange={(e) => handleSingleSelect(step, e.target.value || null)}
+                                                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                                            >
+                                                <option value="">— Sélectionner —</option>
+                                                {step.options.map((opt) => (
+                                                    <option key={opt.id} value={opt.id}>
+                                                        {step.includeCategory ? `${opt.name} — ${opt.category}` : opt.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+
+                                        <p className="text-xs surface-muted-text">{instruction}</p>
+                                        {error && <p className="text-xs text-red-600">{error}</p>}
+                                    </section>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                            <div className="text-sm surface-muted-text">
+                                Ajouté pour <span className="font-semibold">{getGuestNameForPersonId(activePerson)}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button className="btn-ghost" onClick={cancelCompose}>
+                                    Annuler
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    onClick={confirmCompose}
+                                    disabled={Object.keys(composeErrors).length > 0}
+                                >
+                                    Ajouter ({euro(composeState.menu.priceCents)})
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {cartDrawerOpen && (
+                <div className="fixed inset-0 z-40 flex">
+                    <div className="absolute inset-0 bg-black/40" onClick={closeCartDrawer} />
+                    <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated">
+                        <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
+                            <div>
+                                <div className="text-lg font-semibold">Mon panier</div>
+                                <div className="text-xs surface-muted-text">{cartItemCount} article(s) — {euro(totalCents)}</div>
+                            </div>
+                            <button className="btn-ghost" onClick={closeCartDrawer}>
+                                Fermer
+                            </button>
+                        </header>
+
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium" htmlFor="cart-comment">
+                                    Commentaire (optionnel)
+                                </label>
+                                <textarea
+                                    id="cart-comment"
+                                    value={tableComment}
+                                    onChange={(e) => setTableComment(e.target.value)}
+                                    rows={3}
+                                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-3 py-2 text-sm"
+                                    placeholder="Allergies, cuisson, etc."
+                                />
+                            </div>
+
+                            {personIds.map((pid) => {
+                                const lines = cartByPerson.get(pid) ?? [];
+                                const subtotal = lines.reduce((s, l) => s + l.priceCents * l.qty, 0);
+                                const count = lines.reduce((s, l) => s + l.qty, 0);
+                                const expanded = expandedPersons.has(pid);
+                                const displayName = getGuestNameForPersonId(pid);
+                                return (
+                                    <div key={pid} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-strong)]">
+                                        <button
+                                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                                            onClick={() => togglePersonPanel(pid)}
+                                        >
+                                            <div>
+                                                <div className="font-semibold">{displayName}</div>
+                                                <div className="text-xs surface-muted-text">
+                                                    {count} article(s) — {euro(subtotal)}
+                                                </div>
+                                            </div>
+                                            <span className="text-lg font-semibold">
+                                                {expanded ? "−" : "+"}
+                                            </span>
+                                        </button>
+                                        {expanded && (
+                                            <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+                                                <div className="flex items-center justify-between text-xs surface-muted-text">
+                                                    <span>
+                                                        Sous-total&nbsp;{euro(subtotal)}
+                                                    </span>
+                                                    <button
+                                                        className="btn-ghost text-xs"
+                                                        onClick={() => clearPersonCart(pid)}
+                                                        disabled={lines.length === 0}
+                                                    >
+                                                        Vider {displayName}
+                                                    </button>
+                                                </div>
+                                                {lines.length === 0 ? (
+                                                    <div className="text-sm surface-muted-text">Aucun plat pour {displayName}.</div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {lines.map((line) => (
+                                                            <div
+                                                                key={`${line.personId}:${line.id}`}
+                                                                className="flex items-start justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="font-medium text-sm leading-snug">{line.name}</div>
+                                                                    <div className="text-xs surface-muted-text">{euro(line.priceCents)}</div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        className="px-2 py-1 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent-soft)] transition"
+                                                                        onClick={() => decFromCart(line.id, line.personId)}
+                                                                        title="Retirer"
+                                                                    >
+                                                                        −
+                                                                    </button>
+                                                                    <span className="w-8 text-center text-sm font-semibold">{line.qty}</span>
+                                                                    <button
+                                                                        className="px-2 py-1 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent-soft)] transition"
+                                                                        onClick={() => addToCartLine(line.name, line.priceCents, line.personId)}
+                                                                        title="Ajouter"
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                    <button
+                                                                        className="px-2 py-1 rounded-full border border-red-300 text-red-600 hover:bg-red-50 transition"
+                                                                        onClick={() => removeLineFromCart(line.id, line.personId)}
+                                                                        title="Supprimer"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <footer className="px-6 py-4 border-t border-[var(--color-border)] space-y-3">
+                            <div className="flex items-center justify-between font-semibold">
+                                <span>Total</span>
+                                <span>{euro(totalCents)}</span>
+                            </div>
+                            <button className="btn-primary w-full" onClick={submitOrder} disabled={!hasCartItems}>
+                                Envoyer la commande
+                            </button>
+                        </footer>
+                    </aside>
+                </div>
+            )}
         </>
     );
 }

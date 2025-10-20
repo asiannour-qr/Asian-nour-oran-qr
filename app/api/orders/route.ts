@@ -1,6 +1,11 @@
 // app/api/orders/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
+import { getGuestNames, storeGuestNames } from "@/lib/guest-names-store";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type IncomingItem = {
     name: string;
@@ -10,12 +15,28 @@ type IncomingItem = {
 };
 
 export async function GET() {
-    // simple liste (si utile)
     const orders = await prisma.order.findMany({
         orderBy: { createdAt: "desc" },
         include: { items: true },
     });
-    return NextResponse.json({ orders });
+    const withGuestNames = orders.map((order) => ({
+        ...order,
+        guestNames: getGuestNames(order.id),
+    }));
+    const res = NextResponse.json({ orders: withGuestNames });
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    return res;
+}
+
+function maxGuestIndexFromItems(items: { personId: string | null | undefined }[]): number {
+    return items.reduce((max, item) => {
+        if (!item.personId) return max;
+        const match = /^P?(\d+)$/i.exec(item.personId);
+        if (!match) return max;
+        const value = Number(match[1]);
+        if (!Number.isInteger(value) || value <= 0) return max;
+        return Math.max(max, value);
+    }, 0);
 }
 
 export async function POST(req: Request) {
@@ -52,6 +73,14 @@ export async function POST(req: Request) {
         const computedTotal = resolved.reduce((s, r) => s + r.price * r.qty, 0);
         const total = Number.isFinite(Number(body?.total)) ? Math.max(computedTotal, Number(body.total)) : computedTotal;
 
+        const maxGuestIndex = Math.max(
+            maxGuestIndexFromItems(resolved),
+            Number.isFinite(Number(body?.peopleCount)) ? Math.max(0, Number(body.peopleCount)) : 0
+        );
+        const sanitizedGuestNames = sanitizeGuestNamesRecord(body?.guestNames, {
+            count: maxGuestIndex || undefined,
+        });
+
         const created = await prisma.order.create({
             data: {
                 tableId,
@@ -71,7 +100,14 @@ export async function POST(req: Request) {
             include: { items: true },
         });
 
-        return NextResponse.json({ status: "ok", order: created }, { status: 201 });
+        storeGuestNames(created.id, sanitizedGuestNames);
+
+        const res = NextResponse.json(
+            { status: "ok", order: { ...created, guestNames: sanitizedGuestNames } },
+            { status: 201 }
+        );
+        res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        return res;
     } catch (e: any) {
         return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
     }
@@ -91,7 +127,7 @@ export async function PATCH(req: Request) {
             include: { items: true },
         });
 
-        return NextResponse.json({ status: "ok", order: updated });
+        return NextResponse.json({ status: "ok", order: { ...updated, guestNames: getGuestNames(updated.id) } });
     } catch (e: any) {
         return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
     }

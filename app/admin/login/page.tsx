@@ -6,10 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 export default function AdminLoginPage() {
     const router = useRouter();
     const sp = useSearchParams();
-    const next = sp.get("next") || "/admin";
+    const next = sp.get("next") || "/admin/qr";
 
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
+    const [username, setUsername] = useState("asian");
+    const [password, setPassword] = useState("nour123!");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -21,11 +21,12 @@ export default function AdminLoginPage() {
             const res = await fetch("/api/admin/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ user: username, username, password }),
+                body: JSON.stringify({ user: username, pass: password }),
             });
-            const data = await res.json();
-            if (!res.ok || !data?.ok) {
-                setError(data?.error || data?.message || "Échec de connexion");
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => null);
+                setError(data?.error || "Identifiants invalides");
             } else {
                 router.replace(next);
                 router.refresh();

@@ -1,310 +1,404 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import {
+  AdminMenu,
+  AdminMenuGroup,
+  AdminMenuItem,
+  MenuComposerDrawer,
+} from "./MenuComposerDrawer";
 
-type MenuGroupDraft = {
-    name: string;
-    categoryFilter: string;
-    minChoices: number;
-    maxChoices: number;
-    position: number;
-};
+type LoadedMenu = AdminMenu & { id: string; groups: AdminMenuGroup[] };
 
-type Menu = {
-    id: string;
-    name: string;
-    priceCents: number;
-    active: boolean;
-    position: number;
-    groups: {
-        id: string;
-        name: string;
-        categoryFilter: string;
-        minChoices: number;
-        maxChoices: number;
-        position: number;
-    }[];
-};
+function normalizeMenu(menu: any): LoadedMenu {
+  const groups: AdminMenuGroup[] = Array.isArray(menu?.groups)
+    ? menu.groups
+        .map((g: any) => ({
+          id: g?.id ?? undefined,
+          name: String(g?.name ?? "").trim(),
+          categoryFilter: String(g?.categoryFilter ?? "").trim(),
+          minChoices: Number.isFinite(Number(g?.minChoices))
+            ? Math.max(0, Math.round(Number(g.minChoices)))
+            : 0,
+          maxChoices: Number.isFinite(Number(g?.maxChoices))
+            ? Math.max(0, Math.round(Number(g.maxChoices)))
+            : 0,
+          position: Number.isFinite(Number(g?.position)) ? Math.round(Number(g.position)) : 0,
+        }))
+        .sort((a, b) => a.position - b.position)
+    : [];
+
+  return {
+    id: String(menu?.id ?? ""),
+    name: String(menu?.name ?? ""),
+    priceCents: Number.isFinite(Number(menu?.priceCents)) ? Number(menu.priceCents) : 0,
+    active: Boolean(menu?.active ?? true),
+    position: Number.isFinite(Number(menu?.position)) ? Number(menu.position) : 0,
+    groups,
+  };
+}
 
 function euro(cents: number) {
-    return (cents / 100).toFixed(2).replace(".", ",") + " €";
+  return (cents / 100).toFixed(2).replace(".", ",") + " €";
 }
 
 export default function AdminMenusPage() {
-    const [menus, setMenus] = useState<Menu[]>([]);
-    const [loading, setLoading] = useState(true);
+  const LIMIT = 50;
+  const [menus, setMenus] = useState<LoadedMenu[]>([]);
+  const [menusLoading, setMenusLoading] = useState(true);
+  const [menuItems, setMenuItems] = useState<AdminMenuItem[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-    // brouillon de création
-    const [name, setName] = useState("Formule Midi");
-    const [price, setPrice] = useState("13,90");
-    const [position, setPosition] = useState<number>(0);
-    const [active, setActive] = useState(true);
-    const [groups, setGroups] = useState<MenuGroupDraft[]>([
-        { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1, position: 1 },
-        { name: "Yakitori", categoryFilter: "Yakitoris (2 pièces)", minChoices: 1, maxChoices: 1, position: 2 },
-        { name: "Plat", categoryFilter: "Plats", minChoices: 1, maxChoices: 1, position: 3 }
-    ]);
+  const [meta, setMeta] = useState({
+    total: 0,
+    limit: LIMIT,
+    offset: 0,
+    count: 0,
+    hasNext: false,
+  });
 
-    async function load() {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/menus", { cache: "no-store" });
-            const data = await res.json();
-            setMenus(data.menus ?? []);
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur chargement menus");
-        } finally {
-            setLoading(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
+  const [drawerInitial, setDrawerInitial] = useState<LoadedMenu | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  async function loadMenuItems() {
+    setItemsLoading(true);
+    try {
+      const res = await fetch("/api/menu?all=1", { cache: "no-store" });
+      const data = await res.json();
+      const items: AdminMenuItem[] = Array.isArray(data?.items)
+        ? data.items.map((item: any) => ({
+            id: String(item?.id ?? ""),
+            name: String(item?.name ?? ""),
+            category: String(item?.category ?? ""),
+            priceCents: Number.isFinite(Number(item?.priceCents)) ? Number(item.priceCents) : 0,
+          }))
+        : [];
+      setMenuItems(items);
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur chargement plats");
+    } finally {
+      setItemsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMenuItems();
+  }, []);
+
+  useEffect(() => {
+    void loadMenus({ offset: 0, query: debouncedSearch });
+  }, [debouncedSearch]);
+
+  const composedMenus = useMemo(() => menus, [menus]);
+
+  async function loadMenus(args?: { offset?: number; query?: string }) {
+    const currentQuery = args?.query ?? debouncedSearch;
+    const requestedOffset = Math.max(0, args?.offset ?? meta.offset ?? 0);
+    setMenusLoading(true);
+    try {
+      const params = new URLSearchParams({
+        admin: "1",
+        composed: "1",
+        withGroups: "1",
+        limit: String(LIMIT),
+        offset: String(requestedOffset),
+      });
+      if (currentQuery) {
+        params.set("query", currentQuery);
+      }
+
+      const res = await fetch(`/api/menus?${params.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      const list: LoadedMenu[] = Array.isArray(data?.menus)
+        ? data.menus.map(normalizeMenu)
+        : [];
+      const total = Number.isFinite(Number(data?.meta?.total)) ? Number(data.meta.total) : list.length;
+
+      if (list.length === 0 && total > 0 && requestedOffset > 0) {
+        const lastOffset = Math.max(0, Math.floor((total - 1) / LIMIT) * LIMIT);
+        if (lastOffset !== requestedOffset) {
+          return loadMenus({ offset: lastOffset, query: currentQuery });
         }
+      }
+
+      setMenus(list);
+      setMeta({
+        total,
+        limit: LIMIT,
+        offset: requestedOffset,
+        count: list.length,
+        hasNext: data?.meta?.hasNext ?? requestedOffset + list.length < total,
+      });
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur chargement menus");
+    } finally {
+      setMenusLoading(false);
     }
+  }
 
-    useEffect(() => { load(); }, []);
+  function openCreate() {
+    setDrawerMode("create");
+    setDrawerInitial(null);
+    setDrawerOpen(true);
+  }
 
-    function addGroup() {
-        setGroups(prev => [
-            ...prev,
-            {
-                name: `Groupe ${prev.length + 1}`,
-                categoryFilter: "Entrées",
-                minChoices: 1,
-                maxChoices: 1,
-                position: prev.length + 1
-            }
-        ]);
+  function openEdit(menu: LoadedMenu) {
+    setDrawerMode("edit");
+    setDrawerInitial(menu);
+    setDrawerOpen(true);
+  }
+
+  function handleDrawerClose() {
+    setDrawerOpen(false);
+  }
+
+  async function duplicateMenu(menu: LoadedMenu) {
+    setDuplicatingId(menu.id);
+    try {
+      const body = { fromId: menu.id };
+      const res = await fetch("/api/menus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.menu) {
+        throw new Error(data?.message || "Duplication impossible");
+      }
+      const duplicated = normalizeMenu(data.menu);
+      toast.success("Menu dupliqué");
+      openEdit(duplicated);
+      void loadMenus({ offset: meta.offset, query: debouncedSearch });
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur duplication");
+    } finally {
+      setDuplicatingId(null);
     }
+  }
 
-    function removeGroup(idx: number) {
-        setGroups(prev => prev.filter((_, i) => i !== idx));
+  async function toggleActive(menu: LoadedMenu) {
+    setTogglingId(menu.id);
+    try {
+      const res = await fetch(`/api/menus/${menu.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !menu.active }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.menu) {
+        throw new Error(data?.message || "Mise à jour impossible");
+      }
+      toast.success(`Menu ${data.menu?.active ? "activé" : "mis en pause"}`);
+      await loadMenus({ offset: meta.offset, query: debouncedSearch });
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur de mise à jour");
+    } finally {
+      setTogglingId(null);
     }
+  }
 
-    function updateGroup<T extends keyof MenuGroupDraft>(idx: number, key: T, val: MenuGroupDraft[T]) {
-        setGroups(prev => {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], [key]: val };
-            return copy;
-        });
+  async function deleteMenu(menu: LoadedMenu) {
+    if (!confirm(`Supprimer définitivement « ${menu.name} » ?`)) return;
+    setDeletingId(menu.id);
+    try {
+      const res = await fetch(`/api/menus/${menu.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || "Suppression impossible");
+      }
+      toast.success("Menu supprimé");
+      await loadMenus({ offset: meta.offset, query: debouncedSearch });
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur de suppression");
+    } finally {
+      setDeletingId(null);
     }
+  }
 
-    async function createMenu() {
-        try {
-            const body = {
-                name: name.trim(),
-                price: Number(String(price).replace(",", ".")),
-                position,
-                active,
-                groups
-            };
-            const res = await fetch("/api/menus", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Création échouée");
-            toast.success("Menu créé !");
-            setName("Formule Midi");
-            setPrice("13,90");
-            setPosition(0);
-            setActive(true);
-            setGroups([
-                { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1, position: 1 },
-                { name: "Yakitori", categoryFilter: "Yakitoris (2 pièces)", minChoices: 1, maxChoices: 1, position: 2 },
-                { name: "Plat", categoryFilter: "Plats", minChoices: 1, maxChoices: 1, position: 3 }
-            ]);
-            await load();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur création menu");
-        }
-    }
+  const hasPrev = meta.offset > 0;
+  const hasNext = meta.hasNext;
+  const start = meta.total === 0 ? 0 : meta.offset + 1;
+  const end = meta.offset + menus.length;
 
-    async function toggleActive(menu: Menu) {
-        try {
-            const res = await fetch(`/api/menus/${menu.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ active: !menu.active })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Mise à jour échouée");
-            toast.success(`Menu ${!menu.active ? "activé" : "désactivé"}`);
-            await load();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur mise à jour");
-        }
-    }
+  function goToPrev() {
+    if (!hasPrev || menusLoading) return;
+    const nextOffset = Math.max(0, meta.offset - meta.limit);
+    void loadMenus({ offset: nextOffset, query: debouncedSearch });
+  }
 
-    async function removeMenu(id: string) {
-        if (!confirm("Supprimer ce menu ?")) return;
-        try {
-            const res = await fetch(`/api/menus/${id}`, { method: "DELETE" });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.message || "Suppression échouée");
-            toast.success("Menu supprimé");
-            await load();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur suppression");
-        }
-    }
+  function goToNext() {
+    if (!hasNext || menusLoading) return;
+    const nextOffset = meta.offset + meta.limit;
+    void loadMenus({ offset: nextOffset, query: debouncedSearch });
+  }
 
-    return (
-        <main className="page-shell space-y-8">
-            <Toaster position="top-right" />
+  return (
+    <main className="page-shell space-y-8">
+      <Toaster position="top-right" />
 
-            <header className="section-heading">
-                <span className="chip">Menus composables</span>
-                <h1 className="section-heading__title">Créer et orchestrer vos formules</h1>
-                <p className="section-heading__subtitle">
-                    Assemblez vos menus à partir des catégories existantes et définissez les règles de choix pour
-                    vos convives. Chaque menu peut être activé ou désactivé à la volée.
-                </p>
-            </header>
+      <header className="section-heading">
+        <span className="chip">Menus composés</span>
+        <h1 className="section-heading__title">Gestion des menus composables</h1>
+        <p className="section-heading__subtitle">
+          Créez des formules guidées (entrée, plat, boisson…) en réutilisant vos plats existants. Les menus créés ici
+          sont immédiatement disponibles pour vos clients et la cuisine sans modification supplémentaire.
+        </p>
+      </header>
 
-            {/* Création */}
-            <section className="surface-card-strong px-6 py-6 space-y-6">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <h2 className="text-xl font-semibold">Créer un menu</h2>
-                        <p className="surface-muted-text text-sm">
-                            Définissez les informations principales puis composez les groupes d’options.
-                        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button className="btn-primary" onClick={openCreate} disabled={menusLoading}>
+          Nouveau menu composé
+        </button>
+        <div className="flex items-center gap-3">
+          <label className="text-sm surface-muted-text">Recherche</label>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Ex : Royal, Midi, Boisson"
+            className="w-56"
+          />
+        </div>
+      </div>
+
+      <section className="surface-card px-6 py-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Menus composés</h2>
+          <span className="text-sm surface-muted-text">
+            {menusLoading ? "Chargement…" : `${meta.total} menu(s) composés`}
+          </span>
+        </div>
+
+        {menusLoading ? (
+          <p className="surface-muted-text">Chargement des menus…</p>
+        ) : composedMenus.length === 0 ? (
+          <div className="surface-muted-text text-sm">
+            Aucun menu composé pour le moment. Créez-en un via le bouton ci-dessus ou dupliquez un menu existant.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {composedMenus.map((menu) => (
+              <article
+                key={menu.id}
+                className="surface-panel px-5 py-5 rounded-2xl border border-[rgba(120,110,98,0.14)] space-y-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-semibold">{menu.name}</h3>
+                      <span className="chip text-xs">Menu</span>
+                      {!menu.active && (
+                        <span className="px-2 py-1 rounded-full text-xs bg-[rgba(190,127,57,0.15)] text-[var(--color-heading)]">
+                          En pause
+                        </span>
+                      )}
                     </div>
-                    <button onClick={createMenu} className="btn-primary">
-                        Créer le menu
+                    <p className="text-sm surface-muted-text">
+                      {euro(menu.priceCents)} · Position {menu.position}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="btn-soft"
+                      onClick={() => openEdit(menu)}
+                    >
+                      Éditer
                     </button>
+                    <button
+                      className="btn-soft"
+                      onClick={() => duplicateMenu(menu)}
+                      disabled={duplicatingId === menu.id}
+                    >
+                      {duplicatingId === menu.id ? "Duplication…" : "Dupliquer"}
+                    </button>
+                    <button
+                      className="btn-soft"
+                      onClick={() => toggleActive(menu)}
+                      disabled={togglingId === menu.id}
+                    >
+                      {menu.active ? "Mettre en pause" : "Activer"}
+                    </button>
+                    <button
+                      className="btn-ghost"
+                      onClick={() => deleteMenu(menu)}
+                      disabled={deletingId === menu.id}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-5">
-                    <input
-                        placeholder="Nom du menu"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="md:col-span-2"
-                    />
-                    <input
-                        placeholder="Prix (€)"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                    />
-                    <input
-                        type="number"
-                        placeholder="Position"
-                        value={position}
-                        onChange={(e) => setPosition(Number(e.target.value))}
-                    />
-                    <label className="flex items-center gap-2 text-sm font-medium surface-muted-text">
-                        <input
-                            type="checkbox"
-                            checked={active}
-                            onChange={(e) => setActive(e.target.checked)}
-                            className="w-4 h-4"
-                        />
-                        Actif
-                    </label>
-                </div>
-
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">Groupes d’options</h3>
-                        <button onClick={addGroup} className="btn-soft">
-                            + Ajouter un groupe
-                        </button>
-                    </div>
-
-                    <div className="space-y-3">
-                        {groups.map((g, i) => (
-                            <div key={i} className="surface-panel px-4 py-4 grid gap-3 md:grid-cols-6 items-end">
-                                <input
-                                    placeholder="Nom du groupe"
-                                    value={g.name}
-                                    onChange={(e) => updateGroup(i, "name", e.target.value)}
-                                    className="md:col-span-2"
-                                />
-                                <input
-                                    placeholder='Catégorie (ex: "Entrées")'
-                                    value={g.categoryFilter}
-                                    onChange={(e) => updateGroup(i, "categoryFilter", e.target.value)}
-                                    className="md:col-span-2"
-                                />
-                                <input
-                                    type="number"
-                                    placeholder="Min"
-                                    value={g.minChoices}
-                                    onChange={(e) => updateGroup(i, "minChoices", Number(e.target.value))}
-                                />
-                                <input
-                                    type="number"
-                                    placeholder="Max"
-                                    value={g.maxChoices}
-                                    onChange={(e) => updateGroup(i, "maxChoices", Number(e.target.value))}
-                                />
-                                <input
-                                    type="number"
-                                    placeholder="Position"
-                                    value={g.position}
-                                    onChange={(e) => updateGroup(i, "position", Number(e.target.value))}
-                                />
-                                <div className="flex justify-end md:col-span-1">
-                                    <button onClick={() => removeGroup(i)} className="btn-ghost">
-                                        Supprimer
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Liste */}
-            <section className="surface-card px-6 py-6 space-y-4">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Menus existants</h2>
-                    <span className="surface-muted-text text-sm">
-                        {loading ? "Chargement…" : `${menus.length} menu(s) configuré(s)`}
-                    </span>
-                </div>
-
-                {loading ? (
-                    <div className="surface-muted-text">Chargement…</div>
-                ) : menus.length === 0 ? (
-                    <div className="surface-muted-text">Aucun menu pour le moment.</div>
-                ) : (
-                    <div className="flex flex-col gap-4">
-                        {menus.map((m) => (
-                            <article key={m.id} className="surface-panel px-5 py-5 space-y-3">
-                                <div className="flex flex-wrap items-center justify-between gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-semibold">
-                                            {m.name} • <span className="surface-muted-text">{euro(m.priceCents)}</span>
-                                        </h3>
-                                        <p className="text-xs uppercase tracking-[0.32em] surface-muted-text">
-                                            Position {m.position} · {m.active ? "Actif" : "Inactif"}
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={() => toggleActive(m)} className="btn-soft">
-                                            {m.active ? "Mettre en pause" : "Activer"}
-                                        </button>
-                                        <button onClick={() => removeMenu(m.id)} className="btn-ghost">
-                                            Supprimer
-                                        </button>
-                                    </div>
-                                </div>
-                                {m.groups?.length > 0 && (
-                                    <ul className="space-y-1 text-sm">
-                                        {m.groups.map((g) => (
-                                            <li key={g.id} className="surface-muted-text">
-                                                • <span className="font-medium text-[var(--color-heading)]">{g.name}</span>{" "}
-                                                — {g.categoryFilter} (min {g.minChoices}, max {g.maxChoices})
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </article>
-                        ))}
-                    </div>
+                {menu.groups.length > 0 && (
+                  <ul className="space-y-1 text-sm surface-muted-text">
+                    {menu.groups.map((group) => (
+                      <li key={group.id ?? `${menu.id}-${group.name}-${group.position}`}>
+                        • <span className="font-medium text-[var(--color-heading)]">{group.name}</span> —{" "}
+                        {group.categoryFilter} (min {group.minChoices}, max {group.maxChoices})
+                      </li>
+                    ))}
+                  </ul>
                 )}
-            </section>
-        </main>
-    );
+              </article>
+            ))}
+          </div>
+        )}
+
+        {meta.total > meta.limit && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(120,110,98,0.15)] pt-4">
+            <span className="text-sm surface-muted-text">
+              Affichage {start}-{end} sur {meta.total}
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="btn-soft"
+                onClick={goToPrev}
+                disabled={!hasPrev || menusLoading}
+              >
+                Précédent
+              </button>
+              <button
+                className="btn-soft"
+                onClick={goToNext}
+                disabled={!hasNext || menusLoading}
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {drawerOpen && (
+        <MenuComposerDrawer
+          open={drawerOpen}
+          mode={drawerMode}
+          initialMenu={drawerInitial ?? undefined}
+          menuItems={menuItems}
+          onClose={handleDrawerClose}
+          onSaved={() => {
+            void loadMenus({ offset: meta.offset, query: debouncedSearch });
+          }}
+        />
+      )}
+
+      {itemsLoading && (
+        <p className="text-xs surface-muted-text">
+          Chargement des plats disponibles…
+        </p>
+      )}
+    </main>
+  );
 }

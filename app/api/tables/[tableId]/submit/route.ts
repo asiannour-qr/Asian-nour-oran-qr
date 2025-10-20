@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { clearCart, getCart } from "@/lib/cart";
+import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
+import { storeGuestNames } from "@/lib/guest-names-store";
 import { z } from "zod";
 
 /** Validation stricte du corps */
@@ -17,6 +19,7 @@ const BodySchema = z.object({
             })
         )
         .min(1, "Il faut au moins 1 item"),
+    guestNames: z.record(z.string()).optional(),
 });
 
 function sanitizePeopleCount(value: unknown): number | undefined {
@@ -50,6 +53,17 @@ function sanitizeItem(raw: any) {
         ...(price !== undefined ? { price } : {}),
         personId: personIdText,
     };
+}
+
+function maxGuestIndexFromItems(items: { personId: string | null | undefined }[]): number {
+    return items.reduce((max, item) => {
+        if (!item.personId) return max;
+        const match = /^P?(\d+)$/i.exec(item.personId);
+        if (!match) return max;
+        const value = Number(match[1]);
+        if (!Number.isInteger(value) || value <= 0) return max;
+        return Math.max(max, value);
+    }, 0);
 }
 
 export async function POST(
@@ -90,6 +104,17 @@ export async function POST(
             )
             .filter((it: { name: string; qty: number }) => it.name && it.qty > 0);
 
+        const maxGuestIndex = Math.max(
+            maxGuestIndexFromItems(bodyItems),
+            maxGuestIndexFromItems(fallbackItems),
+            Number.isFinite(Number(peopleFromBody)) ? Number(peopleFromBody) : 0,
+            Number.isFinite(Number(cartSnapshot.peopleCount)) ? Number(cartSnapshot.peopleCount) : 0
+        );
+
+        const sanitizedGuestNames = sanitizeGuestNamesRecord(raw?.guestNames, {
+            count: maxGuestIndex || undefined,
+        });
+
         const payload = {
             tableComment: hasTableCommentField
                 ? tableCommentFromBody ?? null
@@ -97,6 +122,7 @@ export async function POST(
             peopleCount:
                 peopleFromBody ?? sanitizePeopleCount(cartSnapshot.peopleCount),
             items: bodyItems.length > 0 ? bodyItems : fallbackItems,
+            guestNames: sanitizedGuestNames,
         };
 
         const parsed = BodySchema.safeParse(payload);
@@ -112,7 +138,7 @@ export async function POST(
             );
         }
 
-        const { items, tableComment, peopleCount } = parsed.data;
+        const { items, tableComment, peopleCount, guestNames } = parsed.data;
 
         if (items.length === 0) {
             return NextResponse.json(
@@ -143,6 +169,7 @@ export async function POST(
             select: { id: true },
         });
 
+        storeGuestNames(order.id, guestNames);
         clearCart(tableId);
 
         return NextResponse.json({ ok: true, id: order.id });

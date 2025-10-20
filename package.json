@@ -3,11 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "./node_modules/.bin/next dev -p ${PORT:-3000}",
+    "dev": "./node_modules/.bin/next dev -H 127.0.0.1 -p ${PORT:-3000}",
+    "kill:3000": "lsof -ti :3000 | xargs kill -9 || true",
+    "dev:3000": "npm run kill:3000 && PORT=3000 ./node_modules/.bin/next dev -H 127.0.0.1 -p 3000",
+    "dev:3001": "./node_modules/.bin/next dev -H 127.0.0.1 -p 3001",
+    "dev:free": "./node_modules/.bin/next dev -H 127.0.0.1 -p 0",
+    "dev:auto": "node scripts/dev-auto.mjs",
     "build": "./node_modules/.bin/next build",
     "start": "./node_modules/.bin/next start -p ${PORT:-3000}",
     "preflight": "npm run typecheck && npm run prisma:validate && npm run build",
-    "typecheck": "tsc --noEmit",
+    "lint": "./node_modules/.bin/next lint",
+    "typecheck": "./node_modules/.bin/tsc --noEmit",
+    "verify": "npm run typecheck && npm run lint && npm run build",
+    "precommit": "npm run typecheck && npm run lint",
     "prisma:validate": "./node_modules/.bin/prisma validate",
     "prisma:generate": "./node_modules/.bin/prisma generate",
     "prisma:pull": "./node_modules/.bin/prisma db pull",
@@ -20,31 +28,31 @@
   "dependencies": {
     "@prisma/client": "5.18.0",
     "clsx": "2.1.1",
-    "dotenv": "^17.2.3",
+    "dotenv": "17.2.3",
     "next": "14.2.33",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-hot-toast": "^2.6.0",
+    "react-hot-toast": "2.6.0",
     "styled-jsx": "5.1.1",
     "zod": "3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
-    "@types/qrcode": "^1.5.5",
+    "@types/node": "20.11.30",
+    "@types/qrcode": "1.5.5",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "10.4.21",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.5",
-    "postcss": "^8.5.6",
+    "postcss": "8.5.6",
     "prettier": "3.3.3",
     "prisma": "5.18.0",
-    "qrcode": "^1.5.4",
-    "tailwindcss": "^3.4.18",
+    "qrcode": "1.5.4",
+    "tailwindcss": "3.4.18",
     "ts-node": "10.9.2",
     "typescript": "5.4.5"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
   }
 }

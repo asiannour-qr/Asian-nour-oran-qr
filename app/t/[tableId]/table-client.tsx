@@ -148,9 +148,10 @@ export default function TableClient() {
       }
 
       if (!data.ok) {
+        const failure = data as Extract<SubmitResponse, { ok: false }>;
         const msg =
-          data.error ||
-          (typeof data.code === "string" ? data.code : "Erreur inconnue");
+          failure.error ||
+          (typeof failure.code === "string" ? failure.code : "Erreur inconnue");
         setError(msg);
         return;
       }

@@ -1,38 +1,40 @@
 import { NextResponse } from "next/server";
-import { getAdminCreds, ADMIN_SESSION_COOKIE, ADMIN_SESSION_TTL, createSessionValue } from "@/lib/auth";
 
-export async function POST(req: Request) {
-    try {
-        const { user: envUser, pass: envPass } = getAdminCreds();
-        const body = await req.json().catch(() => ({}));
-        const rawLogin = body?.user ?? body?.username ?? "";
-        const rawPassword = body?.password ?? "";
-        const submittedUser = typeof rawLogin === "string" ? rawLogin.trim() : "";
-        const submittedPass = typeof rawPassword === "string" ? rawPassword.trim() : "";
-        const requiredUser = envUser.trim();
-        const requiredPass = envPass.trim();
+const EIGHT_HOURS = 8 * 60 * 60;
 
-        if (process.env.NODE_ENV !== "production") {
-            console.log("[admin-login]", { submittedUser, requiredUser, hasPassword: submittedPass.length > 0, requiredPassLength: requiredPass.length });
-        }
+type Credentials = {
+  user?: string;
+  pass?: string;
+};
 
-        if (!submittedUser || !submittedPass) {
-            return NextResponse.json({ ok: false, error: "Missing credentials" }, { status: 400 });
-        }
-        if (submittedUser !== requiredUser || submittedPass !== requiredPass) {
-            return NextResponse.json({ ok: false, error: "Invalid credentials" }, { status: 401 });
-        }
+function getExpectedCredentials() {
+  const user = process.env.ADMIN_USER || "asian";
+  const pass = process.env.ADMIN_PASS || "nour123!";
+  return { user, pass };
+}
 
-        const res = NextResponse.json({ ok: true });
-        res.cookies.set(ADMIN_SESSION_COOKIE, createSessionValue(), {
-            httpOnly: true,
-            path: "/",
-            sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
-            maxAge: Math.floor(ADMIN_SESSION_TTL / 1000),
-        });
-        return res;
-    } catch (e) {
-        return NextResponse.json({ ok: false, error: "Server error" }, { status: 500 });
-    }
+export async function POST(request: Request) {
+  let body: Credentials;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Corps invalide" }, { status: 400 });
+  }
+
+  const { user, pass } = getExpectedCredentials();
+  if (!body || body.user !== user || body.pass !== pass) {
+    return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
+  }
+
+  const response = new NextResponse(null, { status: 204 });
+  response.cookies.set({
+    name: "admin",
+    value: "1",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: EIGHT_HOURS,
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  });
+  return response;
 }

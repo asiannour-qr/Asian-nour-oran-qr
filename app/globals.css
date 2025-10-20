@@ -82,7 +82,7 @@ body::after {
 
 /* Impression thermique Safari/macOS – ticket unique */
 @media print {
-    html.printing body > *:not(#print-root) {
+    html.printing body>*:not(#print-root) {
         display: none !important;
     }
 
@@ -111,7 +111,7 @@ body::after {
 
     html.printing #print-root .title,
     html.printing #print-root .guest-header {
-        font-size: 18px !important;
+        font-size: 20px !important;
         font-weight: 700 !important;
         text-align: center !important;
     }
@@ -367,16 +367,39 @@ body::after {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    .anim-float-slow { animation: float-slow 9s ease-in-out infinite; }
-    .anim-float-delayed { animation: float-slow 11s ease-in-out infinite 1.2s; }
-    .anim-rotate-slow { animation: rotate-slow 24s linear infinite; }
+    .anim-float-slow {
+        animation: float-slow 9s ease-in-out infinite;
+    }
+
+    .anim-float-delayed {
+        animation: float-slow 11s ease-in-out infinite 1.2s;
+    }
+
+    .anim-rotate-slow {
+        animation: rotate-slow 24s linear infinite;
+    }
 }
+
 @keyframes float-slow {
-    0% { transform: translateY(0) }
-    50% { transform: translateY(-6px) }
-    100% { transform: translateY(0) }
+    0% {
+        transform: translateY(0)
+    }
+
+    50% {
+        transform: translateY(-6px)
+    }
+
+    100% {
+        transform: translateY(0)
+    }
 }
+
 @keyframes rotate-slow {
-    from { transform: rotate(0deg) }
-    to { transform: rotate(360deg) }
+    from {
+        transform: rotate(0deg)
+    }
+
+    to {
+        transform: rotate(360deg)
+    }
 }

@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { guestNameFromMap } from "@/lib/guest-name-utils";
 
-type OrderItem = { id: string; name: string };
+type OrderItem = {
+  id: string;
+  name: string;
+  qty: number;
+  price?: number | null;
+  personId?: string | null;
+  guest?: string | null;
+  modifiers?: string[] | null;
+};
 type Order = {
   id: string;
   tableId: string;
@@ -12,12 +21,12 @@ type Order = {
   status: "NEW" | "IN_PROGRESS" | "READY" | "SERVED" | "CANCELED" | string;
   createdAt: string; // ISO string
   items: OrderItem[];
+  guestNames?: Record<string, string> | null;
 };
 
-const TICKET_WIDTH = "80mm"; // Changer en "58mm" pour imprimantes thermiques plus étroites.
 const AUTO_PRINT_STORAGE_KEY = "kitchen:autoPrint";
-const RESTAURANT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "Asian Nour";
-
+const PRINT_MODE = (process.env.NEXT_PUBLIC_PRINT_MODE ?? "preview").toLowerCase();
+const IS_AUTO_PRINT_MODE = PRINT_MODE === "auto";
 function statusBadgeClasses(s: string) {
   switch (s) {
     case "NEW": return "bg-red-600 text-white";
@@ -39,10 +48,10 @@ export default function KitchenPage() {
   const lastFetch = useRef<string>("—");
   const knownIds = useRef<Set<string>>(new Set());
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const ticketRef = useRef<HTMLDivElement | null>(null);
   const autoPrintRef = useRef(false);
   const printedAutoIdsRef = useRef<Set<string>>(new Set());
   const bootstrappedRef = useRef(false);
+  const pendingPrintsRef = useRef<Order[]>([]);
 
   const ensureAudioContext = useCallback(async () => {
     if (typeof window === "undefined") return null;
@@ -90,152 +99,151 @@ export default function KitchenPage() {
     [ensureAudioContext]
   );
 
-  const ticketContainerStyle: CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    display: "none",
-    overflow: "hidden",
-    opacity: 0,
-    pointerEvents: "none",
-    zIndex: -1,
-  };
+  const formatPrice = useCallback((cents: number) => `${(cents / 100).toFixed(2)} €`, []);
 
-  const formatCurrency = useCallback((cents: number) => `${(cents / 100).toFixed(2)} €`, []);
-
-  const formatTime = useCallback((iso: string) => {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-      const now = new Date();
-      return now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    }
-    return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+const formatDate = useCallback((iso: string | Date | null | undefined) => {
+    if (!iso) return "—";
+    const date = typeof iso === "string" ? new Date(iso) : iso;
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("fr-FR", {
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+    });
   }, []);
 
-  const buildTicket = useCallback((order: Order) => {
-    const el = ticketRef.current;
-    if (!el) return;
-
-    el.innerHTML = "";
-    el.style.setProperty("--ticket-width", TICKET_WIDTH);
-    el.setAttribute("data-order-id", order.id);
-
-    const addDashed = () => {
-      const line = document.createElement("div");
-      line.className = "dashed";
-      el.appendChild(line);
-    };
-
-    const addRow = (label: string, value: string) => {
-      const row = document.createElement("div");
-      row.className = "row no-break";
-      row.style.fontSize = "11px";
-
-      const left = document.createElement("span");
-      left.textContent = label;
-      const right = document.createElement("span");
-      right.textContent = value;
-
-      row.appendChild(left);
-      row.appendChild(right);
-      el.appendChild(row);
-    };
-
-    const addSpacer = (size = 4) => {
-      const spacer = document.createElement("div");
-      spacer.style.height = `${size}px`;
-      el.appendChild(spacer);
-    };
-
-    const brand = document.createElement("div");
-    brand.className = "no-break";
-    brand.style.textAlign = "center";
-    brand.style.fontWeight = "700";
-    brand.style.fontSize = "14px";
-    brand.textContent = RESTAURANT_NAME;
-    el.appendChild(brand);
-
-    const subtitle = document.createElement("div");
-    subtitle.style.textAlign = "center";
-    subtitle.style.fontSize = "11px";
-    subtitle.textContent = "Ticket cuisine";
-    el.appendChild(subtitle);
-
-    addDashed();
-    addRow("Commande", order.id.slice(0, 8).toUpperCase());
-    addRow("Table", order.tableId);
-    addRow("Heure", formatTime(order.createdAt));
-    addRow("Statut", order.status);
-    addDashed();
-
-    const grouped = new Map<string, number>();
-    order.items.forEach((item) => {
-      const key = (item.name ?? "").trim() || "Article";
-      grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  const formatTime = useCallback((iso: string | Date | null | undefined) => {
+    if (!iso) return "—";
+    const date = typeof iso === "string" ? new Date(iso) : iso;
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
+  }, []);
 
-    grouped.forEach((qty, name) => {
-      const line = document.createElement("div");
-      line.className = "row no-break";
-      line.style.alignItems = "flex-start";
-      line.style.fontSize = "12px";
+const escapeHtml = useCallback((value: string) => {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }, []);
 
-      const qtySpan = document.createElement("span");
-      qtySpan.textContent = `${qty} ×`;
-      qtySpan.style.minWidth = "24px";
+  const buildTicketHtml = useCallback((order: {
+    tableNumber?: string | null;
+    code?: string | null;
+    createdAt?: string | Date | null;
+    status?: string | null;
+    items: OrderItem[];
+    comment?: string | null;
+    total: number;
+    guestNames?: Record<string, string> | null;
+  }) => {
+    const groups = order.items.reduce<Record<string, OrderItem[]>>((acc, item) => {
+      const raw = item.personId ?? item.guest ?? "P1";
+      const key = raw && raw.trim() ? raw.trim() : "P1";
+      acc[key] = acc[key] || [];
+      acc[key].push(item);
+      return acc;
+    }, {});
 
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = name;
-      nameSpan.style.flex = "1";
-      nameSpan.style.marginLeft = "6px";
+    const groupSections = Object.entries(groups)
+      .map(([guest, items]) => {
+        const subtotal = items.reduce((sum, it) => {
+          const price = Number.isFinite(it?.price) ? Number(it.price) : 0;
+          const qty = Number.isFinite(it?.qty) ? Number(it.qty) : 0;
+          return sum + price * qty;
+        }, 0);
 
-      line.appendChild(qtySpan);
-      line.appendChild(nameSpan);
-      el.appendChild(line);
-    });
+        const displayGuest = guestNameFromMap(order.guestNames, guest);
 
-    if (order.comment) {
-      addDashed();
-      const commentBlock = document.createElement("div");
-      commentBlock.className = "no-break";
-      commentBlock.style.fontStyle = "italic";
-      commentBlock.style.whiteSpace = "pre-wrap";
-      commentBlock.textContent = `Note : ${order.comment}`;
-      el.appendChild(commentBlock);
+        const lines = items
+          .map((it) => {
+            const modifiers = Array.isArray(it?.modifiers)
+              ? (it.modifiers as (string | null | undefined)[]).filter((m): m is string => Boolean(m))
+              : [];
+            const modifiersHtml = modifiers.length
+              ? modifiers.map((m) => `<div class="small muted mod">• ${escapeHtml(m)}</div>`).join("")
+              : "";
+            return `
+              <div class="row line item-line"><span>${escapeHtml(String(it.qty ?? 0))} × ${escapeHtml(it.name ?? "")}</span><span></span></div>
+              ${modifiersHtml}
+            `;
+          })
+          .join("");
+
+        return `
+          <div class="ticket-section guest-block">
+            <div class="hr"></div>
+            <div class="guest-header">— ${escapeHtml(displayGuest.toUpperCase())} —</div>
+            ${lines}
+            <div class="row small subtotal bold"><span>Sous-total</span><span>${escapeHtml(formatPrice(subtotal))}</span></div>
+          </div>
+        `;
+      })
+      .join("");
+
+    const commentSection = order.comment
+      ? `<div class="ticket-section comment-block"><div class="hr"></div><div class="small label muted">Note :</div><div class="small">${escapeHtml(order.comment)}</div></div>`
+      : "";
+
+    return `
+      <div class="ticket-section header-section">
+        <div class="center bold title">ASIAN NOUR</div>
+        <div class="center small muted">Cuisine – Ticket</div>
+        <div class="row small label"><span>Table</span><span>${escapeHtml(order.tableNumber ?? "-")}</span></div>
+        <div class="row small label"><span>Commande</span><span>${escapeHtml(order.code ?? "-")}</span></div>
+        <div class="row small label"><span>Date</span><span>${escapeHtml(formatDate(order.createdAt))}</span></div>
+        <div class="row small label"><span>Heure</span><span>${escapeHtml(formatTime(order.createdAt))}</span></div>
+        <div class="row small label"><span>Statut</span><span>${escapeHtml(order.status ?? "NEW")}</span></div>
+      </div>
+      ${groupSections}
+      ${commentSection}
+      <div class="ticket-section footer-section">
+        <div class="hr"></div>
+        <div class="row bold total"><span>Total</span><span>${escapeHtml(formatPrice(order.total))}</span></div>
+        <div class="small muted" style="margin-top:8px">Merci pour votre commande !</div>
+      </div>
+    `;
+  }, [escapeHtml, formatDate, formatPrice, formatTime]);
+
+  const handlePrint = useCallback((order: Order) => {
+    if (typeof window === "undefined") return;
+    console.debug("[print] start", order.id);
+    const ticket = document.querySelector(`.ticket-preview[data-ticket-order="${order.id}"]`) as HTMLElement | null;
+    const root = document.getElementById("print-root");
+    if (!ticket || !root) {
+      console.error("[print] ticket introuvable pour", order.id);
+      alert("Ticket introuvable pour cette commande.");
+      return;
     }
 
-    addDashed();
-    addRow("Total", formatCurrency(order.total));
-    addSpacer(6);
+    root.innerHTML = `<div class="ticket">${ticket.innerHTML}</div>`;
+    document.documentElement.classList.add("printing");
 
-    const footer = document.createElement("div");
-    footer.style.textAlign = "center";
-    footer.style.fontSize = "10px";
-    footer.textContent = "Merci !";
-    el.appendChild(footer);
-  }, [formatCurrency, formatTime]);
+    const raf = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-  const printTicket = useCallback((order: Order) => {
-    if (typeof window === "undefined") return;
-    const el = ticketRef.current;
-    if (!el) return;
+    (async () => {
+      await raf();
+      await raf();
+      console.debug(
+        "[print] ready to print",
+        !!root.querySelector(".ticket"),
+        document.documentElement.classList.contains("printing")
+      );
+      window.print();
+    })();
 
-    buildTicket(order);
-
-    const cleanup = () => {
-      if (ticketRef.current) {
-        ticketRef.current.innerHTML = "";
-        ticketRef.current.removeAttribute("data-order-id");
-      }
-      window.removeEventListener("afterprint", cleanup);
+    const afterPrint = () => {
+      console.debug("[print] afterprint cleanup");
+      root.innerHTML = "";
+      document.documentElement.classList.remove("printing");
     };
 
-    window.addEventListener("afterprint", cleanup);
-    // Astuce exploitation : lancer Chrome avec `--kiosk-printing` pour déclencher l'impression silencieuse côté cuisine.
-    requestAnimationFrame(() => {
-      window.print();
-      setTimeout(cleanup, 400);
-    });
-  }, [buildTicket]);
+    window.addEventListener("afterprint", afterPrint, { once: true });
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -257,11 +265,11 @@ export default function KitchenPage() {
         toast.success(`${incoming.length} nouvelle(s) commande(s)`);
         void playBeep(incoming.length);
 
-        if (autoPrintRef.current && bootstrappedRef.current) {
+        if (autoPrintRef.current && bootstrappedRef.current && IS_AUTO_PRINT_MODE) {
           incoming.forEach((order) => {
             if (printedAutoIdsRef.current.has(order.id)) return;
             printedAutoIdsRef.current.add(order.id);
-            printTicket(order);
+            pendingPrintsRef.current.push(order);
           });
         }
       } else if (knownIds.current.size === 0) {
@@ -280,11 +288,39 @@ export default function KitchenPage() {
     } finally {
       setLoading(false);
     }
-  }, [hideServed, playBeep, printTicket]);
+  }, [handlePrint, hideServed, playBeep]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let root = document.getElementById("print-root");
+    if (!root) {
+      root = document.createElement("div");
+      root.id = "print-root";
+      root.setAttribute("aria-hidden", "true");
+      document.body.appendChild(root);
+    } else if (root.parentElement !== document.body) {
+      document.body.appendChild(root);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const count = document.querySelectorAll(".ticket-preview").length;
+    console.debug("[print] tickets cachés présents:", count);
+  }, [orders]);
+
+  useEffect(() => {
+    if (!IS_AUTO_PRINT_MODE || !pendingPrintsRef.current.length) return;
+    const queue = [...pendingPrintsRef.current];
+    pendingPrintsRef.current = [];
+    queue.forEach((order) => {
+      setTimeout(() => handlePrint(order), 0);
+    });
+  }, [orders, handlePrint]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -373,13 +409,26 @@ export default function KitchenPage() {
           <p className="surface-muted-text">Aucune commande pour le moment.</p>
         ) : (
           <div className="grid md:grid-cols-2 gap-5">
-            {orders.map((o) => (
-              <div key={o.id} className="surface-card px-6 py-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-lg font-semibold tracking-wide">Table {o.tableId}</div>
-                    <div className="text-xs surface-muted-text uppercase tracking-[0.28em]">
-                      Total {(o.total / 100).toFixed(2)} €
+            {orders.map((o) => {
+              const ticketInnerHtml = buildTicketHtml({
+                tableNumber: o.tableId,
+                code: o.id.slice(0, 8).toUpperCase(),
+                createdAt: o.createdAt,
+                status: o.status ?? "NEW",
+                items: o.items,
+                comment: o.comment ?? "",
+                total: o.total,
+                guestNames: o.guestNames,
+              });
+
+              return (
+                <div key={o.id} className="relative">
+                  <div className="surface-card px-6 py-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-lg font-semibold tracking-wide">Table {o.tableId}</div>
+                        <div className="text-xs surface-muted-text uppercase tracking-[0.28em]">
+                          Total {(o.total / 100).toFixed(2)} €
                     </div>
                   </div>
                   <span className={`px-2 py-1 text-xs rounded ${statusBadgeClasses(o.status)}`}>
@@ -402,18 +451,33 @@ export default function KitchenPage() {
                       key={it.id}
                       className="flex items-center justify-between gap-3 border-b border-[rgba(120,110,98,0.12)] pb-2 last:border-0"
                     >
-                      <span>{it.name}</span>
+                      <div className="flex-1">
+                        <div className="font-medium leading-snug">
+                          {`${it.qty ?? 1} × ${it.name}`}
+                        </div>
+                        <div className="text-xs surface-muted-text">
+                          {guestNameFromMap(o.guestNames, it.personId ?? "P1")}
+                        </div>
+                      </div>
+                      <span className="text-xs surface-muted-text">
+                        {((it.price ?? 0) / 100).toFixed(2)} €
+                      </span>
                     </li>
                   ))}
                 </ul>
 
                 <div className="flex flex-wrap gap-3 justify-end">
                   <button
-                    onClick={() => printTicket(o)}
+                    data-order-id={o.id}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handlePrint(o);
+                    }}
                     className="btn-ghost"
                     title="Imprimer un ticket pour cette commande"
                   >
-                    Ticket
+                    Imprimer
                   </button>
                   {o.status !== "IN_PROGRESS" && (
                     <button
@@ -440,12 +504,19 @@ export default function KitchenPage() {
                     </button>
                   )}
                 </div>
-              </div>
-            ))}
+                  </div>
+                  <div
+                    className="ticket ticket-preview"
+                    data-ticket-order={o.id}
+                    style={{ position: "absolute", left: "-9999px", top: 0, opacity: 0, pointerEvents: "none", width: "72mm" }}
+                    dangerouslySetInnerHTML={{ __html: ticketInnerHtml }}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
-      <div id="ticket" ref={ticketRef} style={ticketContainerStyle} aria-hidden="true" />
     </>
   );
 }

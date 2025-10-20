@@ -1,21 +1,55 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Protège tout /admin sauf la page de login
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  if (!pathname.startsWith("/admin")) return NextResponse.next();
-  if (pathname.startsWith("/admin/login")) return NextResponse.next();
+const PUBLIC_EXACT = ["/admin/login", "/api/admin/login", "/api/admin/logout", "/robots.txt", "/manifest.json"];
+const PUBLIC_PREFIXES = ["/_next", "/favicon", "/public", "/assets", "/api/auth"];
 
-  const isAdmin = req.cookies.get("admin")?.value === "1";
-  if (isAdmin) return NextResponse.next();
+function isLoginPath(pathname: string) {
+  return pathname === "/admin/login" || pathname === "/admin/login/";
+}
 
-  const url = req.nextUrl.clone();
-  url.pathname = "/admin/login";
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
+function isPublicPath(pathname: string) {
+  if (PUBLIC_EXACT.includes(pathname)) return true;
+  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isAdminArea = pathname.startsWith("/admin");
+  const isAdminApi = pathname.startsWith("/api/admin");
+  const isPublic = isPublicPath(pathname);
+  const isAdmin = request.cookies.get("admin")?.value === "1";
+  const loginPath = isLoginPath(pathname);
+
+  if (pathname === "/admin" || pathname === "/admin/") {
+    const url = request.nextUrl.clone();
+    url.pathname = isAdmin ? "/admin/qr" : "/admin/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (!isAdminArea && !isAdminApi) {
+    return NextResponse.next();
+  }
+
+  if (isPublic) {
+    if (loginPath && isAdmin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/qr";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
+
+  if (!isAdmin) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
