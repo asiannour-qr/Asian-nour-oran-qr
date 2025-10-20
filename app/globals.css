@@ -71,6 +71,77 @@ body::after {
     z-index: -3;
 }
 
+.ticket-preview {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    opacity: 0;
+    pointer-events: none;
+    width: 72mm;
+}
+
+/* Impression thermique Safari/macOS – ticket unique */
+@media print {
+    html.printing body > *:not(#print-root) {
+        display: none !important;
+    }
+
+    html.printing #print-root {
+        display: block !important;
+        background: #fff !important;
+        width: 72mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        position: static !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    html.printing #print-root .ticket {
+        width: 72mm !important;
+        margin: 0 auto !important;
+        font-family: "SF Pro Text", Inter, Arial, sans-serif !important;
+        font-size: 16px !important;
+        line-height: 1.5 !important;
+        padding: 4mm 2mm 8mm !important;
+        color: #000 !important;
+        background: #fff !important;
+        box-sizing: border-box !important;
+    }
+
+    html.printing #print-root .title,
+    html.printing #print-root .guest-header {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+    }
+
+    html.printing #print-root .hr {
+        border-top: 1px dashed #000 !important;
+        margin: 6px 0 !important;
+    }
+
+    @page {
+        size: 72mm auto !important;
+        margin: 0 !important;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    * {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        zoom: 1 !important;
+    }
+}
+
+#print-root {
+    display: none;
+}
+
 @layer base {
     body {
         font-family: var(--font-body);
@@ -295,48 +366,17 @@ body::after {
     }
 }
 
-@media print {
-    @page {
-        size: 80mm auto;
-        margin: 0;
-    }
-
-    body {
-        background: #fff !important;
-    }
-
-    body * {
-        visibility: hidden !important;
-    }
-
-    #ticket,
-    #ticket * {
-        visibility: visible !important;
-    }
-
-    #ticket {
-        display: block !important;
-        width: var(--ticket-width, 80mm);
-        padding: 6mm 5mm;
-        margin: 0 auto;
-        font-family: "Courier New", Courier, monospace;
-        font-size: 11px;
-        line-height: 1.35;
-        color: #111;
-    }
-
-    #ticket .row {
-        display: flex;
-        justify-content: space-between;
-    }
-
-    #ticket .dashed {
-        border-top: 1px dashed #222;
-        margin: 6px 0;
-        padding-top: 4px;
-    }
-
-    #ticket .no-break {
-        page-break-inside: avoid;
-    }
+@media (prefers-reduced-motion: no-preference) {
+    .anim-float-slow { animation: float-slow 9s ease-in-out infinite; }
+    .anim-float-delayed { animation: float-slow 11s ease-in-out infinite 1.2s; }
+    .anim-rotate-slow { animation: rotate-slow 24s linear infinite; }
+}
+@keyframes float-slow {
+    0% { transform: translateY(0) }
+    50% { transform: translateY(-6px) }
+    100% { transform: translateY(0) }
+}
+@keyframes rotate-slow {
+    from { transform: rotate(0deg) }
+    to { transform: rotate(360deg) }
 }

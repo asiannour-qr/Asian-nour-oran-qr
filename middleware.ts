@@ -1,25 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
+// Protège tout /admin sauf la page de login
 export function middleware(req: NextRequest) {
-    const { pathname } = req.nextUrl;
+  const { pathname } = req.nextUrl;
+  if (!pathname.startsWith("/admin")) return NextResponse.next();
+  if (pathname.startsWith("/admin/login")) return NextResponse.next();
 
-    const isAdminArea = pathname.startsWith("/admin");
-    const isLoginPage = pathname === "/admin/login";
+  const isAdmin = req.cookies.get("admin")?.value === "1";
+  if (isAdmin) return NextResponse.next();
 
-    if (isAdminArea && !isLoginPage) {
-        const session = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
-        if (!session || !session.startsWith("ok:")) {
-            const url = req.nextUrl.clone();
-            url.pathname = "/admin/login";
-            url.searchParams.set("next", pathname);
-            return NextResponse.redirect(url);
-        }
-    }
-
-    return NextResponse.next();
+  const url = req.nextUrl.clone();
+  url.pathname = "/admin/login";
+  url.searchParams.set("next", pathname);
+  return NextResponse.redirect(url);
 }
 
 export const config = {
-    matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*"],
 };
