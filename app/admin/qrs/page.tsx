@@ -4,6 +4,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { getPublicBaseUrl } from "@/lib/public-base-url";
 
 type QR = { table: number; dataUrl: string };
 
@@ -12,10 +13,7 @@ export default function AdminQRCodesPage() {
     const [busy, setBusy] = useState(false);
     const [codes, setCodes] = useState<QR[]>([]);
 
-    const baseUrl = useMemo(() => {
-        if (typeof window === "undefined") return "";
-        return process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") || window.location.origin;
-    }, []);
+    const baseUrl = useMemo(() => getPublicBaseUrl(), []);
 
     const generate = useCallback(async () => {
         if (!baseUrl) return;
