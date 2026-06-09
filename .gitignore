@@ -8,3 +8,4 @@ public/qrs
 .vercel
 tsconfig.tsbuildinfo
 images-a-importer/
+node_modules.bak/
