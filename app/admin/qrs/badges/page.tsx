@@ -30,7 +30,8 @@ export default function BadgeQRCodesPage() {
                 const url = `${baseUrl}/table/${i}`;
                 const dataUrl = await QRCode.toDataURL(url, {
                     errorCorrectionLevel: "M",
-                    margin: 0,
+                    // marge ≥ 2 : zone de silence indispensable au scan
+                    margin: 3,
                     scale: 6,
                 });
                 arr.push({ table: i, dataUrl });

@@ -26,7 +26,8 @@ export default function AdminQRCodesPage() {
                 const url = `${baseUrl}/table/${i}`;
                 const dataUrl = await QRCode.toDataURL(url, {
                     errorCorrectionLevel: "M",
-                    margin: 1,
+                    // marge ≥ 2 : zone de silence indispensable au scan
+                    margin: 3,
                     scale: 8,
                 });
                 arr.push({ table: i, dataUrl });

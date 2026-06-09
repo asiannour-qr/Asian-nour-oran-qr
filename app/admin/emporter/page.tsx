@@ -21,7 +21,8 @@ export default function AdminEmporterPage() {
     try {
       const url = await QRCode.toDataURL(emporterUrl, {
         errorCorrectionLevel: "M",
-        margin: 1,
+        // marge ≥ 2 : zone de silence indispensable au scan
+        margin: 3,
         scale: 10,
       });
       setDataUrl(url);
