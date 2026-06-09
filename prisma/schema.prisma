@@ -7,12 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AppCredential {
+  role         String   @id // "ADMIN" | "KITCHEN"
+  username     String
+  email        String?
+  passwordHash String
+  updatedAt    DateTime @updatedAt
+}
+
 model Order {
   id          String      @id @default(cuid())
   tableId     String
   total       Int
   comment     String?
   status      String      @default("NEW")
+  type        String      @default("DINE_IN")
+  code        String?
   peopleCount Int?
   createdAt   DateTime    @default(now())
   items       OrderItem[]
@@ -47,6 +57,7 @@ model Menu {
   id         String      @id @default(cuid())
   name       String
   priceCents Int
+  imageUrl   String?
   active     Boolean     @default(true)
   position   Int         @default(0)
   createdAt  DateTime    @default(now())
@@ -62,4 +73,23 @@ model MenuGroup {
   maxChoices     Int    @default(1)
   position       Int    @default(0)
   menu           Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+model PrinterConfig {
+  id        String   @id @default("default")
+  ip        String
+  port      Int      @default(9100)
+  updatedAt DateTime @updatedAt
+}
+
+model RestaurantSettings {
+  id                  String   @id @default("default")
+  restaurantName      String   @default("Asian Nour")
+  address             String?
+  phone               String?
+  tableCount          Int      @default(15)
+  kitchenSoundEnabled Boolean  @default(true)
+  autoPrintEnabled    Boolean  @default(false)
+  openingHours        Json?
+  updatedAt           DateTime @updatedAt
 }

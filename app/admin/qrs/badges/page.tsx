@@ -1,7 +1,8 @@
 // app/admin/qrs/badges/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 
 type QR = { table: number; dataUrl: string };
@@ -17,11 +18,10 @@ export default function BadgeQRCodesPage() {
 
     const baseUrl = useMemo(() => {
         if (typeof window === "undefined") return "";
-        const origin = window.location.origin;
-        return origin.replace(/:\d+$/, ":3001");
+        return process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") || window.location.origin;
     }, []);
 
-    async function generate() {
+    const generate = useCallback(async () => {
         if (!baseUrl) return;
         setBusy(true);
         try {
@@ -39,11 +39,11 @@ export default function BadgeQRCodesPage() {
         } finally {
             setBusy(false);
         }
-    }
+    }, [baseUrl, count]);
 
     useEffect(() => {
-        generate();
-    }, [baseUrl]);
+        void generate();
+    }, [generate]);
 
     const style = `
   @page { size: A4; margin: 10mm; }
@@ -150,7 +150,13 @@ export default function BadgeQRCodesPage() {
                             </div>
 
                             <div className="qrwrap">
-                                <img src={q.dataUrl} alt={`QR Table ${q.table}`} />
+                                <Image
+                                    src={q.dataUrl}
+                                    alt={`QR Table ${q.table}`}
+                                    width={256}
+                                    height={256}
+                                    unoptimized
+                                />
                                 <div className="urlbox">
                                     <div className="hint">Ou tapez l’adresse :</div>
                                     <div className="link">

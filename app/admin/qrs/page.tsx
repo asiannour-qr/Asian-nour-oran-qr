@@ -1,7 +1,8 @@
 // app/admin/qrs/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 
 type QR = { table: number; dataUrl: string };
@@ -11,14 +12,12 @@ export default function AdminQRCodesPage() {
     const [busy, setBusy] = useState(false);
     const [codes, setCodes] = useState<QR[]>([]);
 
-    // force le port 3001
     const baseUrl = useMemo(() => {
         if (typeof window === "undefined") return "";
-        const origin = window.location.origin;
-        return origin.replace(/:\d+$/, ":3001");
+        return process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") || window.location.origin;
     }, []);
 
-    async function generate() {
+    const generate = useCallback(async () => {
         if (!baseUrl) return;
         setBusy(true);
         try {
@@ -36,11 +35,11 @@ export default function AdminQRCodesPage() {
         } finally {
             setBusy(false);
         }
-    }
+    }, [baseUrl, count]);
 
     useEffect(() => {
-        generate();
-    }, [baseUrl]); // ok
+        void generate();
+    }, [generate]);
 
     return (
         <main className="page-shell space-y-8">
@@ -71,6 +70,9 @@ export default function AdminQRCodesPage() {
                     <button onClick={() => window.print()} className="btn-primary">
                         Imprimer
                     </button>
+                    <a href="/admin/qrs/badges" className="btn-soft" title="Format carte de visite (85×55 mm) à coller sur les tables">
+                        🪪 Format badges
+                    </a>
                 </div>
             </header>
 
@@ -83,7 +85,14 @@ export default function AdminQRCodesPage() {
                             key={q.table}
                             className="surface-card px-5 py-6 flex flex-col items-center gap-4 print:break-inside-avoid"
                         >
-                            <img src={q.dataUrl} alt={`Table ${q.table}`} className="w-44 h-44" />
+                            <Image
+                                src={q.dataUrl}
+                                alt={`Table ${q.table}`}
+                                className="w-44 h-44"
+                                width={256}
+                                height={256}
+                                unoptimized
+                            />
                             <div className="text-center space-y-1">
                                 <div className="text-sm surface-muted-text tracking-[0.3em] uppercase">
                                     Scannez pour commander

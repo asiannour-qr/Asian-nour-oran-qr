@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
   AdminMenu,
@@ -8,6 +8,7 @@ import {
   AdminMenuItem,
   MenuComposerDrawer,
 } from "./MenuComposerDrawer";
+import { ConfirmDeleteModal } from "@/app/components/ConfirmDeleteModal";
 
 type LoadedMenu = AdminMenu & { id: string; groups: AdminMenuGroup[] };
 
@@ -33,6 +34,7 @@ function normalizeMenu(menu: any): LoadedMenu {
     id: String(menu?.id ?? ""),
     name: String(menu?.name ?? ""),
     priceCents: Number.isFinite(Number(menu?.priceCents)) ? Number(menu.priceCents) : 0,
+    imageUrl: typeof menu?.imageUrl === "string" && menu.imageUrl ? menu.imageUrl : null,
     active: Boolean(menu?.active ?? true),
     position: Number.isFinite(Number(menu?.position)) ? Number(menu.position) : 0,
     groups,
@@ -40,7 +42,7 @@ function normalizeMenu(menu: any): LoadedMenu {
 }
 
 function euro(cents: number) {
-  return (cents / 100).toFixed(2).replace(".", ",") + " €";
+  return Math.round(cents / 100) + " DZD";
 }
 
 export default function AdminMenusPage() {
@@ -66,13 +68,14 @@ export default function AdminMenusPage() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LoadedMenu | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timeout);
   }, [search]);
 
-  async function loadMenuItems() {
+  const loadMenuItems = useCallback(async () => {
     setItemsLoading(true);
     try {
       const res = await fetch("/api/menu?all=1", { cache: "no-store" });
@@ -91,21 +94,17 @@ export default function AdminMenusPage() {
     } finally {
       setItemsLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadMenuItems();
   }, []);
 
   useEffect(() => {
-    void loadMenus({ offset: 0, query: debouncedSearch });
-  }, [debouncedSearch]);
+    void loadMenuItems();
+  }, [loadMenuItems]);
 
   const composedMenus = useMemo(() => menus, [menus]);
 
-  async function loadMenus(args?: { offset?: number; query?: string }) {
+  const loadMenus = useCallback(async (args?: { offset?: number; query?: string }) => {
     const currentQuery = args?.query ?? debouncedSearch;
-    const requestedOffset = Math.max(0, args?.offset ?? meta.offset ?? 0);
+    const requestedOffset = Math.max(0, args?.offset ?? 0);
     setMenusLoading(true);
     try {
       const params = new URLSearchParams({
@@ -146,7 +145,11 @@ export default function AdminMenusPage() {
     } finally {
       setMenusLoading(false);
     }
-  }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    void loadMenus({ offset: 0 });
+  }, [loadMenus]);
 
   function openCreate() {
     setDrawerMode("create");
@@ -210,7 +213,6 @@ export default function AdminMenusPage() {
   }
 
   async function deleteMenu(menu: LoadedMenu) {
-    if (!confirm(`Supprimer définitivement « ${menu.name} » ?`)) return;
     setDeletingId(menu.id);
     try {
       const res = await fetch(`/api/menus/${menu.id}`, {
@@ -221,6 +223,7 @@ export default function AdminMenusPage() {
         throw new Error(data?.message || "Suppression impossible");
       }
       toast.success("Menu supprimé");
+      setDeleteTarget(null);
       await loadMenus({ offset: meta.offset, query: debouncedSearch });
     } catch (err: any) {
       toast.error(err?.message || "Erreur de suppression");
@@ -296,6 +299,15 @@ export default function AdminMenusPage() {
                 className="surface-panel px-5 py-5 rounded-2xl border border-[rgba(120,110,98,0.14)] space-y-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-4">
+                    {menu.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={menu.imageUrl}
+                        alt={menu.name}
+                        className="h-16 w-16 rounded-xl object-cover border border-[rgba(120,110,98,0.18)] shrink-0"
+                      />
+                    ) : null}
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-lg font-semibold">{menu.name}</h3>
@@ -309,6 +321,7 @@ export default function AdminMenusPage() {
                     <p className="text-sm surface-muted-text">
                       {euro(menu.priceCents)} · Position {menu.position}
                     </p>
+                  </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -332,8 +345,8 @@ export default function AdminMenusPage() {
                       {menu.active ? "Mettre en pause" : "Activer"}
                     </button>
                     <button
-                      className="btn-ghost"
-                      onClick={() => deleteMenu(menu)}
+                      className="btn-ghost text-red-600 hover:bg-red-50"
+                      onClick={() => setDeleteTarget(menu)}
                       disabled={deletingId === menu.id}
                     >
                       Supprimer
@@ -399,6 +412,16 @@ export default function AdminMenusPage() {
           Chargement des plats disponibles…
         </p>
       )}
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        itemName={deleteTarget?.name ?? ""}
+        loading={deletingId !== null}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) void deleteMenu(deleteTarget);
+        }}
+      />
     </main>
   );
 }

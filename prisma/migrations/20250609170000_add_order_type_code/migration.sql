@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'DINE_IN';
+ALTER TABLE "Order" ADD COLUMN "code" TEXT;

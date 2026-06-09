@@ -116,6 +116,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     if (body.name != null) data.name = String(body.name).trim();
     if (body.active != null) data.active = Boolean(body.active);
+    if ("imageUrl" in body) {
+      data.imageUrl =
+        typeof body.imageUrl === "string" && body.imageUrl.trim() ? body.imageUrl.trim() : null;
+    }
     if (body.position != null) {
       data.position = sanitizeNumber(body.position, 0);
     }

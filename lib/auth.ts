@@ -5,6 +5,11 @@ export function getAdminCreds() {
     return { user, pass };
 }
 
+export function isAdminConfigured(): boolean {
+    const { user, pass } = getAdminCreds();
+    return Boolean(user && pass);
+}
+
 export const ADMIN_SESSION_COOKIE = "adminSession";
 
 /** durée (en ms) d'une session admin */

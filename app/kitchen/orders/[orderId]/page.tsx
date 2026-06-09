@@ -23,7 +23,7 @@ export default async function OrderPage({
         <span className="chip">Ticket cuisine</span>
         <h1 className="text-3xl font-semibold">Commande #{order.id}</h1>
         <p className="surface-muted-text text-sm">
-          Table {order.tableId} — Total {(order.total / 100).toFixed(2)} €
+          Table {order.tableId} — Total {Math.round(order.total / 100)} DZD
         </p>
       </header>
 
@@ -40,7 +40,7 @@ export default async function OrderPage({
                 ) : null}
               </div>
               <span className="tabular-nums text-sm surface-muted-text">
-                {((it.price ?? 0) / 100).toFixed(2)} €
+                {Math.round((it.price ?? 0) / 100)} DZD
               </span>
             </li>
           ))}
@@ -54,7 +54,7 @@ export default async function OrderPage({
 
         <div className="flex justify-between items-center pt-3 border-t border-[rgba(120,110,98,0.18)]">
           <span className="font-medium">Total</span>
-          <span className="text-xl font-semibold">{(order.total / 100).toFixed(2)} €</span>
+          <span className="text-xl font-semibold">{Math.round(order.total / 100)} DZD</span>
         </div>
       </section>
     </main>

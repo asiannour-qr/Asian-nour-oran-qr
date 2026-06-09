@@ -16,6 +16,7 @@ export type AdminMenu = {
   id?: string;
   name: string;
   priceCents: number;
+  imageUrl?: string | null;
   active: boolean;
   position: number;
   groups: AdminMenuGroup[];
@@ -67,7 +68,7 @@ const DEFAULT_GROUPS: ComposerGroup[] = [
 ];
 
 function formatCentsInput(cents: number) {
-  return (cents / 100).toFixed(2);
+  return String(Math.round(cents / 100));
 }
 
 function toComposerGroups(groups: AdminMenuGroup[] | undefined): ComposerGroup[] {
@@ -109,11 +110,15 @@ export function MenuComposerDrawer({
 }: MenuComposerDrawerProps) {
   const [step, setStep] = useState<0 | 1>(0);
   const [name, setName] = useState("");
-  const [priceInput, setPriceInput] = useState("0.00");
+  const [priceInput, setPriceInput] = useState("0");
   const [position, setPosition] = useState(0);
   const [active, setActive] = useState(true);
   const [groups, setGroups] = useState<ComposerGroup[]>(DEFAULT_GROUPS.map((g) => ({ ...g })));
   const [saving, setSaving] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
 
   const categories = useMemo(() => {
     const uniq = new Set<string>();
@@ -130,20 +135,31 @@ export function MenuComposerDrawer({
     if (!open) return;
     setStep(0);
     setSaving(false);
+    setPendingFile(null);
+    setPendingPreview(null);
+    setRemoveImage(false);
     if (initialMenu) {
       setName(initialMenu.name ?? "");
       setPriceInput(formatCentsInput(initialMenu.priceCents ?? 0));
       setPosition(initialMenu.position ?? 0);
       setActive(initialMenu.active ?? true);
       setGroups(toComposerGroups(initialMenu.groups));
+      setImageUrl(initialMenu.imageUrl ?? null);
     } else {
       setName("");
       setPriceInput("0.00");
       setPosition(0);
       setActive(true);
       setGroups(DEFAULT_GROUPS.map((g) => ({ ...g, tempId: generateTempId("grp") })));
+      setImageUrl(null);
     }
   }, [open, initialMenu]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    };
+  }, [pendingPreview]);
 
   if (!open) {
     return null;
@@ -195,6 +211,47 @@ export function MenuComposerDrawer({
       }
       return copy;
     });
+  }
+
+  function handleFileSelected(file: File | null) {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    if (!file) {
+      setPendingFile(null);
+      setPendingPreview(null);
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      toast.error("Format non supporté (JPG, PNG, WebP)");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Fichier trop volumineux (4 Mo max)");
+      return;
+    }
+    setPendingFile(file);
+    setPendingPreview(URL.createObjectURL(file));
+    setRemoveImage(false);
+  }
+
+  async function syncImage(menuId: string): Promise<string | null | undefined> {
+    if (pendingFile) {
+      const fd = new FormData();
+      fd.append("file", pendingFile);
+      const res = await fetch(`/api/admin/menus/${menuId}/image`, { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Upload de l'image impossible");
+      }
+      return data.imageUrl ?? null;
+    }
+    if (removeImage && imageUrl) {
+      const res = await fetch(`/api/admin/menus/${menuId}/image`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error("Suppression de l'image impossible");
+      }
+      return null;
+    }
+    return undefined;
   }
 
   async function handleSave() {
@@ -271,7 +328,17 @@ export function MenuComposerDrawer({
         throw new Error(data?.message || "Enregistrement impossible");
       }
 
-      onSaved(data.menu);
+      let savedMenu = data.menu as AdminMenu;
+      try {
+        const syncedUrl = await syncImage(String(savedMenu.id));
+        if (syncedUrl !== undefined) {
+          savedMenu = { ...savedMenu, imageUrl: syncedUrl };
+        }
+      } catch (imgErr: any) {
+        toast.error(imgErr?.message || "Image non enregistrée");
+      }
+
+      onSaved(savedMenu);
       toast.success(mode === "create" || !initialMenu?.id ? "Menu créé" : "Menu mis à jour");
       onClose();
     } catch (err: any) {
@@ -322,11 +389,11 @@ export function MenuComposerDrawer({
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="space-y-1">
-                  <span className="text-sm font-medium surface-muted-text">Prix (€)</span>
+                  <span className="text-sm font-medium surface-muted-text">Prix (DZD)</span>
                   <input
                     value={priceInput}
                     onChange={(e) => setPriceInput(e.target.value)}
-                    placeholder="12.90"
+                    placeholder="1200"
                   />
                 </label>
                 <label className="space-y-1">
@@ -348,6 +415,51 @@ export function MenuComposerDrawer({
                 />
                 Activer ce menu immédiatement
               </label>
+
+              <div className="space-y-2">
+                <span className="text-sm font-medium surface-muted-text">Photo du menu</span>
+                <div className="flex items-center gap-4">
+                  {pendingPreview || (imageUrl && !removeImage) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={pendingPreview ?? imageUrl ?? ""}
+                      alt="Aperçu du menu"
+                      className="h-20 w-20 rounded-xl object-cover border border-[rgba(120,110,98,0.2)]"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-xl border border-dashed border-[rgba(120,110,98,0.3)] flex items-center justify-center text-2xl text-[rgba(120,110,98,0.4)]">
+                      🍱
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <label className="btn-soft cursor-pointer text-sm text-center">
+                      {pendingFile ? "Changer l’image" : "Choisir une image"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    {(pendingFile || (imageUrl && !removeImage)) && (
+                      <button
+                        type="button"
+                        className="btn-ghost text-sm text-red-600"
+                        onClick={() => {
+                          if (pendingFile) {
+                            handleFileSelected(null);
+                          } else {
+                            setRemoveImage(true);
+                          }
+                        }}
+                      >
+                        Retirer l’image
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs surface-muted-text">JPG, PNG ou WebP — 4 Mo max. Enregistrée à la validation.</p>
+              </div>
             </section>
           ) : (
             <section className="space-y-4">

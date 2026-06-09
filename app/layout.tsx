@@ -1,6 +1,7 @@
 // app/layout.tsx
 import "./globals.css";
 import NoSSR from "./NoSSR";
+import SiteHeader from "./components/SiteHeader";
 
 export const metadata = {
   title: "Asian Nour — Commande à table",
@@ -35,7 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="absolute bottom-10 left-10 h-[15rem] w-[15rem] bg-[#F6D68B2B] blur-[120px] sm:h-[22rem] sm:w-[22rem] sm:blur-[200px]" />
           <div className="absolute bottom-1/3 right-1/4 h-60 w-60 bg-[#F5EFE640] blur-[130px] sm:h-[20rem] sm:w-[20rem] sm:blur-[210px]" />
         </div>
-        <div className="relative z-10">
+        <div className="relative z-10 flex flex-col min-h-dvh">
+          <SiteHeader />
           <NoSSR>{children}</NoSSR>
         </div>
       </body>

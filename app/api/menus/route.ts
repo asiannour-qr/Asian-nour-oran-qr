@@ -153,7 +153,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json(response);
   } catch (e: any) {
-    return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
+    console.error("[menus/GET] Prisma error:", e);
+    return NextResponse.json(
+      { menus: [], error: "Erreur lors de la récupération des menus", details: String(e?.message ?? e) },
+      { status: 500 }
+    );
   }
 }
 
@@ -162,7 +166,7 @@ export async function POST(req: Request) {
   if (unauthorized) return unauthorized;
 
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     if (body?.fromId) {
       const source = await prisma.menu.findUnique({
@@ -186,6 +190,7 @@ export async function POST(req: Request) {
           priceCents,
           active,
           position,
+          imageUrl: source.imageUrl,
           groups: source.groups.length
             ? {
                 create: source.groups.map((g) => ({
@@ -222,6 +227,8 @@ export async function POST(req: Request) {
         priceCents,
         active: body?.active != null ? Boolean(body.active) : true,
         position: toInt(body?.position, 0),
+        imageUrl:
+          typeof body?.imageUrl === "string" && body.imageUrl.trim() ? body.imageUrl.trim() : null,
         groups: groupsData.length
           ? {
               create: groupsData.map((g) => ({
@@ -239,6 +246,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ status: "ok", menu: created }, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
+    console.error("[menus/POST] error:", e);
+    return NextResponse.json(
+      { status: "error", message: "Erreur lors de la création du menu", details: String(e?.message ?? e) },
+      { status: 500 }
+    );
   }
 }

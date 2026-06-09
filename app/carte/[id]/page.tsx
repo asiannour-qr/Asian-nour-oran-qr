@@ -120,26 +120,23 @@ export default async function CartePage({ params }: { params: { id: string } }) 
 
         {sections.length === 0 ? (
           <div className="space-y-6">
-            <div className="surface-muted-text text-center py-10">
+            <div className="surface-muted-text text-center py-4 sm:py-10">
               Cette carte est vide pour le moment.
             </div>
-            <div className="grid gap-4">
-              <Image
-                src="/carte/asian-nour/page-1.jpg"
-                alt="Carte page 1"
-                width={1200}
-                height={1700}
-                className="w-full h-auto rounded-xl shadow"
-                priority
-              />
-              <Image
-                src="/carte/asian-nour/page-2.jpg"
-                alt="Carte page 2"
-                width={1200}
-                height={1700}
-                className="w-full h-auto rounded-xl shadow"
-              />
-            </div>
+            <section className="min-h-[calc(100vh-12rem)] flex items-center justify-center px-2 py-6 sm:px-4">
+              <div className="w-full max-w-[900px] md:max-w-[1100px] mx-auto">
+                <Image
+                  src="/carte/asian-nour/CARTE-2025.jpg"
+                  alt="Carte complète Asian Nour 2025"
+                  width={1600}
+                  height={2263}
+                  quality={90}
+                  sizes="(max-width: 768px) 100vw, 900px"
+                  className="w-full h-auto object-contain rounded-xl shadow-lg mx-auto contrast-[1.15] brightness-[1.08] sm:contrast-[1.10] sm:brightness-[1.05]"
+                  priority
+                />
+              </div>
+            </section>
           </div>
         ) : (
           <div className="grid gap-6">
@@ -155,7 +152,7 @@ export default async function CartePage({ params }: { params: { id: string } }) 
                         <div className="flex items-start justify-between gap-3">
                           <div className="font-medium">{item.name}</div>
                           <div className="shrink-0 font-semibold">
-                            {Number.isFinite(item.price) ? `${item.price.toFixed(2)} €` : ""}
+                            {Number.isFinite(item.price) ? `${Math.round(item.price)} DZD` : ""}
                           </div>
                         </div>
                         {item.description ? (

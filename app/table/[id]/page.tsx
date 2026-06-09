@@ -16,6 +16,7 @@ import {
     persistGuestNamesForTable,
     resetGuestNames as resetGuestNamesForTable,
 } from "@/lib/guest-names-store";
+import CategorySlider from "@/app/components/CategorySlider";
 
 type MenuItem = {
     id: string;
@@ -24,10 +25,12 @@ type MenuItem = {
     category: string;
     position: number;
     description?: string | null;
+    imageUrl?: string | null;
+    available?: boolean;
 };
 type CartLine = { id: string; name: string; priceCents: number; qty: number; personId: string };
 type MenuGroup = { id: string; name: string; categoryFilter: string; minChoices: number; maxChoices: number; position: number };
-type MenuDef = { id: string; name: string; priceCents: number; groups?: MenuGroup[] };
+type MenuDef = { id: string; name: string; priceCents: number; imageUrl?: string | null; groups?: MenuGroup[] };
 type ComposeStep = {
     group: MenuGroup;
     options: MenuItem[];
@@ -45,7 +48,7 @@ type ComposeState = {
 };
 
 function euro(cents: number) {
-    return (cents / 100).toFixed(2).replace(".", ",") + " €";
+    return Math.round(cents / 100) + " DZD";
 }
 
 // 🔹 alias tolérés pour rattraper Starter/Silver/Gold
@@ -68,6 +71,16 @@ const CAT_ALIASES: Record<string, string | string[]> = {
 };
 
 const HIDDEN_MENU_CATEGORIES = new Set(["Boissons Kid", "Desserts Kid"]);
+
+function slugifyCategory(value: string, fallback: string) {
+    const base = value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    return base || fallback;
+}
 
 export default function TablePage() {
     // ⚠️ dossier = app/table/[id] : le param s’appelle "id"
@@ -107,7 +120,11 @@ export default function TablePage() {
     const guestNamesStorageKey = useMemo(() => `guestNames:table:${tableId}`, [tableId]);
     const guestNamesPersistedRef = useRef<Record<string, string>>({});
     const [showGuestNameEditor, setShowGuestNameEditor] = useState(false);
+    const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+    const inlineInputRef = useRef<HTMLInputElement>(null);
     const previousPeopleCountRef = useRef<number>(peopleCount);
+    const cartScrollRef = useRef<HTMLDivElement>(null);
+    const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
 
     const updateGuestNames = useCallback(
         (updater: (prev: Record<string, string>) => Record<string, string>, persist: boolean) => {
@@ -170,6 +187,14 @@ export default function TablePage() {
                 fetch("/api/menu", { cache: "no-store" }),
                 fetch("/api/menus", { cache: "no-store" }),
             ]);
+            if (!itRes.ok) {
+                const errorData = await itRes.json().catch(() => ({}));
+                throw new Error(`Menu: ${errorData?.error || errorData?.message || `HTTP ${itRes.status}`}`);
+            }
+            if (!mRes.ok) {
+                const errorData = await mRes.json().catch(() => ({}));
+                throw new Error(`Menus: ${errorData?.error || errorData?.message || `HTTP ${mRes.status}`}`);
+            }
             const it = await itRes.json();
             const m = await mRes.json();
             const rawItems: MenuItem[] = Array.isArray(it.items) ? it.items : [];
@@ -179,8 +204,8 @@ export default function TablePage() {
             setMenuItems(sanitizedItems);
             setMenus(Array.isArray(m.menus) ? m.menus : []);
         } catch (e: any) {
-            console.error(e);
-            toast.error(e?.message || "Erreur chargement");
+            console.error("[table/loadAll] error:", e);
+            toast.error(e?.message || "Erreur lors du chargement du menu");
         } finally {
             setLoading(false);
         }
@@ -250,6 +275,16 @@ export default function TablePage() {
         };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
+    }, [cartDrawerOpen]);
+
+    // Isoler le scroll du panier : empêche le wheel d'atteindre la page
+    useEffect(() => {
+        if (!cartDrawerOpen) return;
+        const el = cartScrollRef.current;
+        if (!el) return;
+        const stop = (e: WheelEvent) => e.stopPropagation();
+        el.addEventListener("wheel", stop, { passive: true });
+        return () => el.removeEventListener("wheel", stop);
     }, [cartDrawerOpen]);
 
     useEffect(() => {
@@ -322,6 +357,78 @@ export default function TablePage() {
         }
         return map;
     }, [menuItems]);
+
+    const visibleCategorySections = useMemo(() => {
+        const slugCounts = new Map<string, number>();
+        let index = 0;
+        return Array.from(itemsByCategory.entries())
+            .filter(([cat]) => !HIDDEN_MENU_CATEGORIES.has(cat))
+            // Boissons toujours en dernier
+            .sort(([catA], [catB]) => {
+                const aIsDrink = catA.toLowerCase() === "boissons";
+                const bIsDrink = catB.toLowerCase() === "boissons";
+                if (aIsDrink && !bIsDrink) return 1;
+                if (!aIsDrink && bIsDrink) return -1;
+                const orderA = categoryOrder.get(catA) ?? Number.MAX_SAFE_INTEGER;
+                const orderB = categoryOrder.get(catB) ?? Number.MAX_SAFE_INTEGER;
+                return orderA - orderB;
+            })
+            .map(([cat, list]) => {
+                const label = cat === "Boxes" ? "Nos BOX" : cat;
+                const baseSlug = slugifyCategory(cat, `section-${index + 1}`);
+                const count = slugCounts.get(baseSlug) ?? 0;
+                slugCounts.set(baseSlug, count + 1);
+                const anchorId = count === 0 ? baseSlug : `${baseSlug}-${count}`;
+                const sectionIndex = index;
+                index += 1;
+                return { anchorId, label, items: list, rawCategory: cat, index: sectionIndex };
+            });
+    }, [itemsByCategory, categoryOrder]);
+
+    const sliderCategories = useMemo(
+        () => visibleCategorySections.map((section) => ({ id: section.anchorId, label: section.label })),
+        [visibleCategorySections]
+    );
+
+    useEffect(() => {
+        if (!visibleCategorySections.length) {
+            setActiveCategoryId(null);
+            return;
+        }
+        setActiveCategoryId((prev) => prev ?? visibleCategorySections[0].anchorId);
+    }, [visibleCategorySections]);
+
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
+        if (!visibleCategorySections.length) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const intersecting = entries.filter((entry) => entry.isIntersecting);
+                if (!intersecting.length) return;
+                intersecting.sort((a, b) => {
+                    const aIndex = Number((a.target as HTMLElement).dataset.categoryIndex ?? 0);
+                    const bIndex = Number((b.target as HTMLElement).dataset.categoryIndex ?? 0);
+                    return aIndex - bIndex;
+                });
+                const topEntry = intersecting[0];
+                if (topEntry?.target?.id) {
+                    setActiveCategoryId(topEntry.target.id);
+                }
+            },
+            {
+                rootMargin: "-45% 0px -45% 0px",
+                threshold: [0, 0.1, 0.25],
+            }
+        );
+
+        const elements = visibleCategorySections
+            .map(({ anchorId }) => document.getElementById(anchorId))
+            .filter((el): el is HTMLElement => Boolean(el));
+        elements.forEach((element) => observer.observe(element));
+
+        return () => observer.disconnect();
+    }, [visibleCategorySections]);
 
     const menuItemMap = useMemo(() => {
         const map = new Map<string, MenuItem>();
@@ -418,6 +525,7 @@ export default function TablePage() {
     function adjustPeople(delta: number) {
         setPeopleCount((prev) => {
             const next = Math.max(1, Math.min(12, prev + delta));
+            if (delta > 0 && next > 1) setShowGuestNameEditor(true);
             return next;
         });
     }
@@ -814,78 +922,78 @@ export default function TablePage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                            {personIds.map((pid) => {
+                            {personIds.map((pid, idx) => {
                                 const isActive = pid === activePerson;
+                                const isEditing = editingPersonId === pid;
+                                const index = idx + 1;
+                                const key = String(index);
                                 const displayName = getGuestNameForPersonId(pid);
+                                const currentValue = guestNames[key] ?? "";
+
+                                if (isEditing) {
+                                    return (
+                                        <span key={pid} className="inline-flex items-center rounded-full border-2 border-[var(--color-accent)] bg-white overflow-hidden shadow-sm">
+                                            <input
+                                                ref={inlineInputRef}
+                                                defaultValue={currentValue}
+                                                placeholder={`Convive ${index}`}
+                                                maxLength={16}
+                                                autoFocus
+                                                className="w-28 px-3 py-1 text-sm bg-transparent outline-none text-[var(--color-text)]"
+                                                onBlur={(e) => {
+                                                    handleGuestNameChange(index, e.target.value);
+                                                    setEditingPersonId(null);
+                                                    setActivePerson(pid);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === "Escape") {
+                                                        handleGuestNameChange(index, (e.target as HTMLInputElement).value);
+                                                        setEditingPersonId(null);
+                                                        setActivePerson(pid);
+                                                    }
+                                                }}
+                                            />
+                                        </span>
+                                    );
+                                }
+
                                 return (
                                     <button
                                         key={pid}
-                                        className={`px-3 py-1 rounded-full border transition ${isActive
-                                                ? "border-transparent bg-[var(--color-accent)] text-white"
-                                                : "border-[var(--color-border)] bg-[var(--color-surface-strong)]"
-                                            }`}
-                                        onClick={() => setActivePerson(pid)}
-                                        title={`Convive ${pid}`}
+                                        className={`group px-3 py-1 rounded-full border transition flex items-center gap-1 ${isActive
+                                            ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                                            : "border-[var(--color-border)] bg-[var(--color-surface-strong)] text-[var(--color-text)]"
+                                        }`}
+                                        onClick={() => {
+                                            if (activePerson === pid) {
+                                                setEditingPersonId(pid);
+                                            } else {
+                                                setActivePerson(pid);
+                                            }
+                                        }}
+                                        title="Tap pour sélectionner · 2e tap pour renommer"
                                     >
-                                        {displayName}
+                                        <span className="text-sm font-medium">{displayName}</span>
+                                        <span className={`text-xs opacity-60 ${isActive ? "text-white" : "text-[var(--color-text-muted)]"}`}>
+                                            ✎
+                                        </span>
                                     </button>
                                 );
                             })}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                className="btn-soft"
-                                type="button"
-                                onClick={() => setShowGuestNameEditor((value) => !value)}
-                            >
-                                {showGuestNameEditor ? "Fermer" : "Nommer les convives"}
-                            </button>
-                            <button
-                                className="btn-ghost text-xs"
-                                type="button"
-                                onClick={resetGuestNamesState}
-                            >
-                                Réinitialiser convives
-                            </button>
-                        </div>
+                        <button
+                            className="btn-ghost text-xs"
+                            type="button"
+                            onClick={resetGuestNamesState}
+                        >
+                            Réinitialiser noms
+                        </button>
                     </div>
-
-                    {showGuestNameEditor ? (
-                        <div className="mt-4 rounded-2xl border border-[rgba(190,127,57,0.18)] bg-[rgba(255,252,247,0.72)] px-4 py-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-semibold text-[var(--color-heading)] uppercase tracking-[0.16em]">
-                                    Noms des convives
-                                </h3>
-                                <span className="text-xs surface-muted-text">16 caractères max</span>
-                            </div>
-                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                                {personIds.map((pid, idx) => {
-                                    const index = idx + 1;
-                                    const key = String(index);
-                                    const value = guestNames[key] ?? "";
-                                    const placeholder = guestNameFallback(index);
-                                    return (
-                                        <label key={pid} className="flex flex-col gap-1 text-sm">
-                                            <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
-                                                Convive {index}
-                                            </span>
-                                            <input
-                                                value={value}
-                                                onChange={(e) => handleGuestNameChange(index, e.target.value)}
-                                                placeholder={placeholder}
-                                                maxLength={16}
-                                            />
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ) : null}
                 </header>
 
                 {/* Mini cart bar */}
-                <div className="sticky top-0 z-40">
+                <div className="sticky top-[56px] sm:top-[64px] z-30 space-y-3">
                     <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="text-sm sm:text-base font-semibold">
                             Panier — {cartItemCount} article(s) — {euro(totalCents)}
@@ -907,6 +1015,14 @@ export default function TablePage() {
                             </button>
                         </div>
                     </div>
+
+                    {!loading && sliderCategories.length > 0 && (
+                        <CategorySlider
+                            categories={sliderCategories}
+                            activeId={activeCategoryId}
+                            onCategorySelect={(id) => setActiveCategoryId(id)}
+                        />
+                    )}
                 </div>
 
                 {/* À la carte */}
@@ -925,51 +1041,100 @@ export default function TablePage() {
                             {menus.length > 0 && (
                                 <article className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-xl font-semibold">Menus chauds à composer</h3>
+                                        <h3 className="text-xl font-semibold text-sharp">Menus chauds à composer</h3>
                                         <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">Formules guidées</span>
                                     </div>
                                     <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
                                         {menus.map((m) => (
-                                            <div key={m.id} className="surface-card px-5 py-5 rounded-2xl flex flex-col gap-3">
-                                                <div>
-                                                    <div className="text-lg font-semibold">{m.name}</div>
-                                                    <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
+                                            <div key={m.id} className="surface-card overflow-hidden rounded-2xl flex flex-col">
+                                                {m.imageUrl ? (
+                                                    <div className="relative w-full aspect-[4/3] bg-[var(--color-background-secondary)]">
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img
+                                                            src={m.imageUrl}
+                                                            alt={m.name}
+                                                            className="absolute inset-0 w-full h-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    </div>
+                                                ) : null}
+                                                <div className="px-5 py-5 flex flex-col gap-3 flex-1">
+                                                    <div className="flex-1">
+                                                        <div className="text-lg font-semibold text-sharp">{m.name}</div>
+                                                        <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
+                                                    </div>
+                                                    <button className="btn-primary" onClick={() => composeMenu(m)}>
+                                                        Composer pour {getGuestNameForPersonId(activePerson)}
+                                                    </button>
                                                 </div>
-                                                <button className="btn-primary" onClick={() => composeMenu(m)}>
-                                                    Composer pour {getGuestNameForPersonId(activePerson)}
-                                                </button>
                                             </div>
                                         ))}
                                     </div>
                                 </article>
                             )}
 
-                            {Array.from(itemsByCategory.entries())
-                                .filter(([cat]) => !HIDDEN_MENU_CATEGORIES.has(cat))
-                                .map(([cat, list]) => {
-                                    const title = cat === "Boxes" ? "Nos BOX" : cat;
-                                    return (
-                                        <article key={cat} className="space-y-3">
-                                            <h3 className="text-xl font-semibold">{title}</h3>
-                                            <div className="grid sm:grid-cols-2 gap-4">
-                                                {list.map((it) => (
-                                                    <div key={it.id} className="surface-card px-5 py-4 flex items-center justify-between gap-4">
-                                                        <div>
-                                                            <div className="font-medium">{it.name}</div>
-                                                            <div className="surface-muted-text text-sm">{euro(it.priceCents)}</div>
+                            {visibleCategorySections.map((section) => (
+                                <article
+                                    key={section.anchorId}
+                                    id={section.anchorId}
+                                    data-category-index={section.index}
+                                    className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                                >
+                                    <h3 className="text-xl font-semibold text-sharp">{section.label}</h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        {section.items.map((it) => {
+                                            const unavailable = it.available === false;
+                                            return (
+                                                <div
+                                                    key={it.id}
+                                                    className={`surface-card overflow-hidden flex flex-col rounded-2xl border border-[var(--color-border)] relative ${
+                                                        unavailable ? "opacity-50 pointer-events-none" : ""
+                                                    }`}
+                                                >
+                                                    {it.imageUrl ? (
+                                                        <div className="relative w-full aspect-[4/3] bg-[var(--color-background-secondary)]">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img
+                                                                src={it.imageUrl}
+                                                                alt={it.name}
+                                                                className="absolute inset-0 w-full h-full object-cover"
+                                                                loading="lazy"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-full aspect-[4/3] bg-[var(--color-background-secondary)] flex items-center justify-center text-3xl select-none">
+                                                            🍱
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-col flex-1 px-3 pt-2 pb-3 gap-2">
+                                                        <div className="flex-1">
+                                                            <div className="font-medium text-sm leading-snug line-clamp-2">{it.name}</div>
                                                             {it.description ? (
-                                                                <p className="text-xs surface-muted-text mt-1 max-w-xs">{it.description}</p>
+                                                                <p className="text-xs surface-muted-text mt-0.5 line-clamp-2">{it.description}</p>
                                                             ) : null}
                                                         </div>
-                                                        <button className="btn-soft" onClick={() => addToCartLine(it.name, it.priceCents)}>
-                                                            Ajouter à {getGuestNameForPersonId(activePerson)}
-                                                        </button>
+                                                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                            <span className="text-sm font-semibold text-[var(--color-accent-strong)]">{euro(it.priceCents)}</span>
+                                                            {unavailable ? (
+                                                                <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
+                                                                    Indisponible
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    className="btn-soft text-xs px-2 py-1 shrink-0"
+                                                                    onClick={() => addToCartLine(it.name, it.priceCents)}
+                                                                >
+                                                                    + {getGuestNameForPersonId(activePerson)}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </article>
-                                    );
-                                })}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </article>
+                            ))}
                         </>
                     )}
                 </section>
@@ -1119,9 +1284,9 @@ export default function TablePage() {
             )}
 
             {cartDrawerOpen && (
-                <div className="fixed inset-0 z-40 flex">
+                <div className="fixed inset-0 z-[60] flex">
                     <div className="absolute inset-0 bg-black/40" onClick={closeCartDrawer} />
-                    <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated">
+                    <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">
                         <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
                             <div>
                                 <div className="text-lg font-semibold">Mon panier</div>
@@ -1132,7 +1297,7 @@ export default function TablePage() {
                             </button>
                         </header>
 
-                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                        <div ref={cartScrollRef} className="flex-1 min-h-0 overflow-y-scroll overscroll-contain px-6 py-4 space-y-5">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium" htmlFor="cart-comment">
                                     Commentaire (optionnel)

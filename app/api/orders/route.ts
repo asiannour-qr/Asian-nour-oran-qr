@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
 import { getGuestNames, storeGuestNames } from "@/lib/guest-names-store";
+import { expireStalePendingTakeaway } from "@/lib/takeaway-codes";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,17 +16,46 @@ type IncomingItem = {
 };
 
 export async function GET() {
-    const orders = await prisma.order.findMany({
-        orderBy: { createdAt: "desc" },
-        include: { items: true },
-    });
-    const withGuestNames = orders.map((order) => ({
-        ...order,
-        guestNames: getGuestNames(order.id),
-    }));
-    const res = NextResponse.json({ orders: withGuestNames });
-    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    return res;
+    try {
+        // Expire les commandes à emporter jamais validées en caisse (> 1 h)
+        await expireStalePendingTakeaway().catch((err) => {
+            console.warn("[orders/GET] expiration emporter:", err?.message ?? err);
+        });
+
+        const orders = await prisma.order.findMany({
+            orderBy: { createdAt: "desc" },
+            include: { items: true },
+        });
+        const withGuestNames = orders.map((order) => ({
+            ...order,
+            guestNames: getGuestNames(order.id),
+        }));
+        const res = NextResponse.json({ orders: withGuestNames });
+        res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        return res;
+    } catch (err: any) {
+        const errorMessage = err?.message ?? String(err);
+        const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");
+        console.error("[orders/GET] Prisma error:", {
+            message: errorMessage,
+            code: err?.code,
+            meta: err?.meta,
+            stack: err?.stack,
+        });
+        const res = NextResponse.json(
+            {
+                orders: [],
+                error: isLocked
+                    ? "Base de données temporairement verrouillée, réessayez dans quelques instants"
+                    : "Erreur lors de la récupération des commandes",
+                details: errorMessage,
+                code: err?.code,
+            },
+            { status: isLocked ? 503 : 500 }
+        );
+        res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        return res;
+    }
 }
 
 function maxGuestIndexFromItems(items: { personId: string | null | undefined }[]): number {
@@ -41,7 +71,7 @@ function maxGuestIndexFromItems(items: { personId: string | null | undefined }[]
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
+        const body = await req.json().catch(() => ({}));
 
         const tableId = String(body?.tableId || "").trim();
         if (!tableId) return NextResponse.json({ status: "error", message: "tableId requis" }, { status: 400 });
@@ -63,8 +93,13 @@ export async function POST(req: Request) {
             if (it?.priceCents != null && Number.isFinite(Number(it.priceCents))) {
                 price = Math.max(0, Math.round(Number(it.priceCents)));
             } else {
-                const ref = await prisma.menuItem.findFirst({ where: { name } });
-                price = ref?.priceCents ?? 0;
+                try {
+                    const ref = await prisma.menuItem.findFirst({ where: { name } });
+                    price = ref?.priceCents ?? 0;
+                } catch (prismaErr: any) {
+                    console.warn(`[orders/POST] Prisma findFirst error for "${name}":`, prismaErr?.message);
+                    price = 0;
+                }
             }
 
             resolved.push({ name, qty, price, personId });
@@ -109,14 +144,32 @@ export async function POST(req: Request) {
         res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
         return res;
     } catch (e: any) {
-        return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
+        const errorMessage = e?.message ?? String(e);
+        const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");
+        console.error("[orders/POST] error:", {
+            message: errorMessage,
+            code: e?.code,
+            meta: e?.meta,
+            stack: e?.stack,
+        });
+        return NextResponse.json(
+            {
+                status: "error",
+                message: isLocked
+                    ? "Base de données temporairement verrouillée, réessayez dans quelques instants"
+                    : "Erreur lors de la création de la commande",
+                details: errorMessage,
+                code: e?.code,
+            },
+            { status: isLocked ? 503 : 500 }
+        );
     }
 }
 
 // PATCH /api/orders  (change status si besoin “kitchen”)
 export async function PATCH(req: Request) {
     try {
-        const body = await req.json();
+        const body = await req.json().catch(() => ({}));
         const id = String(body?.id || "");
         const status = String(body?.status || "");
         if (!id || !status) return NextResponse.json({ status: "error", message: "id et status requis" }, { status: 400 });
@@ -129,6 +182,24 @@ export async function PATCH(req: Request) {
 
         return NextResponse.json({ status: "ok", order: { ...updated, guestNames: getGuestNames(updated.id) } });
     } catch (e: any) {
-        return NextResponse.json({ status: "error", message: e.message }, { status: 500 });
+        const errorMessage = e?.message ?? String(e);
+        const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");
+        console.error("[orders/PATCH] error:", {
+            message: errorMessage,
+            code: e?.code,
+            meta: e?.meta,
+            stack: e?.stack,
+        });
+        return NextResponse.json(
+            {
+                status: "error",
+                message: isLocked
+                    ? "Base de données temporairement verrouillée, réessayez dans quelques instants"
+                    : "Erreur lors de la mise à jour de la commande",
+                details: errorMessage,
+                code: e?.code,
+            },
+            { status: isLocked ? 503 : 500 }
+        );
     }
 }

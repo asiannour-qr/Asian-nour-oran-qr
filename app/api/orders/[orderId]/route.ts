@@ -40,9 +40,25 @@ export async function PATCH(
 
         return NextResponse.json({ status: "ok", order: updated });
     } catch (err: any) {
+        const errorMessage = err?.message ?? String(err);
+        const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");
+        console.error("[orders/[orderId]/PATCH] error:", {
+            message: errorMessage,
+            code: err?.code,
+            meta: err?.meta,
+            stack: err?.stack,
+            orderId: ctx.params.id ?? ctx.params.orderId,
+        });
         return NextResponse.json(
-            { status: "error", message: err?.message || "Erreur serveur" },
-            { status: 500 }
+            {
+                status: "error",
+                message: isLocked
+                    ? "Base de données temporairement verrouillée, réessayez dans quelques instants"
+                    : err?.message || "Erreur serveur",
+                details: errorMessage,
+                code: err?.code,
+            },
+            { status: isLocked ? 503 : 500 }
         );
     }
 }
