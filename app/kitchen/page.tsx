@@ -1,6 +1,10 @@
 "use client";
 
 import { playKitchenNewOrderAlert } from "@/lib/kitchen-alert-sound";
+import {
+  readSoundEnabledPreference,
+  writeSoundEnabledPreference,
+} from "@/lib/kitchen-sound-preference";
 import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 
 import Image from "next/image";
@@ -457,10 +461,9 @@ const escapeHtml = useCallback((value: string) => {
       const incoming = list.filter((o) => !knownIds.current.has(o.id));
       if (incoming.length > 0) {
         incoming.forEach((o) => knownIds.current.add(o.id));
-        toast.success(`${incoming.length} nouvelle(s) commande(s)`);
-        void playBeep(incoming.length);
-
         if (bootstrappedRef.current) {
+          toast.success(`${incoming.length} nouvelle(s) commande(s)`);
+          void playBeep(incoming.length);
           incoming.forEach((order) => {
             if (!autoPrintRef.current) return;
             if (printerConfiguredRef.current || IS_BROWSER_AUTO_PRINT_MODE) {
@@ -524,8 +527,7 @@ const escapeHtml = useCallback((value: string) => {
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((s: { kitchenSoundEnabled?: boolean; autoPrintEnabled?: boolean; restaurantName?: string; address?: string | null; phone?: string | null }) => {
-        setSoundEnabled(s.kitchenSoundEnabled !== false);
+      .then((s: { autoPrintEnabled?: boolean; restaurantName?: string; address?: string | null; phone?: string | null }) => {
         setRestaurantInfo({
           restaurantName: s.restaurantName || "Asian Nour",
           address: s.address ?? null,
@@ -545,6 +547,7 @@ const escapeHtml = useCallback((value: string) => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setSoundEnabled(readSoundEnabledPreference());
     const stored = window.localStorage.getItem(AUTO_PRINT_STORAGE_KEY);
     if (stored === "1") {
       setAutoPrint(true);
@@ -554,6 +557,10 @@ const escapeHtml = useCallback((value: string) => {
       autoPrintRef.current = false;
     }
   }, []);
+
+  useEffect(() => {
+    writeSoundEnabledPreference(soundEnabled);
+  }, [soundEnabled]);
 
   useEffect(() => {
     autoPrintRef.current = autoPrint;
@@ -626,22 +633,17 @@ const escapeHtml = useCallback((value: string) => {
         <Toaster position="top-right" />
 
         {soundEnabled && !audioReady && (
-          <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-medium text-amber-900">
-              🔇 Le navigateur bloque le son. Appuyez une fois pour activer la cloche des nouvelles commandes.
-            </p>
-            <button
-              type="button"
-              className="btn-primary shrink-0"
-              onClick={() =>
-                void unlock((ctx) => playKitchenNewOrderAlert(ctx, 1)).then((ok) => {
-                  if (ok) toast.success("Son activé");
-                })
-              }
-            >
-              🔔 Activer le son
-            </button>
-          </div>
+          <button
+            type="button"
+            className="mb-4 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+            onClick={() =>
+              void unlock((ctx) => playKitchenNewOrderAlert(ctx, 1)).then((ok) => {
+                if (ok) toast.success("Son activé");
+              })
+            }
+          >
+            🔔 Touchez l&apos;écran une fois pour activer la cloche (obligatoire une fois par session navigateur).
+          </button>
         )}
 
         <section className="surface-card-strong px-6 py-6 mb-6 flex flex-wrap items-center gap-3">

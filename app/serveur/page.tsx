@@ -4,6 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import {
+  readSoundEnabledPreference,
+  writeSoundEnabledPreference,
+} from "@/lib/kitchen-sound-preference";
 import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 
 type TableState = "FREE" | "ACTIVE" | "READY";
@@ -75,13 +79,13 @@ export default function ServeurPage() {
   );
 
   useEffect(() => {
-    fetch("/api/settings", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((s: { kitchenSoundEnabled?: boolean }) => {
-        setSoundEnabled(s.kitchenSoundEnabled !== false);
-      })
-      .catch(() => {});
+    if (typeof window === "undefined") return;
+    setSoundEnabled(readSoundEnabledPreference());
   }, []);
+
+  useEffect(() => {
+    writeSoundEnabledPreference(soundEnabled);
+  }, [soundEnabled]);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -236,25 +240,17 @@ export default function ServeurPage() {
         <Toaster position="top-right" />
 
         {soundEnabled && !audioReady && (
-          <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-medium text-amber-900">
-              🔇 Appuyez pour activer le bip des commandes à valider en caisse.
-            </p>
-            <button
-              type="button"
-              className="btn-primary shrink-0"
-              onClick={() =>
-                void unlock().then((ok) => {
-                  if (ok) {
-                    void playPendingBeep(1);
-                    toast.success("Son activé");
-                  }
-                })
-              }
-            >
-              🔔 Activer le son
-            </button>
-          </div>
+          <button
+            type="button"
+            className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+            onClick={() =>
+              void unlock().then((ok) => {
+                if (ok) toast.success("Son activé");
+              })
+            }
+          >
+            🔔 Touchez l&apos;écran une fois pour activer le bip des commandes à valider.
+          </button>
         )}
 
         <header className="surface-card-strong px-6 py-6 space-y-2">
