@@ -117,11 +117,12 @@ export function changeQty(
   return cart;
 }
 
-// Vider panier (et remettre le commentaire à vide)
+// Vider panier (commentaire + convives remis à zéro pour la prochaine commande)
 export function clearCart(tableId: string) {
   const cart = getCart(tableId);
   cart.items = [];
-  cart.tableComment = null; // <<< important : on efface le commentaire global
+  cart.tableComment = null;
+  cart.peopleCount = 1;
   cart.updatedAt = Date.now();
   if (tableComment !== null) {
     tableComment = null;

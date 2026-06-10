@@ -182,6 +182,24 @@ export default function TablePage() {
         setGuestNames(defaults);
     }, [tableId]);
 
+    const resetTableAfterOrder = useCallback(() => {
+        setCart([]);
+        resetGuestNamesState();
+        previousPeopleCountRef.current = 1;
+        setPeopleCount(1);
+        setActivePerson("P1");
+        setExpandedPersons(new Set());
+        setTableComment("");
+        setShowGuestNameEditor(false);
+        setEditingPersonId(null);
+        setComposeState(null);
+        setComposeErrors({});
+        setCartDrawerOpen(false);
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem(`table:${tableId}:people`, "1");
+        }
+    }, [resetGuestNamesState, tableId]);
+
     async function loadAll() {
         setLoading(true);
         try {
@@ -826,16 +844,7 @@ export default function TablePage() {
             }
 
             toast.success("Commande envoyée !");
-            setCart([]);
-            resetGuestNamesState();
-            setPeopleCount(1);
-            setActivePerson("P1");
-            setExpandedPersons(new Set());
-            setTableComment("");
-            setShowGuestNameEditor(false);
-            setComposeState(null);
-            setComposeErrors({});
-            setCartDrawerOpen(false);
+            resetTableAfterOrder();
             router.refresh();
         } catch (e: any) {
             console.error(e);
