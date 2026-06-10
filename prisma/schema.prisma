@@ -82,6 +82,20 @@ model PrinterConfig {
   updatedAt DateTime @updatedAt
 }
 
+// File d'attente d'impression consommée par l'agent sur place (réseau local du restaurant)
+model PrintJob {
+  id        String    @id @default(cuid())
+  label     String
+  payload   String // ESC/POS encodé en base64
+  status    String    @default("PENDING") // PENDING | DONE | ERROR | EXPIRED
+  attempts  Int       @default(0)
+  lastError String?
+  createdAt DateTime  @default(now())
+  printedAt DateTime?
+
+  @@index([status, createdAt])
+}
+
 model RestaurantSettings {
   id                  String   @id @default("default")
   restaurantName      String   @default("Asian Nour")

@@ -12,6 +12,28 @@ import { getSettings } from "@/lib/settings";
 
 export type TicketVariant = "kitchen" | "customer";
 
+/**
+ * Mode "agent" : l'app (hébergée sur Vercel) ne peut pas joindre l'imprimante
+ * sur le réseau local du restaurant. Les tickets sont mis en file d'attente
+ * (PrintJob) et un agent sur place (scripts/print-agent.mjs) les récupère
+ * puis les envoie à l'imprimante en TCP 9100.
+ * Le mode agent s'active dès que PRINT_AGENT_TOKEN est défini.
+ */
+export function isAgentMode(): boolean {
+  return Boolean(process.env.PRINT_AGENT_TOKEN);
+}
+
+async function deliverPayload(payload: Buffer, label: string): Promise<void> {
+  if (isAgentMode()) {
+    await prisma.printJob.create({
+      data: { label, payload: payload.toString("base64") },
+    });
+    return;
+  }
+  const config = await getPrinterConnection();
+  await sendEscPosToPrinter(config.ip, config.port, payload);
+}
+
 export async function isPrinterConfigured(): Promise<boolean> {
   const config = await prisma.printerConfig.findUnique({
     where: { id: PRINTER_CONFIG_ID },
@@ -33,7 +55,7 @@ async function getPrinterConnection() {
 export async function printTestTicketToConfiguredPrinter(): Promise<{ ip: string; port: number }> {
   const config = await getPrinterConnection();
   const payload = buildEscPosTestTicket();
-  await sendEscPosToPrinter(config.ip, config.port, payload);
+  await deliverPayload(payload, "Ticket de test");
   return { ip: config.ip, port: config.port };
 }
 
@@ -41,7 +63,8 @@ export async function printOrderTicketToConfiguredPrinter(
   orderId: string,
   variant: TicketVariant = "kitchen"
 ): Promise<void> {
-  const config = await getPrinterConnection();
+  // Vérifie que l'imprimante est configurée (l'agent récupère l'IP côté API)
+  await getPrinterConnection();
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -81,5 +104,7 @@ export async function printOrderTicketToConfiguredPrinter(
     payload = buildEscPosKitchenTicket(ticketInput);
   }
 
-  await sendEscPosToPrinter(config.ip, config.port, payload);
+  const where = order.type === "TAKEAWAY" ? `Emporter ${order.code ?? ""}` : `Table ${order.tableId}`;
+  const label = `${variant === "customer" ? "Ticket client" : "Cuisine"} — ${where.trim()}`;
+  await deliverPayload(payload, label);
 }
