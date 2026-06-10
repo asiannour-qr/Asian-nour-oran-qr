@@ -13,16 +13,18 @@ function createAudioContext(): AudioContext | null {
   return new Ctor();
 }
 
-async function resumeContext(ctx: AudioContext): Promise<boolean> {
-  if (ctx.state === "running") return true;
-  if (ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch {
-      return false;
-    }
-  }
+function isAudioRunning(ctx: AudioContext): boolean {
   return ctx.state === "running";
+}
+
+async function resumeContext(ctx: AudioContext): Promise<boolean> {
+  if (isAudioRunning(ctx)) return true;
+  try {
+    await ctx.resume();
+  } catch {
+    return false;
+  }
+  return isAudioRunning(ctx);
 }
 
 /**
