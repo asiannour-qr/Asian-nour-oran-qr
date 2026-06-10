@@ -145,7 +145,7 @@ export default function AdminSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-[var(--color-text-muted)]">
+      <div className="page-shell flex items-center justify-center h-64 text-[var(--color-text-muted)]">
         Chargement…
       </div>
     );
@@ -154,7 +154,7 @@ export default function AdminSettingsPage() {
   if (!settings) return null;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-16">
+    <main className="page-shell max-w-2xl space-y-8 pb-16">
       {/* Flash message */}
       {flash && (
         <div
@@ -335,6 +335,6 @@ export default function AdminSettingsPage() {
           </button>
         </form>
       </section>
-    </div>
+    </main>
   );
 }

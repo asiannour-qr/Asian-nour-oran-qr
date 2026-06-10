@@ -51,7 +51,7 @@ export default function AdminRevenuePage() {
     }, []);
 
     return (
-        <div className="space-y-8">
+        <main className="page-shell space-y-8">
             <header className="flex flex-wrap items-end justify-between gap-3">
                 <div className="space-y-2">
                     <h1 className="text-3xl font-semibold text-[var(--color-heading)]">Chiffre d’affaires</h1>
@@ -151,6 +151,6 @@ export default function AdminRevenuePage() {
                     <RevenueHistoryTable history={data?.history ?? []} formatEuro={formatEuro} />
                 )}
             </section>
-        </div>
+        </main>
     );
 }

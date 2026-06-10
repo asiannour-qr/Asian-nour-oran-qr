@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -20,7 +20,15 @@ const tabs = [
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const navRef = useRef<HTMLElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav || !pathname) return;
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [pathname]);
 
   if (pathname?.startsWith("/admin/login")) {
     return <>{children}</>;
@@ -39,9 +47,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg,#f5efe6)] text-[var(--fg,#2f2922)]">
+    <div className="min-h-screen bg-[var(--bg,#f5efe6)] text-[var(--fg,#2f2922)] overflow-x-hidden">
       <header className="sticky top-0 z-50 border-b border-black/10 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-4">
+        <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-3">
           <Link href="/admin/qr" aria-label="Asian Nour Admin — accueil" className="rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(190,127,57,0.5)] shrink-0">
             <div className="bg-black rounded-xl overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.2)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-shadow duration-200 px-1">
               <Image
@@ -54,11 +62,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               />
             </div>
           </Link>
-          <nav className="flex gap-2 items-center">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="shrink-0 px-3 py-1.5 rounded-lg border border-black/10 text-[#7a5640] hover:bg-black/5 transition disabled:opacity-50 text-sm whitespace-nowrap"
+          >
+            {loggingOut ? "Déconnexion…" : "Se déconnecter"}
+          </button>
+        </div>
+
+        <nav
+          ref={navRef}
+          aria-label="Navigation admin"
+          className="border-t border-black/5 overflow-x-auto overscroll-x-contain scroll-smooth [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:overflow-x-visible"
+        >
+          <div className="flex gap-2 px-4 py-2 w-max min-w-full lg:w-auto lg:max-w-6xl lg:mx-auto lg:flex-wrap">
             {tabs.map((t) => {
               const active = pathname ? pathname === t.href || pathname.startsWith(`${t.href}/`) : false;
               const base =
-                "px-3 py-1.5 rounded-lg border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(190,127,57,0.45)]";
+                "shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(190,127,57,0.45)]";
               const activeClasses = active
                 ? "border-[#7a5640] bg-[#7a5640] text-white shadow-sm"
                 : "border-black/10 text-[var(--fg,#2f2922)] hover:bg-black/5";
@@ -73,18 +96,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 </Link>
               );
             })}
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={loggingOut}
-              className="px-3 py-1.5 rounded-lg border border-black/10 text-[#7a5640] hover:bg-black/5 transition disabled:opacity-50"
-            >
-              {loggingOut ? "Déconnexion…" : "Se déconnecter"}
-            </button>
-          </nav>
-        </div>
+          </div>
+        </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <div className="w-full min-w-0">{children}</div>
     </div>
   );
 }

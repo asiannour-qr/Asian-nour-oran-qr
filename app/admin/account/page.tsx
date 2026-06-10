@@ -116,11 +116,11 @@ export default function AdminAccountPage() {
   const labelCls = "text-sm font-medium text-[var(--color-heading,#2f2922)]";
 
   if (loading) {
-    return <div className="surface-muted-text">Chargement…</div>;
+    return <div className="page-shell surface-muted-text">Chargement…</div>;
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <main className="page-shell space-y-8 max-w-2xl">
       <Toaster position="top-right" />
 
       <header className="space-y-1">
@@ -212,6 +212,6 @@ export default function AdminAccountPage() {
           </button>
         </div>
       </form>
-    </div>
+    </main>
   );
 }
