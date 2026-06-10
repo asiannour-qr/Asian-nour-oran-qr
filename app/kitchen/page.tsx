@@ -39,6 +39,7 @@ function orderLocationLabel(order: { type?: string | null; code?: string | null;
 }
 
 const AUTO_PRINT_STORAGE_KEY = "kitchen:autoPrint";
+const AUTO_PRINT_IDS_KEY = "kitchen:autoPrintedOrderIds";
 const PRINT_MODE = (process.env.NEXT_PUBLIC_PRINT_MODE ?? "preview").toLowerCase();
 const IS_BROWSER_AUTO_PRINT_MODE = PRINT_MODE === "auto";
 function statusBadgeClasses(s: string) {
@@ -358,13 +359,13 @@ const escapeHtml = useCallback((value: string) => {
     window.addEventListener("afterprint", afterPrint, { once: true });
   }, [buildCustomerTicketHtml, buildKitchenTicketHtml]);
 
-  const printOrderViaTcp = useCallback(async (order: Order, variant: "kitchen" | "customer" = "kitchen", silent = false) => {
+  const printOrderViaTcp = useCallback(async (order: Order, variant: "kitchen" | "customer" = "kitchen", silent = false, force = false) => {
     setPrintingOrderId(order.id);
     try {
       const res = await fetch("/api/kitchen/print", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: order.id, variant }),
+        body: JSON.stringify({ orderId: order.id, variant, force }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -386,7 +387,7 @@ const escapeHtml = useCallback((value: string) => {
   const handlePrint = useCallback(
     (order: Order, variant: "kitchen" | "customer" = "kitchen") => {
       if (printerConfiguredRef.current) {
-        void printOrderViaTcp(order, variant);
+        void printOrderViaTcp(order, variant, false, true);
         return;
       }
       handleBrowserPrint(order, variant);
@@ -394,11 +395,42 @@ const escapeHtml = useCallback((value: string) => {
     [handleBrowserPrint, printOrderViaTcp]
   );
 
-  const queueAutoPrint = useCallback((order: Order) => {
-    if (printedAutoIdsRef.current.has(order.id)) return;
-    printedAutoIdsRef.current.add(order.id);
-    pendingPrintsRef.current.push(order);
+  const hasAutoPrinted = useCallback((orderId: string) => {
+    if (printedAutoIdsRef.current.has(orderId)) return true;
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.sessionStorage.getItem(AUTO_PRINT_IDS_KEY);
+      const ids: string[] = raw ? JSON.parse(raw) : [];
+      return ids.includes(orderId);
+    } catch {
+      return false;
+    }
   }, []);
+
+  const markAutoPrinted = useCallback((orderId: string) => {
+    printedAutoIdsRef.current.add(orderId);
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(AUTO_PRINT_IDS_KEY);
+      const ids: string[] = raw ? JSON.parse(raw) : [];
+      if (!ids.includes(orderId)) {
+        ids.push(orderId);
+        if (ids.length > 500) ids.splice(0, ids.length - 500);
+        window.sessionStorage.setItem(AUTO_PRINT_IDS_KEY, JSON.stringify(ids));
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const queueAutoPrint = useCallback(
+    (order: Order) => {
+      if (hasAutoPrinted(order.id)) return;
+      markAutoPrinted(order.id);
+      pendingPrintsRef.current.push(order);
+    },
+    [hasAutoPrinted, markAutoPrinted]
+  );
 
   const fetchPrinterStatus = useCallback(async () => {
     try {

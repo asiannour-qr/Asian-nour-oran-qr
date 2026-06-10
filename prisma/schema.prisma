@@ -88,13 +88,15 @@ model PrintJob {
   label     String
   payload   String // ESC/POS encodé en base64
   target    String    @default("kitchen") // kitchen | customer
-  status    String    @default("PENDING") // PENDING | DONE | ERROR | EXPIRED
+  orderId   String? // commande source (déduplication auto-impression)
+  status    String    @default("PENDING") // PENDING | PROCESSING | DONE | ERROR | EXPIRED
   attempts  Int       @default(0)
   lastError String?
   createdAt DateTime  @default(now())
   printedAt DateTime?
 
   @@index([status, createdAt])
+  @@index([orderId, target, status])
 }
 
 model RestaurantSettings {

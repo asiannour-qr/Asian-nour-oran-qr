@@ -19,6 +19,8 @@ import { getSettings } from "@/lib/settings";
 
 export type TicketVariant = "kitchen" | "customer";
 
+const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Mode agent : les tickets sont mis en file d'attente (PrintJob) avec une cible
  * (kitchen | customer) et l'agent local les envoie à la bonne imprimante.
@@ -49,18 +51,40 @@ async function getPrinterConnection(variant: TicketVariant = "kitchen") {
   return config;
 }
 
+async function hasRecentPrintJob(orderId: string, target: PrinterTarget): Promise<boolean> {
+  const existing = await prisma.printJob.findFirst({
+    where: {
+      orderId,
+      target,
+      status: { in: ["PENDING", "PROCESSING", "DONE"] },
+      createdAt: { gte: new Date(Date.now() - DEDUP_WINDOW_MS) },
+    },
+    select: { id: true },
+  });
+  return Boolean(existing);
+}
+
 async function deliverPayload(
   payload: Buffer,
   label: string,
-  variant: TicketVariant
+  variant: TicketVariant,
+  options?: { orderId?: string; force?: boolean }
 ): Promise<void> {
   const target = targetForVariant(variant);
+
+  if (options?.orderId && !options.force) {
+    if (await hasRecentPrintJob(options.orderId, target)) {
+      return;
+    }
+  }
+
   if (isAgentMode()) {
     await prisma.printJob.create({
       data: {
         label,
         payload: payload.toString("base64"),
         target,
+        orderId: options?.orderId ?? null,
       },
     });
     return;
@@ -98,7 +122,8 @@ export async function printTestTicketToConfiguredPrinter(
 
 export async function printOrderTicketToConfiguredPrinter(
   orderId: string,
-  variant: TicketVariant = "kitchen"
+  variant: TicketVariant = "kitchen",
+  options?: { force?: boolean }
 ): Promise<void> {
   await getPrinterConnection(variant);
 
@@ -144,7 +169,7 @@ export async function printOrderTicketToConfiguredPrinter(
   const where =
     order.type === "TAKEAWAY" ? `Emporter ${order.code ?? ""}` : `Table ${order.tableId}`;
   const label = `${variant === "customer" ? "Ticket client" : "Cuisine"} — ${where.trim()}`;
-  await deliverPayload(payload, label, variant);
+  await deliverPayload(payload, label, variant, { orderId, force: options?.force });
 }
 
 /** IDs utilisés par l'admin et l'agent d'impression */

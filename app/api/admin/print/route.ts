@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
-import { printOrderTicketToConfiguredPrinter, type TicketVariant } from "@/lib/printer-service";
+import { assertAdminSession } from "@/lib/admin-session";
+import {
+  printOrderTicketToConfiguredPrinter,
+  type TicketVariant,
+} from "@/lib/printer-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const unauthorized = assertAdminSession();
+  if (unauthorized) return unauthorized;
+
   let body: { orderId?: unknown; variant?: unknown; force?: unknown };
   try {
     body = await req.json();
@@ -18,14 +25,14 @@ export async function POST(req: Request) {
   }
 
   const variant: TicketVariant = body.variant === "customer" ? "customer" : "kitchen";
-  const force = body.force === true;
+  const force = body.force !== false;
 
   try {
     await printOrderTicketToConfiguredPrinter(orderId, variant, { force });
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
-    console.error("[kitchen/print]", error);
+    console.error("[admin/print]", error);
 
     if (message.includes("non configurée")) {
       return NextResponse.json({ error: message, configured: false }, { status: 404 });

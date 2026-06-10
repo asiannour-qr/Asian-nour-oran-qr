@@ -39,7 +39,9 @@ export default function ServeurPage() {
   const [tableStates, setTableStates] = useState<Record<string, TableState>>({});
   const [takeawayActive, setTakeawayActive] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<OrderLite[]>([]);
+  const [activeTakeaway, setActiveTakeaway] = useState<OrderLite[]>([]);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
   const [refusingId, setRefusingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -117,6 +119,7 @@ export default function ServeurPage() {
       const states: Record<string, TableState> = {};
       let takeaway = 0;
       const pending: OrderLite[] = [];
+      const activeTakeawayList: OrderLite[] = [];
       for (const o of data.orders ?? []) {
         const isTakeaway = o.type === "TAKEAWAY" || o.tableId === "EMPORTER";
         if (isTakeaway && o.status === "PENDING_PAYMENT") {
@@ -127,6 +130,7 @@ export default function ServeurPage() {
         if (!isOpen) continue;
         if (isTakeaway) {
           takeaway += 1;
+          activeTakeawayList.push(o);
           continue;
         }
         // READY prime sur ACTIVE pour signaler les plats à apporter
@@ -138,6 +142,9 @@ export default function ServeurPage() {
       }
       pending.sort(
         (a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
+      );
+      activeTakeawayList.sort(
+        (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
       );
 
       // Bip + notification quand une nouvelle commande à valider arrive
@@ -155,6 +162,7 @@ export default function ServeurPage() {
       setTableStates(states);
       setTakeawayActive(takeaway);
       setPendingOrders(pending);
+      setActiveTakeaway(activeTakeawayList);
     } catch {
       // silencieux : l'occupation est un confort, la grille reste utilisable
     }
@@ -166,9 +174,28 @@ export default function ServeurPage() {
     return () => clearInterval(id);
   }, [fetchOccupancy]);
 
+  const printCustomerTicket = useCallback(async (orderId: string) => {
+    if (printingId) return;
+    setPrintingId(orderId);
+    try {
+      const res = await fetch("/api/kitchen/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, variant: "customer", force: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Impression impossible");
+      toast.success("Ticket client envoyé à la caisse");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Ticket non imprimé");
+    } finally {
+      setPrintingId(null);
+    }
+  }, [printingId]);
+
   // Valide (paiement encaissé → part en cuisine) ou refuse une commande à emporter
   const resolvePendingOrder = useCallback(
-    async (orderId: string, action: "validate" | "refuse", printTicket = false) => {
+    async (orderId: string, action: "validate" | "refuse") => {
       if (actingId) return;
       setActingId(orderId);
       try {
@@ -187,24 +214,6 @@ export default function ServeurPage() {
         setPendingOrders((prev) => prev.filter((o) => o.id !== orderId));
         setRefusingId(null);
         toast.success(action === "validate" ? "Commande envoyée en cuisine" : "Commande refusée");
-
-        if (action === "validate" && printTicket) {
-          try {
-            const printRes = await fetch("/api/kitchen/print", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ orderId, variant: "customer" }),
-            });
-            const printData = await printRes.json().catch(() => ({}));
-            if (!printRes.ok) {
-              throw new Error(printData?.error || "Impression impossible");
-            }
-            toast.success("Ticket client imprimé");
-          } catch (printErr: any) {
-            // La commande est bien partie en cuisine : on signale juste l'impression
-            toast.error(printErr?.message || "Ticket non imprimé (imprimante ?)");
-          }
-        }
 
         void fetchOccupancy();
       } catch (e: any) {
@@ -281,6 +290,7 @@ export default function ServeurPage() {
               {pendingOrders.map((o) => {
                 const refusing = refusingId === o.id;
                 const busy = actingId === o.id;
+                const printing = printingId === o.id;
                 return (
                   <article
                     key={o.id}
@@ -347,19 +357,62 @@ export default function ServeurPage() {
                           <button
                             className="btn-soft text-sm"
                             onClick={() => resolvePendingOrder(o.id, "validate")}
-                            disabled={busy}
+                            disabled={busy || printing}
                           >
                             ✓ Payée
                           </button>
                           <button
                             className="btn-primary"
-                            onClick={() => resolvePendingOrder(o.id, "validate", true)}
-                            disabled={busy}
+                            onClick={() => void printCustomerTicket(o.id)}
+                            disabled={busy || printing}
                           >
-                            {busy ? "Envoi…" : "✓ Payée + ticket 🖨"}
+                            {printing ? "Envoi…" : "🧾 Ticket client"}
                           </button>
                         </>
                       )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTakeaway.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold text-[var(--color-heading)]">
+              🥡 Emporter en cours
+            </h2>
+            <p className="surface-muted-text text-sm -mt-1">
+              Réimprimez le ticket client (reçu avec prix) sur l&apos;imprimante caisse.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {activeTakeaway.map((o) => {
+                const printing = printingId === o.id;
+                return (
+                  <article
+                    key={o.id}
+                    className="surface-card rounded-2xl border border-[var(--color-border)] px-5 py-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-[var(--color-heading)]">
+                          {o.code ?? "À emporter"}
+                        </div>
+                        <div className="text-xs surface-muted-text">
+                          {formatTime(o.createdAt)} · {o.status}
+                        </div>
+                      </div>
+                      <div className="font-bold">{dzd(o.total ?? 0)}</div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        className="btn-primary text-sm"
+                        onClick={() => void printCustomerTicket(o.id)}
+                        disabled={printing}
+                      >
+                        {printing ? "Envoi…" : "🧾 Ticket client"}
+                      </button>
                     </div>
                   </article>
                 );

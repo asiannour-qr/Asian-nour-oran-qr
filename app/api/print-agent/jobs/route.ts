@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const JOB_MAX_AGE_MS = 30 * 60 * 1000;
+const PROCESSING_STALE_MS = 2 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 10;
 
@@ -24,13 +25,20 @@ export async function GET(req: Request) {
   if (unauthorized) return unauthorized;
 
   const cutoff = new Date(Date.now() - JOB_MAX_AGE_MS);
+  const processingStale = new Date(Date.now() - PROCESSING_STALE_MS);
 
   await prisma.printJob.updateMany({
     where: { status: "PENDING", createdAt: { lt: cutoff } },
     data: { status: "EXPIRED" },
   });
 
-  const [kitchenRow, customerRow, legacyRow, jobs] = await Promise.all([
+  // Jobs bloqués en PROCESSING (agent crashé) → retenter
+  await prisma.printJob.updateMany({
+    where: { status: "PROCESSING", createdAt: { lt: processingStale } },
+    data: { status: "PENDING" },
+  });
+
+  const [kitchenRow, customerRow, legacyRow, pendingJobs] = await Promise.all([
     prisma.printerConfig.findUnique({
       where: { id: KITCHEN_PRINTER_ID },
       select: { ip: true, port: true },
@@ -50,6 +58,16 @@ export async function GET(req: Request) {
       select: { id: true, label: true, payload: true, target: true, createdAt: true },
     }),
   ]);
+
+  // Réserve atomiquement chaque job pour un seul agent
+  const jobs = [];
+  for (const job of pendingJobs) {
+    const claimed = await prisma.printJob.updateMany({
+      where: { id: job.id, status: "PENDING" },
+      data: { status: "PROCESSING" },
+    });
+    if (claimed.count > 0) jobs.push(job);
+  }
 
   const printers = {
     kitchen: pickPrinter(kitchenRow ?? legacyRow),

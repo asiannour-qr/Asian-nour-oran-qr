@@ -25,16 +25,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!job) return NextResponse.json({ error: "Job introuvable" }, { status: 404 });
 
   if (body.ok === true) {
-    await prisma.printJob.update({
-      where: { id },
+    await prisma.printJob.updateMany({
+      where: { id, status: { in: ["PENDING", "PROCESSING"] } },
       data: { status: "DONE", printedAt: new Date(), lastError: null },
     });
     return NextResponse.json({ ok: true });
   }
 
   const attempts = job.attempts + 1;
-  await prisma.printJob.update({
-    where: { id },
+  await prisma.printJob.updateMany({
+    where: { id, status: { in: ["PENDING", "PROCESSING"] } },
     data: {
       attempts,
       lastError: typeof body.error === "string" ? body.error.slice(0, 500) : "Erreur inconnue",

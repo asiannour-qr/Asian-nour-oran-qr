@@ -72,6 +72,7 @@ async function reportJob(id, ok, error) {
 }
 
 let lastErrorMessage = "";
+let loggedPrintersOnce = false;
 
 async function tick() {
   let data;
@@ -95,6 +96,18 @@ async function tick() {
   }
 
   const { printers, printer, jobs } = data;
+
+  if (!loggedPrintersOnce) {
+    loggedPrintersOnce = true;
+    const k = printers?.kitchen ?? printer;
+    const c = printers?.customer;
+    log("Imprimante cuisine :", k?.ip ? `${k.ip}:${k.port || 9100}` : "NON CONFIGURÉE");
+    log("Imprimante caisse   :", c?.ip ? `${c.ip}:${c.port || 9100}` : "NON CONFIGURÉE");
+    if (k?.ip && c?.ip && k.ip === c.ip) {
+      log("⚠ ATTENTION : les deux imprimantes ont la MÊME IP — tous les tickets sortiront au même endroit !");
+    }
+  }
+
   if (!jobs?.length) return;
 
   for (const job of jobs) {
@@ -114,7 +127,7 @@ async function tick() {
     const payload = Buffer.from(job.payload, "base64");
     try {
       await sendToPrinter(resolved.ip, resolved.port || 9100, payload);
-      log(`🖨 [${target}] Imprimé : ${job.label}`);
+      log(`🖨 [${target}] ${resolved.ip}:${resolved.port || 9100} → ${job.label}`);
       await reportJob(job.id, true);
     } catch (err) {
       log(`✗ [${target}] Échec « ${job.label} » :`, err.message);
