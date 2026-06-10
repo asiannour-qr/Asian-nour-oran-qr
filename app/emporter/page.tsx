@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { toastAddedToCart } from "@/lib/cart-toast";
 import CategorySlider from "@/app/components/CategorySlider";
 import {
   ComposableMenu,
@@ -163,6 +164,7 @@ export default function EmporterPage() {
       }
       return [...prev, { id: `${name}-${priceCents}`, name, priceCents, qty: 1 }];
     });
+    toastAddedToCart(name);
   }, []);
 
   const decFromCart = useCallback((id: string) => {
@@ -504,7 +506,6 @@ export default function EmporterPage() {
           onClose={() => setComposingMenu(null)}
           onConfirm={(label, priceCents) => {
             addToCart(label, priceCents);
-            toast.success("Menu ajouté au panier");
             setComposingMenu(null);
           }}
         />

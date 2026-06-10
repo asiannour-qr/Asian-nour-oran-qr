@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { toastAddedToCart } from "@/lib/cart-toast";
 import TableLandingView from "@/app/components/TableLandingView";
 import {
     guestNameFallback,
@@ -562,6 +563,7 @@ export default function TablePage() {
             }
             return [...prev, { id: key, name, priceCents, qty: 1, personId: target }];
         });
+        toastAddedToCart(name);
     }
 
     function decFromCart(id: string, personId: string) {
@@ -752,7 +754,6 @@ export default function TablePage() {
         }
         const label = detailParts.length > 0 ? `${menu.name} — ${detailParts.join(" • ")}` : menu.name;
         addToCartLine(label, menu.priceCents, activePerson);
-        toast.success(`Menu ajouté pour ${getGuestNameForPersonId(activePerson)}`);
         setComposeState(null);
         setComposeErrors({});
     }
