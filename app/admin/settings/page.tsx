@@ -24,6 +24,7 @@ type Settings = {
   kitchenSoundEnabled: boolean;
   autoPrintEnabled: boolean;
   openingHours: OpeningHours;
+  menuCardImageUrl: string | null;
 };
 
 const DEFAULT_HOURS: OpeningHours = Object.fromEntries(
@@ -65,6 +66,8 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingCard, setUploadingCard] = useState(false);
+  const [pendingCardPreview, setPendingCardPreview] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -143,6 +146,65 @@ export default function AdminSettingsPage() {
     save({ openingHours: settings.openingHours });
   }
 
+  async function handleMenuCardSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      showFlash("err", "Format non supporté (JPG, PNG, WebP)");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      showFlash("err", "Fichier trop volumineux (8 Mo max)");
+      return;
+    }
+
+    setPendingCardPreview(URL.createObjectURL(file));
+    setUploadingCard(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/settings/menu-card", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        showFlash("err", data.error ?? "Erreur upload");
+        return;
+      }
+      setSettings((s) => (s ? { ...s, menuCardImageUrl: data.menuCardImageUrl } : s));
+      showFlash("ok", "Carte mise à jour ✓");
+    } catch {
+      showFlash("err", "Erreur réseau");
+    } finally {
+      setUploadingCard(false);
+    }
+  }
+
+  async function removeMenuCard() {
+    if (uploadingCard) return;
+    setUploadingCard(true);
+    try {
+      const res = await fetch("/api/admin/settings/menu-card", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        showFlash("err", data.error ?? "Erreur");
+        return;
+      }
+      setSettings((s) => (s ? { ...s, menuCardImageUrl: null } : s));
+      setPendingCardPreview(null);
+      showFlash("ok", "Carte par défaut restaurée");
+    } catch {
+      showFlash("err", "Erreur réseau");
+    } finally {
+      setUploadingCard(false);
+    }
+  }
+
+  const menuCardPreview =
+    pendingCardPreview ||
+    settings?.menuCardImageUrl ||
+    "/carte/asian-nour/CARTE-2025.jpg";
+
   if (loading) {
     return (
       <div className="page-shell flex items-center justify-center h-64 text-[var(--color-text-muted)]">
@@ -202,6 +264,49 @@ export default function AdminSettingsPage() {
             {saving ? "Sauvegarde…" : "Sauvegarder"}
           </button>
         </form>
+      </section>
+
+      {/* ── Carte physique (accueil) ─────────────────────── */}
+      <section className="card space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Carte principale (accueil)</h2>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Image affichée sur la page d&apos;accueil et avant la commande (scan QR table).
+            JPG, PNG ou WebP — 8 Mo max.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-black/10 overflow-hidden bg-black/5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={menuCardPreview}
+            alt="Aperçu de la carte"
+            className="w-full h-auto max-h-[420px] object-contain mx-auto"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <label className="btn-soft cursor-pointer">
+            {uploadingCard ? "Envoi…" : "Changer la carte"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              disabled={uploadingCard}
+              onChange={handleMenuCardSelected}
+            />
+          </label>
+          {settings.menuCardImageUrl && (
+            <button
+              type="button"
+              className="btn-ghost text-red-600"
+              disabled={uploadingCard}
+              onClick={() => void removeMenuCard()}
+            >
+              Revenir à la carte par défaut
+            </button>
+          )}
+        </div>
       </section>
 
       {/* ── Tables ───────────────────────────────────────── */}

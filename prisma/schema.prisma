@@ -105,5 +105,6 @@ model RestaurantSettings {
   kitchenSoundEnabled Boolean  @default(true)
   autoPrintEnabled    Boolean  @default(false)
   openingHours        Json?
+  menuCardImageUrl    String?
   updatedAt           DateTime @updatedAt
 }

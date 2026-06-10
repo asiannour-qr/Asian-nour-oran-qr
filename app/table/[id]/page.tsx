@@ -93,7 +93,6 @@ export default function TablePage() {
         if (landingCheckRef.current) return;
         landingCheckRef.current = true;
 
-        if (process.env.NEXT_PUBLIC_SHOW_MENU_LANDING !== "1") return;
         if (typeof window === "undefined") return;
 
         const skipFlag = window.sessionStorage.getItem("skipMenuLanding");

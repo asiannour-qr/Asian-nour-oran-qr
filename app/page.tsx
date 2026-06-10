@@ -1,6 +1,7 @@
 // app/page.tsx
 import Image from "next/image";
-import { getSettings } from "@/lib/settings";
+import MenuCardImage from "@/app/components/MenuCardImage";
+import { getSettings, resolveMenuCardImageUrl } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function Home() {
   }
 
   const name = settings?.restaurantName || "Asian Nour";
+  const menuCardSrc = resolveMenuCardImageUrl(settings);
   const hours = (settings?.openingHours ?? {}) as Record<string, DayHours>;
   const hasHours = JOURS_ORDRE.some((j) => hours[j]);
 
@@ -55,6 +57,14 @@ export default async function Home() {
             {settings?.phone && <p>📞 {settings.phone}</p>}
           </div>
         )}
+      </div>
+
+      <div className="surface-card w-full max-w-2xl px-4 sm:px-8 py-6 space-y-4">
+        <h2 className="text-lg font-semibold text-center">Notre carte</h2>
+        <p className="text-sm surface-muted-text text-center">
+          Consultez la carte complète du restaurant avant de commander.
+        </p>
+        <MenuCardImage src={menuCardSrc} alt={`Carte ${name}`} />
       </div>
 
       {hasHours && (

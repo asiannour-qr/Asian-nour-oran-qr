@@ -2,6 +2,9 @@ import prisma from "@/lib/prisma";
 
 export const SETTINGS_ID = "default";
 
+/** Image par défaut (fichier statique) si aucune carte n’a été uploadée via l’admin. */
+export const DEFAULT_MENU_CARD_IMAGE = "/carte/asian-nour/CARTE-2025.jpg";
+
 export type DayHours = {
   ouvert: boolean;
   debut: string;
@@ -27,7 +30,13 @@ export type Settings = {
   kitchenSoundEnabled: boolean;
   autoPrintEnabled: boolean;
   openingHours: OpeningHours;
+  menuCardImageUrl: string | null;
 };
+
+export function resolveMenuCardImageUrl(settings?: Pick<Settings, "menuCardImageUrl"> | null): string {
+  const url = settings?.menuCardImageUrl?.trim();
+  return url || DEFAULT_MENU_CARD_IMAGE;
+}
 
 export async function getSettings(): Promise<Settings> {
   const row = await prisma.restaurantSettings.findUnique({
@@ -43,6 +52,7 @@ export async function getSettings(): Promise<Settings> {
     autoPrintEnabled: row?.autoPrintEnabled ?? false,
     openingHours:
       (row?.openingHours as OpeningHours | null) ?? DEFAULT_OPENING_HOURS,
+    menuCardImageUrl: row?.menuCardImageUrl ?? null,
   };
 }
 
@@ -61,6 +71,7 @@ export async function upsertSettings(patch: Partial<Settings>): Promise<Settings
       kitchenSoundEnabled: merged.kitchenSoundEnabled,
       autoPrintEnabled: merged.autoPrintEnabled,
       openingHours: merged.openingHours as object,
+      menuCardImageUrl: merged.menuCardImageUrl,
     },
     update: {
       restaurantName: merged.restaurantName,
@@ -70,6 +81,7 @@ export async function upsertSettings(patch: Partial<Settings>): Promise<Settings
       kitchenSoundEnabled: merged.kitchenSoundEnabled,
       autoPrintEnabled: merged.autoPrintEnabled,
       openingHours: merged.openingHours as object,
+      menuCardImageUrl: merged.menuCardImageUrl,
     },
   });
 
