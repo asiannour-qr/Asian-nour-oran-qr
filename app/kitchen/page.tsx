@@ -415,6 +415,13 @@ const escapeHtml = useCallback((value: string) => {
       const configured = Boolean(data?.configured);
       printerConfiguredRef.current = configured;
       setPrinterConfigured(configured);
+      if (configured && typeof window !== "undefined") {
+        const stored = window.localStorage.getItem(AUTO_PRINT_STORAGE_KEY);
+        if (stored === null) {
+          setAutoPrint(true);
+          autoPrintRef.current = true;
+        }
+      }
     } catch {
       printerConfiguredRef.current = false;
       setPrinterConfigured(false);
@@ -455,9 +462,8 @@ const escapeHtml = useCallback((value: string) => {
 
         if (bootstrappedRef.current) {
           incoming.forEach((order) => {
-            if (printerConfiguredRef.current) {
-              queueAutoPrint(order);
-            } else if (autoPrintRef.current && IS_BROWSER_AUTO_PRINT_MODE) {
+            if (!autoPrintRef.current) return;
+            if (printerConfiguredRef.current || IS_BROWSER_AUTO_PRINT_MODE) {
               queueAutoPrint(order);
             }
           });
@@ -543,16 +549,17 @@ const escapeHtml = useCallback((value: string) => {
     if (stored === "1") {
       setAutoPrint(true);
       autoPrintRef.current = true;
+    } else if (stored === "0") {
+      setAutoPrint(false);
+      autoPrintRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     autoPrintRef.current = autoPrint;
     if (typeof window === "undefined") return;
-    if (autoPrint) {
-      window.localStorage.setItem(AUTO_PRINT_STORAGE_KEY, "1");
-    } else {
-      window.localStorage.removeItem(AUTO_PRINT_STORAGE_KEY);
+    window.localStorage.setItem(AUTO_PRINT_STORAGE_KEY, autoPrint ? "1" : "0");
+    if (!autoPrint) {
       printedAutoIdsRef.current.clear();
     }
   }, [autoPrint]);
@@ -667,25 +674,13 @@ const escapeHtml = useCallback((value: string) => {
                 🔊 Tester
               </button>
             )}
-            {printerConfigured ? (
-              <span className="text-sm font-medium text-emerald-700">
-                Imprimante réseau active (TCP auto)
-              </span>
-            ) : (
-              <label className="flex items-center gap-2 text-sm font-medium surface-muted-text">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  checked={autoPrint}
-                  onChange={(e) => setAutoPrint(e.target.checked)}
-                />
-                Auto-print navigateur
-              </label>
+            <button onClick={() => setAutoPrint((v) => !v)} className="btn-soft">
+              Auto-impression&nbsp;: {autoPrint ? "ON" : "OFF"}
+            </button>
+            {printerConfigured && (
+              <span className="text-sm font-medium text-emerald-700">Imprimante réseau OK</span>
             )}
             <span className="surface-muted-text text-sm">Dernier fetch&nbsp;: {lastFetch.current}</span>
-            <a href="/serveur" className="btn-soft">
-              📋 Mode serveur
-            </a>
             <button
               onClick={async () => {
                 await fetch("/api/kitchen/logout", { method: "POST" });
