@@ -845,6 +845,7 @@ export default function TablePage() {
 
             toast.success("Commande envoyée !");
             resetTableAfterOrder();
+            showLanding();
             router.refresh();
         } catch (e: any) {
             console.error(e);
