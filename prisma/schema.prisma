@@ -87,6 +87,7 @@ model PrintJob {
   id        String    @id @default(cuid())
   label     String
   payload   String // ESC/POS encodé en base64
+  target    String    @default("kitchen") // kitchen | customer
   status    String    @default("PENDING") // PENDING | DONE | ERROR | EXPIRED
   attempts  Int       @default(0)
   lastError String?

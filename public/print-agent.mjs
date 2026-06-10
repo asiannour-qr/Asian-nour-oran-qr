@@ -94,24 +94,32 @@ async function tick() {
     return;
   }
 
-  const { printer, jobs } = data;
+  const { printers, printer, jobs } = data;
   if (!jobs?.length) return;
 
-  if (!printer?.ip) {
-    log("⚠ Aucune imprimante configurée dans Admin → Imprimantes ; jobs en attente :", jobs.length);
-    return;
-  }
-
   for (const job of jobs) {
+    const target = job.target === "customer" ? "customer" : "kitchen";
+    const resolved =
+      (printers && printers[target]) || (target === "kitchen" ? printer : null);
+
+    if (!resolved?.ip) {
+      log(
+        `⚠ Imprimante ${target === "customer" ? "caisse" : "cuisine"} non configurée ; job en attente :`,
+        job.label
+      );
+      await reportJob(job.id, false, `Imprimante ${target} non configurée`);
+      continue;
+    }
+
     const payload = Buffer.from(job.payload, "base64");
     try {
-      await sendToPrinter(printer.ip, printer.port || 9100, payload);
-      log(`🖨 Imprimé : ${job.label}`);
+      await sendToPrinter(resolved.ip, resolved.port || 9100, payload);
+      log(`🖨 [${target}] Imprimé : ${job.label}`);
       await reportJob(job.id, true);
     } catch (err) {
-      log(`✗ Échec impression « ${job.label} » :`, err.message);
+      log(`✗ [${target}] Échec « ${job.label} » :`, err.message);
       await reportJob(job.id, false, err.message);
-      break; // imprimante probablement hors ligne : on retentera au prochain cycle
+      break;
     }
   }
 }

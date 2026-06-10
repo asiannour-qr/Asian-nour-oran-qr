@@ -736,18 +736,6 @@ const escapeHtml = useCallback((value: string) => {
                   >
                     {printingOrderId === o.id ? "Envoi…" : "🍜 Ticket cuisine"}
                   </button>
-                  <button
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handlePrint(o, "customer");
-                    }}
-                    className="btn-ghost"
-                    disabled={printingOrderId === o.id}
-                    title="Imprimer le ticket client (reçu détaillé)"
-                  >
-                    {printingOrderId === o.id ? "Envoi…" : "🧾 Ticket client"}
-                  </button>
                   {o.status !== "IN_PROGRESS" && (
                     <button
                       onClick={() => updateStatus(o.id, "IN_PROGRESS")}

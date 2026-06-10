@@ -2,28 +2,37 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { assertAdminSession } from "@/lib/admin-session";
 import {
+  CUSTOMER_PRINTER_ID,
   DEFAULT_PRINTER_PORT,
+  KITCHEN_PRINTER_ID,
+  LEGACY_PRINTER_ID,
   normalizePrinterIp,
   parsePrinterPort,
-  PRINTER_CONFIG_ID,
+  type PrinterTarget,
 } from "@/lib/printer-config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+function serializeConfig(row: { ip: string; port: number; updatedAt: Date } | null) {
+  if (!row) return null;
+  return { ip: row.ip, port: row.port, updatedAt: row.updatedAt.toISOString() };
+}
 
 export async function GET() {
   const unauthorized = assertAdminSession();
   if (unauthorized) return unauthorized;
 
   try {
-    const config = await prisma.printerConfig.findUnique({
-      where: { id: PRINTER_CONFIG_ID },
-    });
+    const [kitchen, customer, legacy] = await Promise.all([
+      prisma.printerConfig.findUnique({ where: { id: KITCHEN_PRINTER_ID } }),
+      prisma.printerConfig.findUnique({ where: { id: CUSTOMER_PRINTER_ID } }),
+      prisma.printerConfig.findUnique({ where: { id: LEGACY_PRINTER_ID } }),
+    ]);
 
     return NextResponse.json({
-      config: config
-        ? { ip: config.ip, port: config.port, updatedAt: config.updatedAt.toISOString() }
-        : null,
+      kitchen: serializeConfig(kitchen ?? legacy),
+      customer: serializeConfig(customer),
       defaults: { port: DEFAULT_PRINTER_PORT },
     });
   } catch (error: unknown) {
@@ -36,12 +45,16 @@ export async function PUT(req: Request) {
   const unauthorized = assertAdminSession();
   if (unauthorized) return unauthorized;
 
-  let body: { ip?: unknown; port?: unknown };
+  let body: { role?: unknown; ip?: unknown; port?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Corps JSON invalide" }, { status: 400 });
   }
+
+  const role = body.role === "customer" ? "customer" : "kitchen";
+  const target: PrinterTarget = role;
+  const configId = target === "customer" ? CUSTOMER_PRINTER_ID : KITCHEN_PRINTER_ID;
 
   const ip = normalizePrinterIp(body.ip);
   if (!ip) {
@@ -55,17 +68,14 @@ export async function PUT(req: Request) {
 
   try {
     const config = await prisma.printerConfig.upsert({
-      where: { id: PRINTER_CONFIG_ID },
-      create: { id: PRINTER_CONFIG_ID, ip, port },
+      where: { id: configId },
+      create: { id: configId, ip, port },
       update: { ip, port },
     });
 
     return NextResponse.json({
-      config: {
-        ip: config.ip,
-        port: config.port,
-        updatedAt: config.updatedAt.toISOString(),
-      },
+      role: target,
+      config: serializeConfig(config),
     });
   } catch (error: unknown) {
     console.error("[admin/printers/PUT]", error);

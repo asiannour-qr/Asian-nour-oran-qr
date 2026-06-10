@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[kitchen/print]", error);
 
-    if (message === "Aucune imprimante configurée") {
+    if (message.includes("non configurée")) {
       return NextResponse.json({ error: message, configured: false }, { status: 404 });
     }
     if (message === "Commande introuvable") {
