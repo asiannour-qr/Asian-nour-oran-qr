@@ -13,10 +13,7 @@ export default function StartOrderButton({ tableId, className, children }: Start
   const router = useRouter();
 
   const handleClick = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("skipMenuLanding", "1");
-    }
-    router.push(`/table/${tableId}`);
+    router.push(`/table/${tableId}?order=1`);
   }, [router, tableId]);
 
   return (

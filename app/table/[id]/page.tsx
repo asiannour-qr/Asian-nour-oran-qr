@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import TableLandingView from "@/app/components/TableLandingView";
 import {
     guestNameFallback,
     guestNameFromMap,
@@ -87,20 +88,22 @@ export default function TablePage() {
     const params = useParams<{ id: string }>();
     const tableId = params?.id ?? "1";
     const router = useRouter();
-    const landingCheckRef = useRef(false);
+    const [orderMode, setOrderMode] = useState(false);
 
     useEffect(() => {
-        if (landingCheckRef.current) return;
-        landingCheckRef.current = true;
-
         if (typeof window === "undefined") return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("order") === "1") setOrderMode(true);
+    }, []);
 
-        const skipFlag = window.sessionStorage.getItem("skipMenuLanding");
-        if (skipFlag === "1") {
-            window.sessionStorage.removeItem("skipMenuLanding");
-            return;
-        }
-        router.replace(`/carte/${tableId}`);
+    const startOrdering = useCallback(() => {
+        setOrderMode(true);
+        router.replace(`/table/${tableId}?order=1`, { scroll: true });
+    }, [router, tableId]);
+
+    const showLanding = useCallback(() => {
+        setOrderMode(false);
+        router.replace(`/table/${tableId}`, { scroll: true });
     }, [router, tableId]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -842,9 +845,20 @@ export default function TablePage() {
 
     return (
         <>
+            {!orderMode ? (
+                <TableLandingView tableId={tableId} onStartOrder={startOrdering} />
+            ) : (
+            <>
             <header className="sticky top-0 z-40 border-b border-[rgba(190,127,57,0.22)] bg-[rgba(245,239,230,0.85)] backdrop-blur-md">
                 <div className="mx-auto flex h-14 items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={showLanding}
+                            className="text-xs sm:text-sm text-[var(--color-heading)] underline-offset-2 hover:underline"
+                        >
+                            Voir la carte
+                        </button>
                         <span className="text-base font-semibold text-[var(--color-heading)] sm:text-lg">Asian Nour</span>
                         <span className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[rgba(255,252,247,0.88)] px-3 py-1 text-xs font-medium text-[var(--color-heading)]">
                             Table {tableId}
@@ -1406,6 +1420,8 @@ export default function TablePage() {
                         </footer>
                     </aside>
                 </div>
+            )}
+            </>
             )}
         </>
     );

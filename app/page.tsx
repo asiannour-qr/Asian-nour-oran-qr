@@ -57,6 +57,14 @@ export default async function Home() {
             {settings?.phone && <p>📞 {settings.phone}</p>}
           </div>
         )}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <a href="/emporter" className="btn-primary text-center">
+            Commander à emporter
+          </a>
+        </div>
+        <p className="text-xs surface-muted-text pt-1">
+          Sur place&nbsp;: scannez le QR code de votre table pour commander.
+        </p>
       </div>
 
       <div className="surface-card w-full max-w-2xl px-4 sm:px-8 py-6 space-y-4">
