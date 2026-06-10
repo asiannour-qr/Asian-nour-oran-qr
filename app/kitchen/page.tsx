@@ -1,5 +1,7 @@
 "use client";
 
+import { playKitchenNewOrderAlert } from "@/lib/kitchen-alert-sound";
+
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
@@ -99,22 +101,7 @@ export default function KitchenPage() {
       if (!soundEnabled) return;
       const ctx = await ensureAudioContext();
       if (!ctx) return;
-      const bursts = Math.max(1, Math.min(3, Math.floor(count)));
-      for (let i = 0; i < bursts; i += 1) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "square";
-        const start = ctx.currentTime + i * 0.32;
-        const end = start + 0.3;
-        osc.frequency.setValueAtTime(900, start);
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.5, start + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, end);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(start);
-        osc.stop(end + 0.02);
-      }
+      await playKitchenNewOrderAlert(ctx, count);
     },
     [ensureAudioContext, soundEnabled]
   );
