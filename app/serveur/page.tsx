@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 
 type TableState = "FREE" | "ACTIVE" | "READY";
 
@@ -44,62 +45,43 @@ export default function ServeurPage() {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [refusingId, setRefusingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const knownPendingIdsRef = useRef<Set<string>>(new Set());
   const pendingBootstrappedRef = useRef(false);
 
-  const ensureAudioContext = useCallback(async () => {
-    if (typeof window === "undefined") return null;
-    const Ctor = (window.AudioContext ?? (window as any).webkitAudioContext) as
-      | typeof AudioContext
-      | undefined;
-    if (!Ctor) return null;
-    let ctx = audioCtxRef.current;
-    if (!ctx) {
-      ctx = new Ctor();
-      audioCtxRef.current = ctx;
-    }
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch {
-        // restrictions navigateur : le son partira après une interaction
-      }
-    }
-    return ctx;
-  }, []);
+  const { audioReady, unlock, playAlert } = useOrderAlertAudio(soundEnabled);
 
-  // Double bip distinctif pour signaler une commande à valider en caisse
-  const playPendingBeep = useCallback(async () => {
-    const ctx = await ensureAudioContext();
-    if (!ctx) return;
-    for (let i = 0; i < 2; i += 1) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "square";
-      osc.frequency.value = 880;
-      const start = ctx.currentTime + i * 0.35;
-      const end = start + 0.22;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.4, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, end);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(end + 0.02);
-    }
-  }, [ensureAudioContext]);
+  const playPendingBeep = useCallback(
+    (count = 1) =>
+      playAlert(async (ctx) => {
+        const cycles = Math.min(2, Math.max(1, count));
+        for (let i = 0; i < cycles; i += 1) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "square";
+          osc.frequency.value = 880;
+          const start = ctx.currentTime + i * 0.35;
+          const end = start + 0.22;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.4, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, end);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(end + 0.02);
+        }
+      }, count),
+    [playAlert]
+  );
 
-  // Débloque l'audio à la première interaction (politique des navigateurs)
   useEffect(() => {
-    void ensureAudioContext();
-    const handler = () => {
-      void ensureAudioContext();
-      document.removeEventListener("pointerdown", handler);
-    };
-    document.addEventListener("pointerdown", handler);
-    return () => document.removeEventListener("pointerdown", handler);
-  }, [ensureAudioContext]);
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s: { kitchenSoundEnabled?: boolean }) => {
+        setSoundEnabled(s.kitchenSoundEnabled !== false);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -155,7 +137,7 @@ export default function ServeurPage() {
           `🧾 ${newPending.length} commande(s) à emporter à valider en caisse`,
           { icon: "🔔", duration: 6000 }
         );
-        void playPendingBeep();
+        void playPendingBeep(newPending.length);
       }
       pendingBootstrappedRef.current = true;
 
@@ -252,6 +234,29 @@ export default function ServeurPage() {
 
       <main className="page-shell space-y-8">
         <Toaster position="top-right" />
+
+        {soundEnabled && !audioReady && (
+          <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-medium text-amber-900">
+              🔇 Appuyez pour activer le bip des commandes à valider en caisse.
+            </p>
+            <button
+              type="button"
+              className="btn-primary shrink-0"
+              onClick={() =>
+                void unlock().then((ok) => {
+                  if (ok) {
+                    void playPendingBeep(1);
+                    toast.success("Son activé");
+                  }
+                })
+              }
+            >
+              🔔 Activer le son
+            </button>
+          </div>
+        )}
+
         <header className="surface-card-strong px-6 py-6 space-y-2">
           <span className="chip">Prise de commande</span>
           <h1 className="text-3xl font-semibold">Choisissez une table</h1>

@@ -1,6 +1,7 @@
 "use client";
 
 import { playKitchenNewOrderAlert } from "@/lib/kitchen-alert-sound";
+import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -69,42 +70,17 @@ export default function KitchenPage() {
   });
   const lastFetch = useRef<string>("—");
   const knownIds = useRef<Set<string>>(new Set());
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const autoPrintRef = useRef(false);
   const printerConfiguredRef = useRef(false);
   const printedAutoIdsRef = useRef<Set<string>>(new Set());
   const bootstrappedRef = useRef(false);
   const pendingPrintsRef = useRef<Order[]>([]);
 
-  const ensureAudioContext = useCallback(async () => {
-    if (typeof window === "undefined") return null;
-    const Ctor = (window.AudioContext ?? (window as any).webkitAudioContext) as
-      | typeof AudioContext
-      | undefined;
-    if (!Ctor) return null;
-    let ctx = audioCtxRef.current;
-    if (!ctx) {
-      ctx = new Ctor();
-      audioCtxRef.current = ctx;
-    }
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch {
-        // ignore resume errors (browser restrictions)
-      }
-    }
-    return ctx;
-  }, []);
+  const { audioReady, unlock, playAlert } = useOrderAlertAudio(soundEnabled);
 
   const playBeep = useCallback(
-    async (count: number) => {
-      if (!soundEnabled) return;
-      const ctx = await ensureAudioContext();
-      if (!ctx) return;
-      await playKitchenNewOrderAlert(ctx, count);
-    },
-    [ensureAudioContext, soundEnabled]
+    (count: number) => playAlert(playKitchenNewOrderAlert, count),
+    [playAlert]
   );
 
   const formatPrice = useCallback((cents: number) => `${Math.round(cents / 100)} DZD`, []);
@@ -582,17 +558,6 @@ const escapeHtml = useCallback((value: string) => {
   }, [autoPrint]);
 
   useEffect(() => {
-    if (!soundEnabled) return;
-    void ensureAudioContext();
-    const handler = () => {
-      void ensureAudioContext();
-      document.removeEventListener("pointerdown", handler);
-    };
-    document.addEventListener("pointerdown", handler);
-    return () => document.removeEventListener("pointerdown", handler);
-  }, [ensureAudioContext]);
-
-  useEffect(() => {
     if (!auto) return;
     const id = setInterval(fetchOrders, 5000);
     return () => clearInterval(id);
@@ -652,6 +617,26 @@ const escapeHtml = useCallback((value: string) => {
 
       <main className="page-shell max-w-6xl">
         <Toaster position="top-right" />
+
+        {soundEnabled && !audioReady && (
+          <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-medium text-amber-900">
+              🔇 Le navigateur bloque le son. Appuyez une fois pour activer la cloche des nouvelles commandes.
+            </p>
+            <button
+              type="button"
+              className="btn-primary shrink-0"
+              onClick={() =>
+                void unlock((ctx) => playKitchenNewOrderAlert(ctx, 1)).then((ok) => {
+                  if (ok) toast.success("Son activé");
+                })
+              }
+            >
+              🔔 Activer le son
+            </button>
+          </div>
+        )}
+
         <section className="surface-card-strong px-6 py-6 mb-6 flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold flex-1 min-w-[220px]">Commandes</h1>
           <div className="flex flex-wrap items-center gap-3">
@@ -664,6 +649,24 @@ const escapeHtml = useCallback((value: string) => {
             <button onClick={() => setHideServed((v) => !v)} className="btn-soft">
               Cacher “Servies”&nbsp;: {hideServed ? "ON" : "OFF"}
             </button>
+            <label className="flex items-center gap-2 text-sm font-medium surface-muted-text">
+              <input
+                type="checkbox"
+                className="w-4 h-4"
+                checked={soundEnabled}
+                onChange={(e) => setSoundEnabled(e.target.checked)}
+              />
+              Son alerte&nbsp;: {soundEnabled ? "ON" : "OFF"}
+            </label>
+            {soundEnabled && audioReady && (
+              <button
+                type="button"
+                className="btn-ghost text-sm"
+                onClick={() => void playBeep(1)}
+              >
+                🔊 Tester
+              </button>
+            )}
             {printerConfigured ? (
               <span className="text-sm font-medium text-emerald-700">
                 Imprimante réseau active (TCP auto)
