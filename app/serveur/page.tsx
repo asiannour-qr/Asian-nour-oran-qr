@@ -9,19 +9,17 @@ import {
   writeSoundEnabledPreference,
 } from "@/lib/kitchen-sound-preference";
 import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
+import {
+  filterRelevantTableOrders,
+  MAX_TABLE_TICKETS,
+  type ServeurOrderLite,
+} from "@/lib/serveur-table-orders";
 
 type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
 
-type OrderLite = {
-  id: string;
-  tableId: string;
-  status: string;
-  type?: string | null;
+type OrderLite = ServeurOrderLite & {
   code?: string | null;
-  total?: number | null;
   comment?: string | null;
-  createdAt?: string;
-  items?: { id: string; name: string; qty: number }[];
 };
 
 const ACTIVE_STATUSES = new Set(["NEW", "IN_PROGRESS"]);
@@ -44,8 +42,12 @@ export default function ServeurPage() {
   const [tableStates, setTableStates] = useState<Record<string, TableState>>({});
   const [tableOrders, setTableOrders] = useState<Record<string, OrderLite[]>>({});
   const [occupiedTables, setOccupiedTables] = useState<Set<string>>(() => new Set());
+  const [tableOccupancyMeta, setTableOccupancyMeta] = useState<
+    Record<string, { occupiedAt: string; lastOrderId?: string | null }>
+  >({});
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [releasingTable, setReleasingTable] = useState<string | null>(null);
+  const [removingOrderId, setRemovingOrderId] = useState<string | null>(null);
   const [takeawayActive, setTakeawayActive] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<OrderLite[]>([]);
   const [activeTakeaway, setActiveTakeaway] = useState<OrderLite[]>([]);
@@ -139,12 +141,19 @@ export default function ServeurPage() {
       }
 
       const occupied = new Set<string>();
+      const occupancyMeta: Record<string, { occupiedAt: string; lastOrderId?: string | null }> =
+        {};
       if (occupancyRes.ok) {
         const occData = (await occupancyRes.json()) as {
-          tables?: { tableId: string }[];
+          tables?: { tableId: string; occupiedAt: string; lastOrderId?: string | null }[];
         };
         for (const row of occData.tables ?? []) {
-          occupied.add(String(row.tableId));
+          const id = String(row.tableId);
+          occupied.add(id);
+          occupancyMeta[id] = {
+            occupiedAt: row.occupiedAt,
+            lastOrderId: row.lastOrderId ?? null,
+          };
         }
       }
 
@@ -185,6 +194,7 @@ export default function ServeurPage() {
       setTableStates(states);
       setTableOrders(ordersByTable);
       setOccupiedTables(occupied);
+      setTableOccupancyMeta(occupancyMeta);
       setTakeawayActive(takeaway);
       setPendingOrders(pending);
       setActiveTakeaway(activeTakeawayList);
@@ -217,6 +227,25 @@ export default function ServeurPage() {
       setPrintingId(null);
     }
   }, [printingId]);
+
+  const removeTableOrder = useCallback(
+    async (orderId: string) => {
+      if (removingOrderId) return;
+      setRemovingOrderId(orderId);
+      try {
+        const res = await fetch(`/api/kitchen/orders/${orderId}`, { method: "DELETE" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || "Suppression impossible");
+        toast.success(data?.action === "canceled" ? "Commande annulée" : "Ticket retiré");
+        void fetchOccupancy();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Erreur");
+      } finally {
+        setRemovingOrderId(null);
+      }
+    },
+    [fetchOccupancy, removingOrderId]
+  );
 
   const releaseTableOccupancy = useCallback(
     async (tableId: string) => {
@@ -590,8 +619,13 @@ export default function ServeurPage() {
           <div className="relative w-full max-w-md surface-card rounded-2xl shadow-elevated border border-[var(--color-border)] p-6 space-y-4 max-h-[85dvh] overflow-y-auto">
             {(() => {
               const state = tableStates[selectedTable] ?? "FREE";
-              const orders = tableOrders[selectedTable] ?? [];
+              const allOrders = tableOrders[selectedTable] ?? [];
               const isOccupied = occupiedTables.has(selectedTable);
+              const visibleOrders = filterRelevantTableOrders(allOrders, selectedTable, {
+                isOccupied,
+                occupancy: tableOccupancyMeta[selectedTable] ?? null,
+              });
+              const hiddenCount = Math.max(0, allOrders.filter((o) => o.status !== "CANCELED").length - visibleOrders.length);
               const releasing = releasingTable === selectedTable;
               const stateLabel =
                 state === "READY"
@@ -619,11 +653,26 @@ export default function ServeurPage() {
                     </button>
                   </div>
 
-                  {orders.length > 0 ? (
+                  {visibleOrders.length > 0 ? (
                     <div className="space-y-3">
-                      <p className="text-sm font-medium">Commandes sur place</p>
-                      {orders.slice(0, 5).map((o) => {
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">
+                          Tickets session ({visibleOrders.length}/{MAX_TABLE_TICKETS})
+                        </p>
+                        {hiddenCount > 0 && (
+                          <span className="text-xs surface-muted-text">
+                            {hiddenCount} ancien(s) masqué(s)
+                          </span>
+                        )}
+                      </div>
+                      {visibleOrders.map((o) => {
                         const printing = printingId === o.id;
+                        const removing = removingOrderId === o.id;
+                        const canRemove =
+                          o.status === "SERVED" ||
+                          o.status === "NEW" ||
+                          o.status === "IN_PROGRESS" ||
+                          o.status === "READY";
                         return (
                           <article
                             key={o.id}
@@ -642,20 +691,36 @@ export default function ServeurPage() {
                                 ))}
                               </ul>
                             )}
-                            <button
-                              type="button"
-                              className="btn-primary w-full text-sm py-2"
-                              onClick={() => void printCustomerTicket(o.id)}
-                              disabled={printing}
-                            >
-                              {printing ? "Envoi…" : "🧾 Ticket client"}
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="btn-primary flex-1 text-sm py-2"
+                                onClick={() => void printCustomerTicket(o.id)}
+                                disabled={printing || removing}
+                              >
+                                {printing ? "Envoi…" : "🧾 Ticket client"}
+                              </button>
+                              {canRemove && (
+                                <button
+                                  type="button"
+                                  className="btn-ghost text-sm px-3 py-2 text-red-600 shrink-0"
+                                  onClick={() => void removeTableOrder(o.id)}
+                                  disabled={printing || removing}
+                                  title="Retirer de la liste"
+                                >
+                                  {removing ? "…" : "✕"}
+                                </button>
+                              )}
+                            </div>
                           </article>
                         );
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm surface-muted-text">Aucune commande récente pour cette table.</p>
+                    <p className="text-sm surface-muted-text">
+                      Aucun ticket pertinent pour cette session. Les anciennes commandes sont masquées
+                      — libérez la table quand les clients partent.
+                    </p>
                   )}
 
                   <div className="flex flex-col gap-2 pt-1">

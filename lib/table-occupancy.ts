@@ -18,7 +18,7 @@ export async function occupyTable(tableId: string, lastOrderId?: string): Promis
   return prisma.tableOccupancy.upsert({
     where: { tableId },
     create: { tableId, lastOrderId: lastOrderId ?? null },
-    update: { occupiedAt: new Date(), ...(lastOrderId ? { lastOrderId } : {}) },
+    update: { ...(lastOrderId ? { lastOrderId } : {}) },
   });
 }
 
