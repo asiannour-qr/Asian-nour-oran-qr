@@ -226,7 +226,11 @@ export default function ServeurPage() {
         const res = await fetch(`/api/kitchen/tables/${tableId}/release`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message || "Libération impossible");
-        toast.success(`Table ${tableId} libérée`);
+        toast.success(
+          data?.released === false
+            ? `Table ${tableId} réinitialisée`
+            : `Table ${tableId} libérée`
+        );
         setSelectedTable(null);
         void fetchOccupancy();
       } catch (err: unknown) {
@@ -520,21 +524,6 @@ export default function ServeurPage() {
                         : null;
                 const cardClass = `surface-card relative rounded-2xl border px-4 py-6 flex flex-col items-center gap-1 transition hover:border-[var(--color-accent)] hover:shadow-elevated active:translate-y-[1px] w-full ${ring}`;
 
-                if (state === "FREE") {
-                  return (
-                    <Link key={n} href={`/table/${n}`} className={cardClass}>
-                      <span
-                        className={`absolute top-2 right-2 h-2.5 w-2.5 rounded-full ${dotClass}`}
-                        aria-hidden="true"
-                      />
-                      <span className="text-xs uppercase tracking-[0.25em] surface-muted-text">
-                        Table
-                      </span>
-                      <span className="text-3xl font-bold text-[var(--color-heading)]">{n}</span>
-                    </Link>
-                  );
-                }
-
                 return (
                   <button
                     key={n}
@@ -604,6 +593,8 @@ export default function ServeurPage() {
               const orders = tableOrders[selectedTable] ?? [];
               const isOccupied = occupiedTables.has(selectedTable);
               const releasing = releasingTable === selectedTable;
+              const canReleaseTable =
+                isOccupied || state !== "FREE" || orders.length > 0;
               const stateLabel =
                 state === "READY"
                   ? "Plats prêts à servir"
@@ -673,7 +664,7 @@ export default function ServeurPage() {
                     <Link href={`/table/${selectedTable}`} className="btn-soft w-full text-center py-2.5">
                       Prendre / compléter la commande
                     </Link>
-                    {isOccupied && (
+                    {canReleaseTable && (
                       <button
                         type="button"
                         className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
