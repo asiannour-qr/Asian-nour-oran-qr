@@ -208,7 +208,7 @@ export default function TablePage() {
             }
             setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
             setReadOnlyMode(true);
-            toast.success("Un autre convive peut reprendre la commande.");
+            toast.success("Relais passé. Reprenez la gestion ou laissez un autre convive appuyer sur « Je gère la commande ».");
         } catch {
             toast.error("Erreur lors de la libération.");
         }
@@ -1007,7 +1007,7 @@ export default function TablePage() {
                             onClick={showLanding}
                             className="text-xs sm:text-sm text-[var(--color-heading)] underline-offset-2 hover:underline"
                         >
-                            Voir la carte
+                            Accueil table
                         </button>
                         <span className="text-base font-semibold text-[var(--color-heading)] sm:text-lg">Asian Nour</span>
                         <span className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[rgba(255,252,247,0.88)] px-3 py-1 text-xs font-medium text-[var(--color-heading)]">
@@ -1055,13 +1055,6 @@ export default function TablePage() {
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
 
-                {readOnlyMode && (
-                    <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                        👀 <strong>Consultation seule</strong> — un autre téléphone compose le panier pour cette table.
-                        Parcourez la carte librement.
-                    </div>
-                )}
-
                 {canModifyCart && (
                     <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                         <span>📱 <strong>Vous gérez la commande</strong> pour cette table.</span>
@@ -1071,9 +1064,33 @@ export default function TablePage() {
                     </div>
                 )}
 
-                {!masterStatus.loading && !masterStatus.hasMaster && !readOnlyMode && !canModifyCart && (
-                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                        Désignez d&apos;abord le téléphone maître via le bouton « Je gère la commande pour la table ».
+                {!masterStatus.loading && masterStatus.hasMaster && !masterStatus.isMaster && (
+                    <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                        👀 <strong>Consultation seule</strong> — un autre convive gère le panier sur son téléphone.
+                        Parcourez la carte librement ; seul le téléphone maître peut modifier le panier.
+                    </div>
+                )}
+
+                {!masterStatus.loading && !masterStatus.hasMaster && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-3">
+                        <p>
+                            📱 <strong>Aucun téléphone ne gère la commande</strong> pour cette table pour le moment.
+                            {readOnlyMode
+                                ? " Vous consultez la carte en lecture seule."
+                                : " Désignez qui compose le panier avant d’ajouter des plats."}
+                        </p>
+                        <p className="text-amber-800/90">
+                            Vous ou un autre convive pouvez reprendre la gestion ci-dessous, ou via « Accueil table »
+                            puis « Je gère la commande pour la table ».
+                        </p>
+                        <button
+                            type="button"
+                            disabled={claimingMaster}
+                            onClick={() => void takeCharge()}
+                            className="w-full sm:w-auto inline-flex justify-center px-5 py-2.5 rounded-xl bg-[#7a5640] text-white font-semibold shadow-elevated hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {claimingMaster ? "Prise en charge…" : "Je reprends la gestion de la commande"}
+                        </button>
                     </div>
                 )}
 

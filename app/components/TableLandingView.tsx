@@ -75,8 +75,11 @@ export default function TableLandingView({
         <div className="w-full max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-medium">📱 Un seul téléphone maître par table</p>
           <p className="mt-1 text-amber-800/90">
-            Désignez une personne pour composer le panier et envoyer la commande. Les autres convives
-            peuvent consulter la carte sur leur téléphone sans modifier le panier.
+            {masterTakenByOther
+              ? "Un autre convive gère déjà le panier sur son téléphone. Vous pouvez consulter la carte ci-dessous."
+              : hasMaster && isMaster
+                ? "Vous gérez la commande pour cette table. Vous pouvez reprendre le panier ou consulter la carte."
+                : "Personne ne gère la commande pour le moment — appuyez sur le bouton ci-dessous pour devenir le téléphone maître. Les autres convives pourront consulter la carte sans modifier le panier."}
           </p>
         </div>
 
