@@ -531,3 +531,45 @@ body::after {
         transform: rotate(360deg)
     }
 }
+
+.brand-signature {
+    position: fixed;
+    inset-inline: 0;
+    bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+    z-index: 30;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    user-select: none;
+}
+
+.brand-signature span {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    font-size: 0.625rem;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    color: var(--color-text-muted);
+    opacity: 0.34;
+    mix-blend-mode: multiply;
+}
+
+@media (min-width: 640px) {
+    .brand-signature {
+        inset-inline: auto 0;
+        justify-content: flex-end;
+        padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    }
+
+    .brand-signature span {
+        text-indent: 0;
+        letter-spacing: 0.22em;
+    }
+}
+
+@media print {
+    .brand-signature {
+        display: none;
+    }
+}

@@ -3,6 +3,7 @@ import "./globals.css";
 import type { Viewport } from "next";
 import NoSSR from "./NoSSR";
 import SiteHeader from "./components/SiteHeader";
+import BrandSignature from "./components/BrandSignature";
 
 export const metadata = {
   title: "Asian Nour — Commande à table",
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="relative z-10 flex flex-col min-h-dvh">
           <SiteHeader />
           <NoSSR>{children}</NoSSR>
+          <BrandSignature />
         </div>
       </body>
     </html>
