@@ -29,6 +29,8 @@ function KitchenLoginForm() {
         const data = await res.json().catch(() => null);
         setError(data?.error || "Identifiants invalides");
       } else {
+        const { primeOrderAlertAudio } = await import("@/lib/order-audio-context");
+        await primeOrderAlertAudio();
         router.replace(next);
         router.refresh();
       }

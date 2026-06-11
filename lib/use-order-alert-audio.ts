@@ -1,52 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
+import {
+  getSharedOrderAudioContext,
+  primeOrderAlertAudio,
+  resumeSharedOrderAudioContext,
+} from "@/lib/order-audio-context";
 
 type AlertHandler = (ctx: AudioContext, count: number) => Promise<void>;
 
 type PendingAlert = { playFn: AlertHandler; count: number };
 
-function createAudioContext(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  const Ctor = (window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
-    | typeof AudioContext
-    | undefined;
-  if (!Ctor) return null;
-  return new Ctor();
-}
-
-function isAudioRunning(ctx: AudioContext): boolean {
-  return ctx.state === "running";
-}
-
-async function resumeContext(ctx: AudioContext): Promise<boolean> {
-  if (isAudioRunning(ctx)) return true;
-  try {
-    await ctx.resume();
-  } catch {
-    return false;
-  }
-  return isAudioRunning(ctx);
-}
-
 /**
- * Gère le déblocage audio navigateur (politique autoplay) pour les alertes commandes.
- * Met en file les alertes manquées tant que l'utilisateur n'a pas interagi une fois.
+ * Alertes sonores commandes — son ON par défaut, déblocage au login ou au 1er toucher discret.
  */
 export function useOrderAlertAudio(soundEnabled: boolean) {
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const [audioReady, setAudioReady] = useState(false);
   const pendingRef = useRef<PendingAlert[]>([]);
-  const warnedRef = useRef(false);
 
-  const getContext = useCallback(() => {
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = createAudioContext();
-    }
-    return audioCtxRef.current;
-  }, []);
+  const getContext = useCallback(() => getSharedOrderAudioContext(), []);
 
   const flushPending = useCallback(async (ctx: AudioContext) => {
     if (!pendingRef.current.length) return;
@@ -62,11 +34,10 @@ export function useOrderAlertAudio(soundEnabled: boolean) {
       const ctx = getContext();
       if (!ctx) return false;
 
-      const ok = await resumeContext(ctx);
+      const ok = await resumeSharedOrderAudioContext();
       setAudioReady(ok);
       if (!ok) return false;
 
-      warnedRef.current = false;
       if (playTest) await playTest(ctx);
       await flushPending(ctx);
       return true;
@@ -80,21 +51,16 @@ export function useOrderAlertAudio(soundEnabled: boolean) {
       const ctx = getContext();
       if (!ctx) return;
 
-      const ok = await resumeContext(ctx);
+      let ok = await resumeSharedOrderAudioContext();
+      if (!ok) {
+        ok = await primeOrderAlertAudio();
+      }
       setAudioReady(ok);
       if (!ok) {
         pendingRef.current.push({ playFn, count });
-        if (!warnedRef.current) {
-          warnedRef.current = true;
-          toast.error("Touchez l'écran une fois pour activer le son des alertes", {
-            id: "audio-blocked",
-            duration: 4000,
-          });
-        }
         return;
       }
 
-      warnedRef.current = false;
       await playFn(ctx, count);
       await flushPending(ctx);
     },
@@ -108,26 +74,41 @@ export function useOrderAlertAudio(soundEnabled: boolean) {
       return;
     }
 
+    let cancelled = false;
+
+    const tryUnlock = async () => {
+      const ok = await resumeSharedOrderAudioContext();
+      if (!cancelled) setAudioReady(ok);
+      if (ok) await flushPending(getContext()!);
+    };
+
+    void tryUnlock();
+
     const onInteract = () => {
-      void unlock();
+      void (async () => {
+        const primed = await primeOrderAlertAudio();
+        if (!cancelled) setAudioReady(primed);
+        if (primed) await flushPending(getContext()!);
+      })();
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") void unlock();
+      if (document.visibilityState === "visible") void tryUnlock();
     };
 
-    document.addEventListener("pointerdown", onInteract, { passive: true });
-    document.addEventListener("touchstart", onInteract, { passive: true });
-    document.addEventListener("keydown", onInteract, { passive: true });
+    document.addEventListener("pointerdown", onInteract, { passive: true, capture: true });
+    document.addEventListener("touchstart", onInteract, { passive: true, capture: true });
+    document.addEventListener("keydown", onInteract, { passive: true, capture: true });
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      document.removeEventListener("pointerdown", onInteract);
-      document.removeEventListener("touchstart", onInteract);
-      document.removeEventListener("keydown", onInteract);
+      cancelled = true;
+      document.removeEventListener("pointerdown", onInteract, { capture: true });
+      document.removeEventListener("touchstart", onInteract, { capture: true });
+      document.removeEventListener("keydown", onInteract, { capture: true });
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [soundEnabled, unlock]);
+  }, [flushPending, getContext, soundEnabled]);
 
   return { audioReady, unlock, playAlert };
 }

@@ -59,7 +59,7 @@ export default function ServeurPage() {
   const knownPendingIdsRef = useRef<Set<string>>(new Set());
   const pendingBootstrappedRef = useRef(false);
 
-  const { audioReady, unlock, playAlert } = useOrderAlertAudio(soundEnabled);
+  const { playAlert } = useOrderAlertAudio(soundEnabled);
 
   const playPendingBeep = useCallback(
     (count = 1) =>
@@ -330,20 +330,6 @@ export default function ServeurPage() {
 
       <main className="page-shell space-y-8">
         <Toaster position="top-right" />
-
-        {soundEnabled && !audioReady && (
-          <button
-            type="button"
-            className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
-            onClick={() =>
-              void unlock().then((ok) => {
-                if (ok) toast.success("Son activé");
-              })
-            }
-          >
-            🔔 Touchez l&apos;écran une fois pour activer le bip des commandes à valider.
-          </button>
-        )}
 
         <header className="surface-card-strong px-6 py-6 space-y-2">
           <span className="chip">Prise de commande</span>

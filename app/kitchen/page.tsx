@@ -80,7 +80,7 @@ export default function KitchenPage() {
   const bootstrappedRef = useRef(false);
   const pendingPrintsRef = useRef<Order[]>([]);
 
-  const { audioReady, unlock, playAlert } = useOrderAlertAudio(soundEnabled);
+  const { audioReady, playAlert } = useOrderAlertAudio(soundEnabled);
 
   const playBeep = useCallback(
     (count: number) => playAlert(playKitchenNewOrderAlert, count),
@@ -631,20 +631,6 @@ const escapeHtml = useCallback((value: string) => {
 
       <main className="page-shell max-w-6xl">
         <Toaster position="top-right" />
-
-        {soundEnabled && !audioReady && (
-          <button
-            type="button"
-            className="mb-4 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
-            onClick={() =>
-              void unlock((ctx) => playKitchenNewOrderAlert(ctx, 1)).then((ok) => {
-                if (ok) toast.success("Son activé");
-              })
-            }
-          >
-            🔔 Touchez l&apos;écran une fois pour activer la cloche (obligatoire une fois par session navigateur).
-          </button>
-        )}
 
         <section className="surface-card-strong px-6 py-6 mb-6 flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold flex-1 min-w-[220px]">Commandes</h1>
