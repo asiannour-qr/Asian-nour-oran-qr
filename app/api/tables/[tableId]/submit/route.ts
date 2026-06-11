@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { clearCart, getCart } from "@/lib/cart";
 import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
 import { storeGuestNames } from "@/lib/guest-names-store";
-import { getTableMaster, isMasterDevice, touchTableMaster } from "@/lib/table-master";
+import { getTableMaster, isMasterDevice, clearTableMaster } from "@/lib/table-master";
+import { occupyTable } from "@/lib/table-occupancy";
 import { z } from "zod";
 
 /** Validation stricte du corps */
@@ -172,7 +173,7 @@ export async function POST(
             );
         }
 
-        await touchTableMaster(tableId, deviceId!);
+        await clearTableMaster(tableId);
 
         const total = items.reduce((sum, it) => sum + (it.price ?? 0) * it.qty, 0);
 
@@ -198,6 +199,7 @@ export async function POST(
 
         storeGuestNames(order.id, guestNames);
         clearCart(tableId);
+        await occupyTable(tableId, order.id);
 
         return NextResponse.json({ ok: true, id: order.id });
     } catch (err: any) {

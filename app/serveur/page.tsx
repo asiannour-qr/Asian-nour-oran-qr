@@ -10,7 +10,7 @@ import {
 } from "@/lib/kitchen-sound-preference";
 import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 
-type TableState = "FREE" | "ACTIVE" | "READY";
+type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
 
 type OrderLite = {
   id: string;
@@ -42,6 +42,10 @@ function formatTime(iso?: string) {
 export default function ServeurPage() {
   const [tableCount, setTableCount] = useState<number | null>(null);
   const [tableStates, setTableStates] = useState<Record<string, TableState>>({});
+  const [tableOrders, setTableOrders] = useState<Record<string, OrderLite[]>>({});
+  const [occupiedTables, setOccupiedTables] = useState<Set<string>>(() => new Set());
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [releasingTable, setReleasingTable] = useState<string | null>(null);
   const [takeawayActive, setTakeawayActive] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<OrderLite[]>([]);
   const [activeTakeaway, setActiveTakeaway] = useState<OrderLite[]>([]);
@@ -99,10 +103,14 @@ export default function ServeurPage() {
 
   const fetchOccupancy = useCallback(async () => {
     try {
-      const res = await fetch("/api/orders", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { orders?: OrderLite[] };
-      const states: Record<string, TableState> = {};
+      const [ordersRes, occupancyRes] = await Promise.all([
+        fetch("/api/orders", { cache: "no-store" }),
+        fetch("/api/kitchen/table-occupancy", { cache: "no-store" }),
+      ]);
+      if (!ordersRes.ok) return;
+      const data = (await ordersRes.json()) as { orders?: OrderLite[] };
+      const kitchenStates: Record<string, "ACTIVE" | "READY"> = {};
+      const ordersByTable: Record<string, OrderLite[]> = {};
       let takeaway = 0;
       const pending: OrderLite[] = [];
       const activeTakeawayList: OrderLite[] = [];
@@ -112,6 +120,10 @@ export default function ServeurPage() {
           pending.push(o);
           continue;
         }
+        if (!isTakeaway) {
+          if (!ordersByTable[o.tableId]) ordersByTable[o.tableId] = [];
+          ordersByTable[o.tableId].push(o);
+        }
         const isOpen = ACTIVE_STATUSES.has(o.status) || o.status === "READY";
         if (!isOpen) continue;
         if (isTakeaway) {
@@ -119,11 +131,36 @@ export default function ServeurPage() {
           activeTakeawayList.push(o);
           continue;
         }
-        // READY prime sur ACTIVE pour signaler les plats à apporter
         if (o.status === "READY") {
-          states[o.tableId] = "READY";
-        } else if (states[o.tableId] !== "READY") {
-          states[o.tableId] = "ACTIVE";
+          kitchenStates[o.tableId] = "READY";
+        } else if (kitchenStates[o.tableId] !== "READY") {
+          kitchenStates[o.tableId] = "ACTIVE";
+        }
+      }
+
+      const occupied = new Set<string>();
+      if (occupancyRes.ok) {
+        const occData = (await occupancyRes.json()) as {
+          tables?: { tableId: string }[];
+        };
+        for (const row of occData.tables ?? []) {
+          occupied.add(String(row.tableId));
+        }
+      }
+
+      for (const list of Object.values(ordersByTable)) {
+        list.sort(
+          (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+        );
+      }
+
+      const states: Record<string, TableState> = {};
+      for (const [tableId, kitchenState] of Object.entries(kitchenStates)) {
+        states[tableId] = kitchenState;
+      }
+      for (const tableId of occupied) {
+        if (states[tableId] !== "READY" && states[tableId] !== "ACTIVE") {
+          states[tableId] = "OCCUPIED";
         }
       }
       pending.sort(
@@ -146,6 +183,8 @@ export default function ServeurPage() {
       pendingBootstrappedRef.current = true;
 
       setTableStates(states);
+      setTableOrders(ordersByTable);
+      setOccupiedTables(occupied);
       setTakeawayActive(takeaway);
       setPendingOrders(pending);
       setActiveTakeaway(activeTakeawayList);
@@ -178,6 +217,26 @@ export default function ServeurPage() {
       setPrintingId(null);
     }
   }, [printingId]);
+
+  const releaseTableOccupancy = useCallback(
+    async (tableId: string) => {
+      if (releasingTable) return;
+      setReleasingTable(tableId);
+      try {
+        const res = await fetch(`/api/kitchen/tables/${tableId}/release`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || "Libération impossible");
+        toast.success(`Table ${tableId} libérée`);
+        setSelectedTable(null);
+        void fetchOccupancy();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Erreur");
+      } finally {
+        setReleasingTable(null);
+      }
+    },
+    [fetchOccupancy, releasingTable]
+  );
 
   // Valide (paiement encaissé → part en cuisine) ou refuse une commande à emporter
   const resolvePendingOrder = useCallback(
@@ -269,6 +328,9 @@ export default function ServeurPage() {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Plats prêts à servir
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> Occupée (clients présents)
             </span>
           </div>
         </header>
@@ -430,43 +492,78 @@ export default function ServeurPage() {
           <>
             <section className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {Array.from({ length: tableCount }, (_, i) => i + 1).map((n) => {
-                const state: TableState = tableStates[String(n)] ?? "FREE";
+                const tableId = String(n);
+                const state: TableState = tableStates[tableId] ?? "FREE";
                 const ring =
                   state === "READY"
                     ? "border-emerald-500 ring-1 ring-emerald-300"
                     : state === "ACTIVE"
                       ? "border-amber-500 ring-1 ring-amber-300"
-                      : "border-[var(--color-border)]";
+                      : state === "OCCUPIED"
+                        ? "border-indigo-500 ring-1 ring-indigo-300"
+                        : "border-[var(--color-border)]";
+                const dotClass =
+                  state === "READY"
+                    ? "bg-emerald-500"
+                    : state === "ACTIVE"
+                      ? "bg-amber-500"
+                      : state === "OCCUPIED"
+                        ? "bg-indigo-500"
+                        : "bg-gray-300";
+                const statusLabel =
+                  state === "READY"
+                    ? "Prête"
+                    : state === "ACTIVE"
+                      ? "En cuisine"
+                      : state === "OCCUPIED"
+                        ? "Occupée"
+                        : null;
+                const cardClass = `surface-card relative rounded-2xl border px-4 py-6 flex flex-col items-center gap-1 transition hover:border-[var(--color-accent)] hover:shadow-elevated active:translate-y-[1px] w-full ${ring}`;
+
+                if (state === "FREE") {
+                  return (
+                    <Link key={n} href={`/table/${n}`} className={cardClass}>
+                      <span
+                        className={`absolute top-2 right-2 h-2.5 w-2.5 rounded-full ${dotClass}`}
+                        aria-hidden="true"
+                      />
+                      <span className="text-xs uppercase tracking-[0.25em] surface-muted-text">
+                        Table
+                      </span>
+                      <span className="text-3xl font-bold text-[var(--color-heading)]">{n}</span>
+                    </Link>
+                  );
+                }
+
                 return (
-                  <Link
+                  <button
                     key={n}
-                    href={`/table/${n}`}
-                    className={`surface-card relative rounded-2xl border px-4 py-6 flex flex-col items-center gap-1 transition hover:border-[var(--color-accent)] hover:shadow-elevated active:translate-y-[1px] ${ring}`}
+                    type="button"
+                    onClick={() => setSelectedTable(tableId)}
+                    className={cardClass}
                   >
                     <span
-                      className={`absolute top-2 right-2 h-2.5 w-2.5 rounded-full ${
-                        state === "READY"
-                          ? "bg-emerald-500"
-                          : state === "ACTIVE"
-                            ? "bg-amber-500"
-                            : "bg-gray-300"
-                      }`}
+                      className={`absolute top-2 right-2 h-2.5 w-2.5 rounded-full ${dotClass}`}
                       aria-hidden="true"
                     />
                     <span className="text-xs uppercase tracking-[0.25em] surface-muted-text">
                       Table
                     </span>
                     <span className="text-3xl font-bold text-[var(--color-heading)]">{n}</span>
-                    {state !== "FREE" && (
+                    {statusLabel && (
                       <span
                         className={`text-[10px] font-semibold uppercase tracking-wide ${
-                          state === "READY" ? "text-emerald-600" : "text-amber-600"
+                          state === "READY"
+                            ? "text-emerald-600"
+                            : state === "ACTIVE"
+                              ? "text-amber-600"
+                              : "text-indigo-600"
                         }`}
                       >
-                        {state === "READY" ? "Prête" : "En cuisine"}
+                        {statusLabel}
                       </span>
                     )}
-                  </Link>
+                  </button>
                 );
               })}
             </section>
@@ -492,6 +589,107 @@ export default function ServeurPage() {
           </>
         )}
       </main>
+
+      {selectedTable && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Fermer"
+            onClick={() => setSelectedTable(null)}
+          />
+          <div className="relative w-full max-w-md surface-card rounded-2xl shadow-elevated border border-[var(--color-border)] p-6 space-y-4 max-h-[85dvh] overflow-y-auto">
+            {(() => {
+              const state = tableStates[selectedTable] ?? "FREE";
+              const orders = tableOrders[selectedTable] ?? [];
+              const isOccupied = occupiedTables.has(selectedTable);
+              const releasing = releasingTable === selectedTable;
+              const stateLabel =
+                state === "READY"
+                  ? "Plats prêts à servir"
+                  : state === "ACTIVE"
+                    ? "Commande en cuisine"
+                    : state === "OCCUPIED"
+                      ? "Table occupée"
+                      : "Libre";
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.2em] surface-muted-text">
+                        Table
+                      </div>
+                      <h2 className="text-3xl font-bold text-[var(--color-heading)]">
+                        {selectedTable}
+                      </h2>
+                      <p className="text-sm surface-muted-text mt-1">{stateLabel}</p>
+                    </div>
+                    <button type="button" className="btn-ghost text-sm" onClick={() => setSelectedTable(null)}>
+                      Fermer
+                    </button>
+                  </div>
+
+                  {orders.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Commandes sur place</p>
+                      {orders.slice(0, 5).map((o) => {
+                        const printing = printingId === o.id;
+                        return (
+                          <article
+                            key={o.id}
+                            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-strong)] px-4 py-3 space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-sm">
+                              <span className="font-semibold">{formatTime(o.createdAt)} · {o.status}</span>
+                              <span className="font-bold">{dzd(o.total ?? 0)}</span>
+                            </div>
+                            {(o.items?.length ?? 0) > 0 && (
+                              <ul className="text-xs space-y-0.5 surface-muted-text">
+                                {o.items!.slice(0, 4).map((it) => (
+                                  <li key={it.id}>
+                                    {it.qty}× {it.name}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <button
+                              type="button"
+                              className="btn-primary w-full text-sm py-2"
+                              onClick={() => void printCustomerTicket(o.id)}
+                              disabled={printing}
+                            >
+                              {printing ? "Envoi…" : "🧾 Ticket client"}
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm surface-muted-text">Aucune commande récente pour cette table.</p>
+                  )}
+
+                  <div className="flex flex-col gap-2 pt-1">
+                    <Link href={`/table/${selectedTable}`} className="btn-soft w-full text-center py-2.5">
+                      Prendre / compléter la commande
+                    </Link>
+                    {isOccupied && (
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
+                        onClick={() => void releaseTableOccupancy(selectedTable)}
+                        disabled={releasing}
+                      >
+                        {releasing ? "Libération…" : "Libérer la table (clients partis)"}
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </>
   );
 }

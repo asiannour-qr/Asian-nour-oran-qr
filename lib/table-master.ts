@@ -46,6 +46,11 @@ export async function releaseTableMaster(tableId: string, deviceId: string): Pro
   return true;
 }
 
+/** Libère le verrou maître après envoi de commande (tous appareils peuvent reprendre). */
+export async function clearTableMaster(tableId: string): Promise<void> {
+  await prisma.tableOrderMaster.delete({ where: { tableId } }).catch(() => {});
+}
+
 export async function touchTableMaster(tableId: string, deviceId: string): Promise<boolean> {
   const existing = await getTableMaster(tableId);
   if (!existing || existing.deviceId !== deviceId) return false;

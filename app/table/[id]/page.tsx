@@ -989,6 +989,7 @@ export default function TablePage() {
 
             setOrderConfirmedOpen(true);
             resetTableAfterOrder();
+            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
             showLanding();
             router.refresh();
         } catch (e: any) {

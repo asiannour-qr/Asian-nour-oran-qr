@@ -119,3 +119,10 @@ model TableOrderMaster {
   claimedAt DateTime @default(now())
   expiresAt DateTime
 }
+
+// Table encore occupée par des clients (jusqu'à libération par le serveur)
+model TableOccupancy {
+  tableId     String   @id
+  occupiedAt  DateTime @default(now())
+  lastOrderId String?
+}
