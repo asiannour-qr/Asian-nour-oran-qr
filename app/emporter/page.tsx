@@ -515,7 +515,7 @@ export default function EmporterPage() {
       {drawerOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">
+          <aside className="relative ml-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">
             <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">Mon panier</div>
@@ -586,13 +586,13 @@ export default function EmporterPage() {
               )}
             </div>
 
-            <footer className="px-6 py-4 border-t border-[var(--color-border)] space-y-3">
+            <footer className="shrink-0 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
               <div className="flex items-center justify-between font-semibold">
                 <span>Total</span>
                 <span>{euro(totalCents)}</span>
               </div>
               <button
-                className="btn-primary w-full"
+                className="btn-primary w-full py-3.5"
                 onClick={submitOrder}
                 disabled={cart.length === 0 || submitting}
               >

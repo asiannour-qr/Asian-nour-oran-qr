@@ -1337,7 +1337,7 @@ export default function TablePage() {
 
                 {hasCartItems && !cartDrawerOpen && canModifyCart && (
                     <button
-                        className="sm:hidden fixed bottom-5 right-5 z-50 rounded-full bg-[var(--color-accent)] text-white px-4 py-3 shadow-elevated flex items-center gap-2"
+                        className="sm:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] right-5 z-50 rounded-full bg-[var(--color-accent)] text-white px-4 py-3 shadow-elevated flex items-center gap-2"
                         onClick={openCartDrawer}
                     >
                         <span className="font-semibold">Panier</span>
@@ -1349,42 +1349,53 @@ export default function TablePage() {
             </main>
 
             {composeState && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                    <div className="surface-card w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-elevated">
-                        <div className="flex items-start justify-between gap-3">
-                            <h3 className="text-xl font-semibold">Composer {composeState.menu.name}</h3>
-                            <span className="text-sm surface-muted-text">Total menu&nbsp;: {euro(composeState.menu.priceCents)}</span>
+                <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center bg-black/40 sm:p-4">
+                    <div
+                        className="surface-card w-full sm:max-w-2xl sm:mx-auto rounded-t-2xl sm:rounded-2xl shadow-elevated flex flex-col max-h-[100dvh] sm:max-h-[90dvh] overflow-hidden"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="compose-menu-title"
+                    >
+                        <div className="shrink-0 px-5 pt-5 pb-3 sm:px-6 border-b border-[var(--color-border)] space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <h3 id="compose-menu-title" className="text-xl font-semibold">
+                                    Composer {composeState.menu.name}
+                                </h3>
+                                <span className="text-sm surface-muted-text shrink-0">
+                                    Total menu&nbsp;: {euro(composeState.menu.priceCents)}
+                                </span>
+                            </div>
+
+                            {(() => {
+                                const summary = composeState.steps
+                                    .map((step) => {
+                                        const selectedIds = composeState.selectionMap[step.group.id] ?? [];
+                                        const items = selectedIds
+                                            .map((id) => menuItemMap.get(id))
+                                            .filter((it): it is MenuItem => Boolean(it));
+                                        if (!items.length) return null;
+                                        return {
+                                            id: step.group.id,
+                                            name: step.group.name,
+                                            value: items.map((it) => it.name).join(step.multi ? " + " : ", "),
+                                        };
+                                    })
+                                    .filter(Boolean) as { id: string; name: string; value: string }[];
+                                if (!summary.length) return null;
+                                return (
+                                    <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
+                                        {summary.map((item) => (
+                                            <div key={item.id} className="flex items-center justify-between gap-2">
+                                                <span className="font-medium">{item.name}</span>
+                                                <span className="surface-muted-text text-right">{item.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
-                        {(() => {
-                            const summary = composeState.steps
-                                .map((step) => {
-                                    const selectedIds = composeState.selectionMap[step.group.id] ?? [];
-                                    const items = selectedIds
-                                        .map((id) => menuItemMap.get(id))
-                                        .filter((it): it is MenuItem => Boolean(it));
-                                    if (!items.length) return null;
-                                    return {
-                                        id: step.group.id,
-                                        name: step.group.name,
-                                        value: items.map((it) => it.name).join(step.multi ? " + " : ", "),
-                                    };
-                                })
-                                .filter(Boolean) as { id: string; name: string; value: string }[];
-                            if (!summary.length) return null;
-                            return (
-                                <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
-                                    {summary.map((item) => (
-                                        <div key={item.id} className="flex items-center justify-between gap-2">
-                                            <span className="font-medium">{item.name}</span>
-                                            <span className="surface-muted-text">{item.value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        })()}
-
-                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 space-y-4">
                             {composeState.steps.map((step) => {
                                 const selectedIds = composeState.selectionMap[step.group.id] ?? [];
                                 const instruction = requirementText(step);
@@ -1458,16 +1469,16 @@ export default function TablePage() {
                             })}
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 sm:px-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] space-y-3">
                             <div className="text-sm surface-muted-text">
                                 Ajouté pour <span className="font-semibold">{getGuestNameForPersonId(activePerson)}</span>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <button className="btn-ghost" onClick={cancelCompose}>
+                            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+                                <button className="btn-ghost w-full sm:w-auto py-3" onClick={cancelCompose}>
                                     Annuler
                                 </button>
                                 <button
-                                    className="btn-primary"
+                                    className="btn-primary w-full sm:w-auto py-3"
                                     onClick={confirmCompose}
                                     disabled={Object.keys(composeErrors).length > 0}
                                 >
@@ -1482,7 +1493,7 @@ export default function TablePage() {
             {cartDrawerOpen && canModifyCart && (
                 <div className="fixed inset-0 z-[60] flex">
                     <div className="absolute inset-0 bg-black/40" onClick={closeCartDrawer} />
-                    <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">
+                    <aside className="relative ml-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">
                         <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
                             <div>
                                 <div className="text-lg font-semibold">Mon panier</div>
@@ -1592,12 +1603,12 @@ export default function TablePage() {
                             })}
                         </div>
 
-                        <footer className="px-6 py-4 border-t border-[var(--color-border)] space-y-3">
+                        <footer className="shrink-0 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
                             <div className="flex items-center justify-between font-semibold">
                                 <span>Total</span>
                                 <span>{euro(totalCents)}</span>
                             </div>
-                            <button className="btn-primary w-full" onClick={submitOrder} disabled={!hasCartItems}>
+                            <button className="btn-primary w-full py-3.5" onClick={submitOrder} disabled={!hasCartItems}>
                                 Envoyer la commande
                             </button>
                         </footer>

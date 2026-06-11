@@ -1,11 +1,18 @@
 // app/layout.tsx
 import "./globals.css";
+import type { Viewport } from "next";
 import NoSSR from "./NoSSR";
 import SiteHeader from "./components/SiteHeader";
 
 export const metadata = {
   title: "Asian Nour — Commande à table",
   description: "QR table ordering",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

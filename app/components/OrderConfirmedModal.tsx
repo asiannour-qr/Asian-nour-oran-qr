@@ -62,7 +62,7 @@ export default function OrderConfirmedModal({ open, tableId, onClose }: Props) {
           </div>
         </div>
 
-        <div className="border-t border-[var(--color-border,rgba(190,127,57,0.22))] px-6 py-4">
+        <div className="border-t border-[var(--color-border,rgba(190,127,57,0.22))] px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
           <button
             ref={closeRef}
             type="button"

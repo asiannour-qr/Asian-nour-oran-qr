@@ -379,27 +379,33 @@ export function MenuComposerModal({
     .filter(Boolean) as { id: string; name: string; value: string }[];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="surface-card w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-elevated">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-xl font-semibold">Composer {menu.name}</h3>
-          <span className="text-sm surface-muted-text">
-            Total menu&nbsp;: {formatPrice(menu.priceCents)}
-          </span>
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center bg-black/40 sm:p-4">
+      <div
+        className="surface-card w-full sm:max-w-2xl sm:mx-auto rounded-t-2xl sm:rounded-2xl shadow-elevated flex flex-col max-h-[100dvh] sm:max-h-[90dvh] overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="shrink-0 px-5 pt-5 pb-3 sm:px-6 border-b border-[var(--color-border)] space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-xl font-semibold">Composer {menu.name}</h3>
+            <span className="text-sm surface-muted-text shrink-0">
+              Total menu&nbsp;: {formatPrice(menu.priceCents)}
+            </span>
+          </div>
+
+          {summary.length > 0 && (
+            <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
+              {summary.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{item.name}</span>
+                  <span className="surface-muted-text text-right">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {summary.length > 0 && (
-          <div className="surface-panel border border-[rgba(120,110,98,0.18)] rounded-xl px-4 py-3 text-sm space-y-1">
-            {summary.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.name}</span>
-                <span className="surface-muted-text">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 space-y-4">
           {steps.map((step) => {
             const selectedIds = selectionMap[step.group.id] ?? [];
             const instruction = requirementText(step);
@@ -474,17 +480,19 @@ export function MenuComposerModal({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-          <button className="btn-ghost" onClick={onClose}>
-            Annuler
-          </button>
-          <button
-            className="btn-primary"
-            onClick={handleConfirm}
-            disabled={Object.keys(errors).length > 0}
-          >
-            {confirmLabel ?? `Ajouter (${formatPrice(menu.priceCents)})`}
-          </button>
+        <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 sm:px-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+            <button className="btn-ghost w-full sm:w-auto py-3" onClick={onClose}>
+              Annuler
+            </button>
+            <button
+              className="btn-primary w-full sm:w-auto py-3"
+              onClick={handleConfirm}
+              disabled={Object.keys(errors).length > 0}
+            >
+              {confirmLabel ?? `Ajouter (${formatPrice(menu.priceCents)})`}
+            </button>
+          </div>
         </div>
       </div>
     </div>
