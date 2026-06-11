@@ -11,6 +11,7 @@ const tabs = [
   { href: "/admin/menu", label: "Carte" },
   { href: "/admin/menus", label: "Menus composés" },
   { href: "/admin/ca", label: "CA" },
+  { href: "/admin/archives", label: "Archives" },
   { href: "/admin/printers", label: "Imprimantes" },
   { href: "/admin/account", label: "Comptes" },
   { href: "/admin/settings", label: "⚙ Réglages" },

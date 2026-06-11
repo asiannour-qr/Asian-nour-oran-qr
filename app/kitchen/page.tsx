@@ -11,6 +11,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { guestNameFromMap } from "@/lib/guest-name-utils";
+import { dateKey } from "@/lib/restaurant-time";
 
 type OrderItem = {
   id: string;
@@ -60,10 +61,11 @@ function statusBadgeClasses(s: string) {
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [archivedOrders, setArchivedOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [auto, setAuto] = useState(true);
   const [autoPrint, setAutoPrint] = useState(false);
-  const [hideServed, setHideServed] = useState(true);
+  const [showArchive, setShowArchive] = useState(true);
   const [printerConfigured, setPrinterConfigured] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -479,17 +481,20 @@ const escapeHtml = useCallback((value: string) => {
         bootstrappedRef.current = true;
       }
 
-      const shown = hideServed
-        ? list.filter((o) => o.status !== "SERVED" && o.status !== "CANCELED")
-        : list;
-      setOrders(shown);
+      const todayKey = dateKey(new Date());
+      const active = list.filter((o) => o.status !== "SERVED" && o.status !== "CANCELED");
+      const archived = list.filter(
+        (o) => o.status === "SERVED" && dateKey(new Date(o.createdAt)) === todayKey
+      );
+      setOrders(active);
+      setArchivedOrders(archived);
       lastFetch.current = new Date().toISOString().slice(11, 19);
     } catch (e: any) {
       toast.error(e?.message || "Erreur de rafraîchissement");
     } finally {
       setLoading(false);
     }
-  }, [fetchPrinterStatus, hideServed, playBeep, queueAutoPrint]);
+  }, [fetchPrinterStatus, playBeep, queueAutoPrint]);
 
   useEffect(() => {
     fetchOrders();
@@ -641,8 +646,8 @@ const escapeHtml = useCallback((value: string) => {
             <button onClick={() => setAuto((v) => !v)} className="btn-soft">
               Auto-refresh&nbsp;: {auto ? "ON" : "OFF"}
             </button>
-            <button onClick={() => setHideServed((v) => !v)} className="btn-soft">
-              Cacher “Servies”&nbsp;: {hideServed ? "ON" : "OFF"}
+            <button onClick={() => setShowArchive((v) => !v)} className="btn-soft">
+              Archives du jour&nbsp;: {showArchive ? "ON" : "OFF"}
             </button>
             <label className="flex items-center gap-2 text-sm font-medium surface-muted-text">
               <input
@@ -682,7 +687,7 @@ const escapeHtml = useCallback((value: string) => {
         </section>
 
         {orders.length === 0 ? (
-          <p className="surface-muted-text">Aucune commande pour le moment.</p>
+          <p className="surface-muted-text">Aucune commande en cours.</p>
         ) : (
           <div className="grid md:grid-cols-2 gap-5">
             {orders.map((o) => {
@@ -793,6 +798,84 @@ const escapeHtml = useCallback((value: string) => {
               );
             })}
           </div>
+        )}
+
+        {showArchive && archivedOrders.length > 0 && (
+          <section className="mt-10 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-semibold text-[var(--color-heading)]">Archives du jour (servies)</h2>
+                <p className="text-sm surface-muted-text">
+                  Tickets servis aujourd&apos;hui — réimpression ou contrôle client.
+                </p>
+              </div>
+              <span className="text-sm surface-muted-text">{archivedOrders.length} ticket(s)</span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-5">
+              {archivedOrders.map((o) => (
+                <div key={o.id} className="relative opacity-90">
+                  <div className={`surface-card px-6 py-6 space-y-4 border border-black/5 bg-[rgba(255,252,247,0.75)] ${isTakeaway(o) ? "ring-1 ring-[var(--color-accent)]/40" : ""}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        {isTakeaway(o) ? (
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-[var(--color-accent)]/80 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
+                              À emporter
+                            </span>
+                            <span className="text-lg font-semibold tracking-wide">{o.code ?? "?"}</span>
+                          </div>
+                        ) : (
+                          <div className="text-lg font-semibold tracking-wide">Table {o.tableId}</div>
+                        )}
+                        <div className="text-xs surface-muted-text uppercase tracking-[0.28em]">
+                          Total {Math.round(o.total / 100)} DZD · Servie
+                        </div>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded ${statusBadgeClasses(o.status)}`}>
+                        {o.status}
+                      </span>
+                    </div>
+                    <ul className="space-y-2 text-sm">
+                      {o.items.map((it) => (
+                        <li key={it.id} className="flex items-center justify-between gap-3 border-b border-[rgba(120,110,98,0.08)] pb-2 last:border-0">
+                          <div className="flex-1">
+                            <div className="font-medium leading-snug">{`${it.qty ?? 1} × ${it.name}`}</div>
+                            <div className="text-xs surface-muted-text">
+                              {guestNameFromMap(o.guestNames, it.personId ?? "P1")}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap gap-3 justify-end">
+                      <button
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handlePrint(o, "kitchen");
+                        }}
+                        className="btn-ghost"
+                        disabled={printingOrderId === o.id}
+                      >
+                        {printingOrderId === o.id ? "Envoi…" : "🍜 Réimprimer cuisine"}
+                      </button>
+                      <button
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handlePrint(o, "customer");
+                        }}
+                        className="btn-soft"
+                        disabled={printingOrderId === o.id}
+                      >
+                        🧾 Réimprimer client
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {cancelTarget && (
