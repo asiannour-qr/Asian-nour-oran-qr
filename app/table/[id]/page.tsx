@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
 import TableLandingView from "@/app/components/TableLandingView";
+import OrderConfirmedModal from "@/app/components/OrderConfirmedModal";
 import {
     guestNameFallback,
     guestNameFromMap,
@@ -128,6 +129,7 @@ export default function TablePage() {
     const previousPeopleCountRef = useRef<number>(peopleCount);
     const cartScrollRef = useRef<HTMLDivElement>(null);
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+    const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
 
     const updateGuestNames = useCallback(
         (updater: (prev: Record<string, string>) => Record<string, string>, persist: boolean) => {
@@ -844,7 +846,7 @@ export default function TablePage() {
                 return;
             }
 
-            toast.success("Commande envoyée !");
+            setOrderConfirmedOpen(true);
             resetTableAfterOrder();
             showLanding();
             router.refresh();
@@ -856,6 +858,11 @@ export default function TablePage() {
 
     return (
         <>
+            <OrderConfirmedModal
+                open={orderConfirmedOpen}
+                tableId={tableId}
+                onClose={() => setOrderConfirmedOpen(false)}
+            />
             {!orderMode ? (
                 <TableLandingView tableId={tableId} onStartOrder={startOrdering} />
             ) : (
