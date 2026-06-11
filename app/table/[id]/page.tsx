@@ -243,6 +243,14 @@ export default function TablePage() {
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
     const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
 
+    const scrollToOrderTop = useCallback(() => {
+        if (typeof window === "undefined") return;
+        setActiveCategoryId(null);
+        window.requestAnimationFrame(() => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+    }, []);
+
     const updateGuestNames = useCallback(
         (updater: (prev: Record<string, string>) => Record<string, string>, persist: boolean) => {
             setGuestNames((prev) => {
@@ -665,7 +673,12 @@ export default function TablePage() {
         });
     }
 
-    function addToCartLine(name: string, priceCents: number, personId?: string) {
+    function addToCartLine(
+        name: string,
+        priceCents: number,
+        personId?: string,
+        options?: { scrollToTop?: boolean }
+    ) {
         if (!canModifyCart) {
             toast.error("Seul le téléphone maître peut ajouter des plats au panier.");
             return;
@@ -682,6 +695,9 @@ export default function TablePage() {
             return [...prev, { id: key, name, priceCents, qty: 1, personId: target }];
         });
         toastAddedToCart(name);
+        if (options?.scrollToTop && peopleCount > 1) {
+            scrollToOrderTop();
+        }
     }
 
     function decFromCart(id: string, personId: string) {
@@ -875,7 +891,7 @@ export default function TablePage() {
             detailParts.push(`${step.group.name}: ${names}`);
         }
         const label = detailParts.length > 0 ? `${menu.name} — ${detailParts.join(" • ")}` : menu.name;
-        addToCartLine(label, menu.priceCents, activePerson);
+        addToCartLine(label, menu.priceCents, activePerson, { scrollToTop: true });
         setComposeState(null);
         setComposeErrors({});
     }
@@ -1335,7 +1351,11 @@ export default function TablePage() {
                                                             ) : canModifyCart ? (
                                                                 <button
                                                                     className="btn-soft text-xs px-2 py-1 shrink-0"
-                                                                    onClick={() => addToCartLine(it.name, it.priceCents)}
+                                                                    onClick={() =>
+                                                                        addToCartLine(it.name, it.priceCents, undefined, {
+                                                                            scrollToTop: true,
+                                                                        })
+                                                                    }
                                                                 >
                                                                     + {getGuestNameForPersonId(activePerson)}
                                                                 </button>
