@@ -8,6 +8,7 @@ import { toastAddedToCart } from "@/lib/cart-toast";
 import TableLandingView from "@/app/components/TableLandingView";
 import OrderConfirmedModal from "@/app/components/OrderConfirmedModal";
 import { getOrCreateTableDeviceId } from "@/lib/table-device-id";
+import { getStaffTableDeviceId } from "@/lib/staff-table-device";
 import {
     guestNameFallback,
     guestNameFromMap,
@@ -93,6 +94,7 @@ export default function TablePage() {
     const router = useRouter();
     const [orderMode, setOrderMode] = useState(false);
     const [readOnlyMode, setReadOnlyMode] = useState(false);
+    const [staffMode, setStaffMode] = useState(false);
     const [deviceId, setDeviceId] = useState("");
     const [masterStatus, setMasterStatus] = useState({
         hasMaster: false,
@@ -108,17 +110,25 @@ export default function TablePage() {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const params = new URLSearchParams(window.location.search);
+        const isStaff = params.get("staff") === "1";
+        if (isStaff) {
+            setStaffMode(true);
+            setOrderMode(true);
+            setReadOnlyMode(false);
+        }
         if (params.get("order") === "1") {
             setOrderMode(true);
             if (params.get("view") === "carte") setReadOnlyMode(true);
         }
     }, []);
 
+    const activeDeviceId = staffMode ? getStaffTableDeviceId(tableId) : deviceId;
+
     const refreshMasterStatus = useCallback(async () => {
-        if (!deviceId) return;
+        if (!activeDeviceId) return;
         try {
             const res = await fetch(
-                `/api/tables/${tableId}/master?deviceId=${encodeURIComponent(deviceId)}`,
+                `/api/tables/${tableId}/master?deviceId=${encodeURIComponent(activeDeviceId)}`,
                 { cache: "no-store" }
             );
             const data = await res.json();
@@ -134,12 +144,12 @@ export default function TablePage() {
         } catch {
             setMasterStatus((prev) => ({ ...prev, loading: false }));
         }
-    }, [deviceId, tableId]);
+    }, [activeDeviceId, tableId]);
 
     useEffect(() => {
-        if (!deviceId) return;
+        if (!activeDeviceId) return;
         void refreshMasterStatus();
-    }, [deviceId, refreshMasterStatus]);
+    }, [activeDeviceId, refreshMasterStatus]);
 
     useEffect(() => {
         if (!orderMode) return;
@@ -160,46 +170,70 @@ export default function TablePage() {
 
     const canModifyCart = masterStatus.isMaster && !readOnlyMode;
 
+    const staffQuery = staffMode ? "?staff=1" : "";
+
     const browseMenu = useCallback(() => {
         setReadOnlyMode(true);
         setOrderMode(true);
-        router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
-    }, [router, tableId]);
+        router.replace(
+            `/table/${tableId}${staffMode ? "?staff=1&order=1&view=carte" : "?order=1&view=carte"}`,
+            { scroll: true }
+        );
+    }, [router, staffMode, tableId]);
 
-    const takeCharge = useCallback(async () => {
-        if (!deviceId) return;
+    const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
+        if (!activeDeviceId) return;
         setClaimingMaster(true);
         try {
             const res = await fetch(`/api/tables/${tableId}/master`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId }),
+                body: JSON.stringify({
+                    deviceId: activeDeviceId,
+                    force: options?.force === true || staffMode,
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
-                toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
+                if (!options?.silent) {
+                    toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
+                }
                 await refreshMasterStatus();
                 return;
             }
             setMasterStatus({ hasMaster: true, isMaster: true, loading: false });
             setReadOnlyMode(false);
             setOrderMode(true);
-            router.replace(`/table/${tableId}?order=1`, { scroll: true });
-            toast.success("Vous gérez la commande pour cette table.");
+            if (!options?.silent) {
+                router.replace(
+                    `/table/${tableId}${staffMode ? "?staff=1&order=1" : "?order=1"}`,
+                    { scroll: true }
+                );
+                toast.success(
+                    staffMode
+                        ? "Mode serveur — vous gérez la commande pour cette table."
+                        : "Vous gérez la commande pour cette table."
+                );
+            }
         } catch {
-            toast.error("Impossible de prendre la commande.");
+            if (!options?.silent) toast.error("Impossible de prendre la commande.");
         } finally {
             setClaimingMaster(false);
         }
-    }, [deviceId, refreshMasterStatus, router, tableId]);
+    }, [activeDeviceId, refreshMasterStatus, router, staffMode, tableId]);
+
+    useEffect(() => {
+        if (!staffMode || masterStatus.loading || masterStatus.isMaster) return;
+        void takeCharge({ force: true });
+    }, [staffMode, masterStatus.isMaster, masterStatus.loading, takeCharge]);
 
     const releaseMaster = useCallback(async () => {
-        if (!deviceId) return;
+        if (!activeDeviceId) return;
         try {
             const res = await fetch(`/api/tables/${tableId}/master`, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId }),
+                body: JSON.stringify({ deviceId: activeDeviceId }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -212,13 +246,13 @@ export default function TablePage() {
         } catch {
             toast.error("Erreur lors de la libération.");
         }
-    }, [deviceId, tableId]);
+    }, [activeDeviceId, tableId]);
 
     const showLanding = useCallback(() => {
         setOrderMode(false);
         setReadOnlyMode(false);
-        router.replace(`/table/${tableId}`, { scroll: true });
-    }, [router, tableId]);
+        router.replace(`/table/${tableId}${staffQuery}`, { scroll: true });
+    }, [router, staffQuery, tableId]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -955,7 +989,7 @@ export default function TablePage() {
 
             const payload: Record<string, unknown> = {
                 tableId: String(tableId),
-                deviceId,
+                deviceId: activeDeviceId,
                 total: totalCents,
                 tableComment: trimmedComment ? trimmedComment : null,
                 peopleCount: Math.max(1, Math.min(12, Number(peopleCount) || 1)),
@@ -990,7 +1024,11 @@ export default function TablePage() {
             setOrderConfirmedOpen(true);
             resetTableAfterOrder();
             setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
-            showLanding();
+            if (staffMode) {
+                await takeCharge({ force: true, silent: true });
+            } else {
+                showLanding();
+            }
             router.refresh();
         } catch (e: any) {
             console.error(e);
@@ -1072,12 +1110,24 @@ export default function TablePage() {
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
 
+                {staffMode && canModifyCart && (
+                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+                        🍽️ <strong>Mode serveur</strong> — priorité sur les téléphones clients. Panier remis à zéro
+                        après envoi ; vous pouvez ajouter une commande complémentaire. Libérez la table depuis
+                        l&apos;écran serveur quand les clients partent.
+                    </div>
+                )}
+
                 {canModifyCart && (
                     <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex flex-wrap items-center justify-between gap-2">
-                        <span>📱 <strong>Vous gérez la commande</strong> pour cette table.</span>
-                        <button type="button" className="btn-ghost text-sm shrink-0" onClick={() => void releaseMaster()}>
-                            Passer le relais
-                        </button>
+                        <span>
+                            📱 <strong>{staffMode ? "Serveur — vous gérez la commande" : "Vous gérez la commande"}</strong> pour cette table.
+                        </span>
+                        {!staffMode && (
+                            <button type="button" className="btn-ghost text-sm shrink-0" onClick={() => void releaseMaster()}>
+                                Passer le relais
+                            </button>
+                        )}
                     </div>
                 )}
 

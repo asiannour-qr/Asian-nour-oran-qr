@@ -39,6 +39,20 @@ export async function claimTableMaster(
   return { ok: true, record };
 }
 
+/** Prise de contrôle forcée (serveur / staff) — remplace le maître actuel. */
+export async function forceClaimTableMaster(
+  tableId: string,
+  deviceId: string
+): Promise<TableMasterRecord> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TABLE_MASTER_TTL_MS);
+  return prisma.tableOrderMaster.upsert({
+    where: { tableId },
+    create: { tableId, deviceId, claimedAt: now, expiresAt },
+    update: { deviceId, claimedAt: now, expiresAt },
+  });
+}
+
 export async function releaseTableMaster(tableId: string, deviceId: string): Promise<boolean> {
   const existing = await getTableMaster(tableId);
   if (!existing || existing.deviceId !== deviceId) return false;

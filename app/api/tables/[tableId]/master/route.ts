@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import {
   claimTableMaster,
+  forceClaimTableMaster,
   getTableMaster,
   isMasterDevice,
   releaseTableMaster,
   touchTableMaster,
 } from "@/lib/table-master";
+import { assertStaffSession } from "@/lib/staff-session";
 
 function readDeviceId(req: Request, body?: { deviceId?: unknown }): string {
   const fromBody = typeof body?.deviceId === "string" ? body.deviceId.trim() : "";
@@ -50,6 +52,21 @@ export async function POST(req: Request, { params }: { params: { tableId: string
     const deviceId = readDeviceId(req, body);
     if (!deviceId) {
       return NextResponse.json({ ok: false, message: "deviceId requis" }, { status: 400 });
+    }
+
+    const force = body?.force === true;
+    if (force) {
+      const unauthorized = assertStaffSession();
+      if (unauthorized) return unauthorized;
+      const record = await forceClaimTableMaster(tableId, deviceId);
+      return NextResponse.json({
+        ok: true,
+        isMaster: true,
+        hasMaster: true,
+        forced: true,
+        claimedAt: record.claimedAt.toISOString(),
+        expiresAt: record.expiresAt.toISOString(),
+      });
     }
 
     const result = await claimTableMaster(tableId, deviceId);

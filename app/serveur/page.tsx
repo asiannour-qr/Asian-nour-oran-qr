@@ -593,8 +593,6 @@ export default function ServeurPage() {
               const orders = tableOrders[selectedTable] ?? [];
               const isOccupied = occupiedTables.has(selectedTable);
               const releasing = releasingTable === selectedTable;
-              const canReleaseTable =
-                isOccupied || state !== "FREE" || orders.length > 0;
               const stateLabel =
                 state === "READY"
                   ? "Plats prêts à servir"
@@ -661,19 +659,17 @@ export default function ServeurPage() {
                   )}
 
                   <div className="flex flex-col gap-2 pt-1">
-                    <Link href={`/table/${selectedTable}`} className="btn-soft w-full text-center py-2.5">
+                    <Link href={`/table/${selectedTable}?staff=1&order=1`} className="btn-soft w-full text-center py-2.5">
                       Prendre / compléter la commande
                     </Link>
-                    {canReleaseTable && (
-                      <button
-                        type="button"
-                        className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
-                        onClick={() => void releaseTableOccupancy(selectedTable)}
-                        disabled={releasing}
-                      >
-                        {releasing ? "Libération…" : "Libérer la table (clients partis)"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
+                      onClick={() => void releaseTableOccupancy(selectedTable)}
+                      disabled={releasing}
+                    >
+                      {releasing ? "Libération…" : "Libérer la table (clients partis)"}
+                    </button>
                   </div>
                 </>
               );
