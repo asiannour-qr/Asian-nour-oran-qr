@@ -111,3 +111,11 @@ model RestaurantSettings {
   menuCardImageUrl    String?
   updatedAt           DateTime @updatedAt
 }
+
+// Téléphone « maître » par table : seul lui remplit le panier et envoie la commande
+model TableOrderMaster {
+  tableId   String   @id
+  deviceId  String
+  claimedAt DateTime @default(now())
+  expiresAt DateTime
+}

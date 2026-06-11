@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { clearCart, getCart } from "@/lib/cart";
 import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
 import { storeGuestNames } from "@/lib/guest-names-store";
+import { getTableMaster, isMasterDevice, touchTableMaster } from "@/lib/table-master";
 import { z } from "zod";
 
 /** Validation stricte du corps */
@@ -20,6 +21,7 @@ const BodySchema = z.object({
         )
         .min(1, "Il faut au moins 1 item"),
     guestNames: z.record(z.string()).optional(),
+    deviceId: z.string().min(8).optional(),
 });
 
 function sanitizePeopleCount(value: unknown): number | undefined {
@@ -123,6 +125,7 @@ export async function POST(
                 peopleFromBody ?? sanitizePeopleCount(cartSnapshot.peopleCount),
             items: bodyItems.length > 0 ? bodyItems : fallbackItems,
             guestNames: sanitizedGuestNames,
+            deviceId: typeof raw?.deviceId === "string" ? raw.deviceId.trim() : undefined,
         };
 
         const parsed = BodySchema.safeParse(payload);
@@ -138,7 +141,7 @@ export async function POST(
             );
         }
 
-        const { items, tableComment, peopleCount, guestNames } = parsed.data;
+        const { items, tableComment, peopleCount, guestNames, deviceId } = parsed.data;
 
         if (items.length === 0) {
             return NextResponse.json(
@@ -146,6 +149,30 @@ export async function POST(
                 { status: 400 }
             );
         }
+
+        const master = await getTableMaster(tableId);
+        if (!master) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    code: "MASTER_REQUIRED",
+                    message: "Désignez d'abord le téléphone qui gère la commande pour cette table.",
+                },
+                { status: 403 }
+            );
+        }
+        if (!isMasterDevice(master, deviceId)) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    code: "NOT_MASTER",
+                    message: "Seul le téléphone maître peut envoyer la commande.",
+                },
+                { status: 403 }
+            );
+        }
+
+        await touchTableMaster(tableId, deviceId!);
 
         const total = items.reduce((sum, it) => sum + (it.price ?? 0) * it.qty, 0);
 

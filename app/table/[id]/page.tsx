@@ -7,6 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
 import TableLandingView from "@/app/components/TableLandingView";
 import OrderConfirmedModal from "@/app/components/OrderConfirmedModal";
+import { getOrCreateTableDeviceId } from "@/lib/table-device-id";
 import {
     guestNameFallback,
     guestNameFromMap,
@@ -91,20 +92,131 @@ export default function TablePage() {
     const tableId = params?.id ?? "1";
     const router = useRouter();
     const [orderMode, setOrderMode] = useState(false);
+    const [readOnlyMode, setReadOnlyMode] = useState(false);
+    const [deviceId, setDeviceId] = useState("");
+    const [masterStatus, setMasterStatus] = useState({
+        hasMaster: false,
+        isMaster: false,
+        loading: true,
+    });
+    const [claimingMaster, setClaimingMaster] = useState(false);
+
+    useEffect(() => {
+        setDeviceId(getOrCreateTableDeviceId());
+    }, []);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
         const params = new URLSearchParams(window.location.search);
-        if (params.get("order") === "1") setOrderMode(true);
+        if (params.get("order") === "1") {
+            setOrderMode(true);
+            if (params.get("view") === "carte") setReadOnlyMode(true);
+        }
     }, []);
 
-    const startOrdering = useCallback(() => {
+    const refreshMasterStatus = useCallback(async () => {
+        if (!deviceId) return;
+        try {
+            const res = await fetch(
+                `/api/tables/${tableId}/master?deviceId=${encodeURIComponent(deviceId)}`,
+                { cache: "no-store" }
+            );
+            const data = await res.json();
+            if (data.ok) {
+                setMasterStatus({
+                    hasMaster: Boolean(data.hasMaster),
+                    isMaster: Boolean(data.isMaster),
+                    loading: false,
+                });
+            } else {
+                setMasterStatus((prev) => ({ ...prev, loading: false }));
+            }
+        } catch {
+            setMasterStatus((prev) => ({ ...prev, loading: false }));
+        }
+    }, [deviceId, tableId]);
+
+    useEffect(() => {
+        if (!deviceId) return;
+        void refreshMasterStatus();
+    }, [deviceId, refreshMasterStatus]);
+
+    useEffect(() => {
+        if (!orderMode) return;
+        const id = setInterval(() => {
+            void refreshMasterStatus();
+        }, 20000);
+        return () => clearInterval(id);
+    }, [orderMode, refreshMasterStatus]);
+
+    useEffect(() => {
+        if (!orderMode || masterStatus.loading) return;
+        if (masterStatus.isMaster) {
+            setReadOnlyMode(false);
+        } else if (masterStatus.hasMaster) {
+            setReadOnlyMode(true);
+        }
+    }, [orderMode, masterStatus.hasMaster, masterStatus.isMaster, masterStatus.loading]);
+
+    const canModifyCart = masterStatus.isMaster && !readOnlyMode;
+
+    const browseMenu = useCallback(() => {
+        setReadOnlyMode(true);
         setOrderMode(true);
-        router.replace(`/table/${tableId}?order=1`, { scroll: true });
+        router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
     }, [router, tableId]);
+
+    const takeCharge = useCallback(async () => {
+        if (!deviceId) return;
+        setClaimingMaster(true);
+        try {
+            const res = await fetch(`/api/tables/${tableId}/master`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
+                await refreshMasterStatus();
+                return;
+            }
+            setMasterStatus({ hasMaster: true, isMaster: true, loading: false });
+            setReadOnlyMode(false);
+            setOrderMode(true);
+            router.replace(`/table/${tableId}?order=1`, { scroll: true });
+            toast.success("Vous gérez la commande pour cette table.");
+        } catch {
+            toast.error("Impossible de prendre la commande.");
+        } finally {
+            setClaimingMaster(false);
+        }
+    }, [deviceId, refreshMasterStatus, router, tableId]);
+
+    const releaseMaster = useCallback(async () => {
+        if (!deviceId) return;
+        try {
+            const res = await fetch(`/api/tables/${tableId}/master`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                toast.error(data?.message || "Impossible de libérer la commande.");
+                return;
+            }
+            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
+            setReadOnlyMode(true);
+            toast.success("Un autre convive peut reprendre la commande.");
+        } catch {
+            toast.error("Erreur lors de la libération.");
+        }
+    }, [deviceId, tableId]);
 
     const showLanding = useCallback(() => {
         setOrderMode(false);
+        setReadOnlyMode(false);
         router.replace(`/table/${tableId}`, { scroll: true });
     }, [router, tableId]);
 
@@ -554,6 +666,10 @@ export default function TablePage() {
     }
 
     function addToCartLine(name: string, priceCents: number, personId?: string) {
+        if (!canModifyCart) {
+            toast.error("Seul le téléphone maître peut ajouter des plats au panier.");
+            return;
+        }
         const target = personId || activePerson || "P1";
         const key = `${name}|${priceCents}`;
         setCart((prev) => {
@@ -597,6 +713,10 @@ export default function TablePage() {
 
     // --- Composition menu avec contraintes (XOR, min/max) ---
     function composeMenu(menu: MenuDef) {
+        if (!canModifyCart) {
+            toast.error("Seul le téléphone maître peut composer un menu.");
+            return;
+        }
         try {
             if (!menu || !Array.isArray(menu.groups) || menu.groups.length === 0) {
                 toast.error("Ce menu n’a pas de groupes. Va dans Admin > Menus.");
@@ -808,6 +928,10 @@ export default function TablePage() {
 
     // --- ENVOI COMMANDE : version avec logs détaillés si 400
     async function submitOrder() {
+        if (!canModifyCart) {
+            toast.error("Seul le téléphone maître peut envoyer la commande.");
+            return;
+        }
         if (cart.length === 0) return toast.error("Panier vide");
         try {
             const trimmedComment = tableComment.trim();
@@ -815,6 +939,7 @@ export default function TablePage() {
 
             const payload: Record<string, unknown> = {
                 tableId: String(tableId),
+                deviceId,
                 total: totalCents,
                 tableComment: trimmedComment ? trimmedComment : null,
                 peopleCount: Math.max(1, Math.min(12, Number(peopleCount) || 1)),
@@ -864,7 +989,14 @@ export default function TablePage() {
                 onClose={() => setOrderConfirmedOpen(false)}
             />
             {!orderMode ? (
-                <TableLandingView tableId={tableId} onStartOrder={startOrdering} />
+                <TableLandingView
+                    tableId={tableId}
+                    hasMaster={masterStatus.hasMaster}
+                    isMaster={masterStatus.isMaster}
+                    claiming={claimingMaster}
+                    onBrowseMenu={browseMenu}
+                    onTakeCharge={() => void takeCharge()}
+                />
             ) : (
             <>
             <header className="sticky top-0 z-40 border-b border-[rgba(190,127,57,0.22)] bg-[rgba(245,239,230,0.85)] backdrop-blur-md">
@@ -882,6 +1014,7 @@ export default function TablePage() {
                             Table {tableId}
                         </span>
                     </div>
+                    {canModifyCart && (
                     <button
                         type="button"
                         onClick={openCartDrawer}
@@ -916,18 +1049,43 @@ export default function TablePage() {
                             </span>
                         )}
                     </button>
+                    )}
                 </div>
             </header>
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
 
+                {readOnlyMode && (
+                    <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                        👀 <strong>Consultation seule</strong> — un autre téléphone compose le panier pour cette table.
+                        Parcourez la carte librement.
+                    </div>
+                )}
+
+                {canModifyCart && (
+                    <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+                        <span>📱 <strong>Vous gérez la commande</strong> pour cette table.</span>
+                        <button type="button" className="btn-ghost text-sm shrink-0" onClick={() => void releaseMaster()}>
+                            Passer le relais
+                        </button>
+                    </div>
+                )}
+
+                {!masterStatus.loading && !masterStatus.hasMaster && !readOnlyMode && !canModifyCart && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Désignez d&apos;abord le téléphone maître via le bouton « Je gère la commande pour la table ».
+                    </div>
+                )}
+
                 <header className="surface-card-strong px-6 py-6 space-y-2">
-                    <span className="chip">Commande en cours</span>
+                    <span className="chip">{readOnlyMode ? "Consultation carte" : "Commande en cours"}</span>
                     <h1 className="text-3xl font-semibold">Asian Nour — Table {tableId}</h1>
                     <p className="surface-muted-text text-sm">
-                        Composez votre menu ou sélectionnez vos plats à la carte. Les commandes sont envoyées
-                        directement en cuisine.
+                        {readOnlyMode
+                            ? "Parcourez la carte et les menus. Seul le téléphone maître peut ajouter au panier."
+                            : "Composez votre menu ou sélectionnez vos plats à la carte. Choisissez le convive avant chaque ajout, puis envoyez une seule commande."}
                     </p>
+                    {canModifyCart && (
                     <div className="flex flex-wrap items-center gap-4 pt-1">
                         <div className="flex items-center gap-2">
                             <span className="text-xs uppercase tracking-[0.2em] surface-muted-text">
@@ -1021,10 +1179,12 @@ export default function TablePage() {
                             Réinitialiser noms
                         </button>
                     </div>
+                    )}
                 </header>
 
-                {/* Mini cart bar */}
+                {/* Mini cart bar + navigation catégories */}
                 <div className="sticky top-[56px] sm:top-[64px] z-30 space-y-3">
+                    {canModifyCart && (
                     <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="text-sm sm:text-base font-semibold">
                             Panier — {cartItemCount} article(s) — {euro(totalCents)}
@@ -1046,6 +1206,7 @@ export default function TablePage() {
                             </button>
                         </div>
                     </div>
+                    )}
 
                     {!loading && sliderCategories.length > 0 && (
                         <CategorySlider
@@ -1061,7 +1222,9 @@ export default function TablePage() {
                     <div className="section-heading mb-0">
                         <h2 className="section-heading__title text-2xl">À la carte</h2>
                         <p className="section-heading__subtitle">
-                            Parcourez la carte et ajoutez librement vos envies au panier de la table.
+                            {readOnlyMode
+                                ? "Consultez les plats et menus disponibles."
+                                : "Parcourez la carte et ajoutez librement vos envies au panier de la table."}
                         </p>
                     </div>
 
@@ -1094,8 +1257,10 @@ export default function TablePage() {
                                                         <div className="text-lg font-semibold text-sharp">{m.name}</div>
                                                         <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
                                                     </div>
-                                                    <button className="btn-primary" onClick={() => composeMenu(m)}>
-                                                        Composer pour {getGuestNameForPersonId(activePerson)}
+                                                    <button className="btn-primary" onClick={() => composeMenu(m)} disabled={!canModifyCart}>
+                                                        {canModifyCart
+                                                            ? `Composer pour ${getGuestNameForPersonId(activePerson)}`
+                                                            : "Consultation seule"}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1150,14 +1315,14 @@ export default function TablePage() {
                                                                 <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
                                                                     Indisponible
                                                                 </span>
-                                                            ) : (
+                                                            ) : canModifyCart ? (
                                                                 <button
                                                                     className="btn-soft text-xs px-2 py-1 shrink-0"
                                                                     onClick={() => addToCartLine(it.name, it.priceCents)}
                                                                 >
                                                                     + {getGuestNameForPersonId(activePerson)}
                                                                 </button>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1170,7 +1335,7 @@ export default function TablePage() {
                     )}
                 </section>
 
-                {hasCartItems && !cartDrawerOpen && (
+                {hasCartItems && !cartDrawerOpen && canModifyCart && (
                     <button
                         className="sm:hidden fixed bottom-5 right-5 z-50 rounded-full bg-[var(--color-accent)] text-white px-4 py-3 shadow-elevated flex items-center gap-2"
                         onClick={openCartDrawer}
@@ -1314,7 +1479,7 @@ export default function TablePage() {
                 </div>
             )}
 
-            {cartDrawerOpen && (
+            {cartDrawerOpen && canModifyCart && (
                 <div className="fixed inset-0 z-[60] flex">
                     <div className="absolute inset-0 bg-black/40" onClick={closeCartDrawer} />
                     <aside className="relative ml-auto flex h-full w-full max-w-md flex-col bg-[var(--color-surface)] shadow-elevated overflow-hidden">

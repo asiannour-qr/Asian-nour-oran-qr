@@ -17,10 +17,21 @@ const JOURS_LABELS: Record<string, string> = {
 
 type TableLandingViewProps = {
   tableId: string;
-  onStartOrder: () => void;
+  hasMaster: boolean;
+  isMaster: boolean;
+  claiming: boolean;
+  onBrowseMenu: () => void;
+  onTakeCharge: () => void;
 };
 
-export default function TableLandingView({ tableId, onStartOrder }: TableLandingViewProps) {
+export default function TableLandingView({
+  tableId,
+  hasMaster,
+  isMaster,
+  claiming,
+  onBrowseMenu,
+  onTakeCharge,
+}: TableLandingViewProps) {
   const [restaurantName, setRestaurantName] = useState("Asian Nour");
   const [menuCardSrc, setMenuCardSrc] = useState(DEFAULT_MENU_CARD_IMAGE);
   const [hours, setHours] = useState<OpeningHours>({});
@@ -41,9 +52,10 @@ export default function TableLandingView({ tableId, onStartOrder }: TableLanding
   }, []);
 
   const hasHours = JOURS_ORDRE.some((j) => hours[j]);
+  const masterTakenByOther = hasMaster && !isMaster;
 
   return (
-    <div className="min-h-screen bg-[var(--bg,#f5efe6)] text-[var(--fg,#2f2922)] pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+    <div className="min-h-screen bg-[var(--bg,#f5efe6)] text-[var(--fg,#2f2922)] pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))]">
       <main className="page-shell flex flex-col items-center gap-6">
         <div className="surface-card-strong w-full max-w-2xl px-6 sm:px-8 py-8 text-center space-y-4">
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-wide">
@@ -58,6 +70,14 @@ export default function TableLandingView({ tableId, onStartOrder }: TableLanding
               {phone && <p>📞 {phone}</p>}
             </div>
           )}
+        </div>
+
+        <div className="w-full max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">📱 Un seul téléphone maître par table</p>
+          <p className="mt-1 text-amber-800/90">
+            Désignez une personne pour composer le panier et envoyer la commande. Les autres convives
+            peuvent consulter la carte sur leur téléphone sans modifier le panier.
+          </p>
         </div>
 
         <div className="surface-card w-full max-w-2xl px-4 sm:px-8 py-6 space-y-4">
@@ -91,10 +111,24 @@ export default function TableLandingView({ tableId, onStartOrder }: TableLanding
           <span className="text-center text-sm surface-muted-text">Table #{tableId}</span>
           <button
             type="button"
-            onClick={onStartOrder}
-            className="w-full inline-flex justify-center px-5 py-3.5 rounded-2xl bg-[#7a5640] text-white text-base font-semibold shadow-elevated hover:brightness-110 transition"
+            onClick={onBrowseMenu}
+            className="w-full inline-flex justify-center px-5 py-3 rounded-2xl border border-[rgba(190,127,57,0.35)] bg-white text-[var(--color-heading)] text-base font-semibold hover:bg-[rgba(217,168,108,0.12)] transition"
           >
-            Commencer la commande
+            Consulter la carte
+          </button>
+          <button
+            type="button"
+            onClick={onTakeCharge}
+            disabled={claiming || masterTakenByOther}
+            className="w-full inline-flex justify-center px-5 py-3.5 rounded-2xl bg-[#7a5640] text-white text-base font-semibold shadow-elevated hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {claiming
+              ? "Prise en charge…"
+              : masterTakenByOther
+                ? "Commande déjà gérée par un autre téléphone"
+                : isMaster
+                  ? "Reprendre la commande"
+                  : "Je gère la commande pour la table"}
           </button>
         </div>
       </div>
