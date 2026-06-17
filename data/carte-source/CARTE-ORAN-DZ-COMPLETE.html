@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Asian Nour Oran — Carte complète Wok + Japonaise (3 pages)</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+
+    :root {
+      --bg: #0b0b0b;
+      --bar: #3f3f3f;
+      --red: #c90a0a;
+      --gold: #d4af37;
+      --gold-light: #e8c96a;
+      --white: #ffffff;
+      --text: #f2f2f2;
+      --sub: #cccccc;
+      --muted: rgba(255, 255, 255, 0.6);
+      --line: rgba(255, 255, 255, 0.12);
+      --pad-x: 4mm;
+      --photo: 15.5mm;
+      --photo-top: 20mm;
+      --dish-gap: 2.2mm;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #1a1a1a;
+      font-family: "Arial Narrow", "Helvetica Neue Condensed", Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      padding: 6px;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .page__sheet {
+      width: 210mm;
+      height: 297mm;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 2mm;
+    }
+
+    .hero {
+      position: relative;
+      text-align: center;
+      padding: 1.2mm 6mm 1mm;
+      border-bottom: 0.25mm solid rgba(212, 175, 55, 0.28);
+      background:
+        radial-gradient(ellipse 85% 80% at 50% 0%, rgba(201, 10, 10, 0.12) 0%, transparent 58%),
+        linear-gradient(180deg, rgba(212, 175, 55, 0.06) 0%, transparent 45%);
+    }
+
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      top: 2mm;
+      width: 18mm;
+      height: 0.2mm;
+      background: linear-gradient(90deg, transparent, var(--gold-light), transparent);
+    }
+
+    .hero::before { left: 8mm; }
+    .hero::after { right: 8mm; }
+
+    .hero__frame {
+      position: relative;
+      display: inline-block;
+      padding: 0 2mm 0.5mm;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .logo {
+      height: 24mm;
+      width: auto;
+      max-width: 180mm;
+      display: block;
+      margin: 0 auto 1mm;
+    }
+
+    .hero__divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2mm;
+      margin-bottom: 0.6mm;
+    }
+
+    .hero__divider::before,
+    .hero__divider::after {
+      content: "";
+      width: 16mm;
+      height: 0.18mm;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .hero .loc {
+      font-size: 4.6mm;
+      font-weight: 700;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: var(--white);
+      line-height: 1;
+    }
+
+    .hero .loc .sep {
+      color: var(--gold-light);
+      font-weight: 400;
+      letter-spacing: 0.1em;
+    }
+
+    .hero .tag {
+      font-size: 3.1mm;
+      font-weight: 600;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: var(--sub);
+    }
+
+    .hero .tag em {
+      font-style: normal;
+      color: var(--gold-light);
+    }
+
+    .hero .tagline {
+      margin-top: 0.35mm;
+      font-size: 1.85mm;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.38);
+    }
+
+    .wok-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 0;
+    }
+
+    .bar {
+      background: var(--bar);
+      text-align: center;
+      padding: 1.5mm var(--pad-x);
+      margin-bottom: 1.8mm;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      box-shadow: inset 0 0.4mm 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .bar--carte {
+      color: var(--red);
+      font-size: 5mm;
+      letter-spacing: 0.28em;
+    }
+
+    .bar--tier { color: var(--white); font-size: 4.5mm; }
+    .bar--menus { color: var(--red); font-size: 4.8mm; letter-spacing: 0.18em; padding: 1.2mm var(--pad-x); margin-bottom: 1.5mm; }
+    .bar .price { margin-left: 1.8mm; }
+
+    .pad { padding: 0 var(--pad-x); }
+
+    .top3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      margin-bottom: 2mm;
+    }
+
+    .col-block {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      text-align: left;
+    }
+
+    .col-block h3 {
+      color: var(--red);
+      font-size: 3.3mm;
+      line-height: 1.2;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.6mm;
+    }
+
+    .col-block h3 .w {
+      display: block;
+      color: var(--gold-light);
+      font-size: 2.9mm;
+      font-weight: 700;
+      margin-top: 0.3mm;
+      letter-spacing: 0.04em;
+    }
+
+    .col-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 1.5mm;
+      width: 100%;
+    }
+
+    .col-row ul {
+      flex: 1;
+      min-width: 0;
+      padding: 0;
+    }
+
+    .col-row .photo {
+      width: var(--photo-top);
+      height: var(--photo-top);
+      box-shadow: 0 0 2mm rgba(0, 0, 0, 0.35);
+    }
+
+    .col-block li {
+      color: var(--sub);
+      text-transform: uppercase;
+      font-size: 2.5mm;
+      font-weight: 600;
+      line-height: 1.38;
+      letter-spacing: 0.03em;
+    }
+
+    .photo {
+      width: var(--photo);
+      height: var(--photo);
+      border-radius: 50%;
+      background-color: #1a1a1a;
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: cover;
+      border: 0.25mm solid rgba(255, 255, 255, 0.16);
+      flex-shrink: 0;
+      box-shadow: 0 0 2mm rgba(0, 0, 0, 0.35);
+    }
+
+    ul { list-style: none; }
+
+    .dish {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--dish-gap);
+      max-width: 100%;
+    }
+
+    .dish__text {
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+
+    .row3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2.5mm;
+      margin-bottom: 2mm;
+      justify-items: start;
+      align-items: start;
+    }
+
+    .cell .label {
+      text-transform: uppercase;
+      font-size: 2.6mm;
+      font-weight: 700;
+      line-height: 1.28;
+      letter-spacing: 0.04em;
+    }
+
+    .silver-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      column-gap: 2.5mm;
+      row-gap: 1.5mm;
+      margin-bottom: 2mm;
+      justify-items: start;
+      align-items: start;
+    }
+
+    .gold-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      column-gap: 2.5mm;
+      row-gap: 1.5mm;
+      margin-bottom: 2mm;
+      justify-items: start;
+      align-items: start;
+    }
+
+    .silver-item,
+    .gold-item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--dish-gap);
+      max-width: 100%;
+      padding-bottom: 0.6mm;
+      border-bottom: 0.12mm solid rgba(255, 255, 255, 0.06);
+    }
+
+    .silver-item .title,
+    .gold-item .title {
+      text-transform: uppercase;
+      font-size: 2.6mm;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.2mm;
+    }
+
+    .silver-item .opts,
+    .gold-item .opts {
+      text-transform: uppercase;
+      font-size: 2.2mm;
+      color: var(--sub);
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: 0.03em;
+    }
+
+    .crousty {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--dish-gap);
+      max-width: 100%;
+    }
+
+    .crousty2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3mm;
+      margin: 0 0 2mm;
+    }
+
+    .crousty .photo {
+      width: 16mm;
+      height: 16mm;
+    }
+
+    .crousty h4 {
+      text-transform: uppercase;
+      font-size: 2.6mm;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      line-height: 1.22;
+      margin-bottom: 0.3mm;
+    }
+
+    .crousty p {
+      text-transform: uppercase;
+      font-size: 2.15mm;
+      line-height: 1.3;
+      color: var(--muted);
+    }
+
+    .menus6 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2.5mm 3mm;
+      padding: 0 var(--pad-x);
+      margin-bottom: 1.5mm;
+      flex: 1;
+      align-content: center;
+    }
+
+    .menu {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1mm 0.8mm;
+      min-height: 20mm;
+      border-left: 0.12mm solid rgba(255, 255, 255, 0.07);
+    }
+
+    .menu:first-child,
+    .menu:nth-child(4) { border-left: none; }
+
+    .menu h4 {
+      color: var(--red);
+      text-transform: uppercase;
+      font-size: 3.1mm;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      margin-bottom: 0.4mm;
+    }
+
+    .menu h4 .price {
+      display: block;
+      color: var(--gold-light);
+      font-size: 4.2mm;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-top: 0.25mm;
+    }
+
+    .menu li {
+      font-size: 2.3mm;
+      color: var(--sub);
+      line-height: 1.32;
+    }
+
+    .footer {
+      margin-top: 0;
+      flex-shrink: 0;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 2.2mm;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      padding: 2mm var(--pad-x) 0;
+      border-top: 0.15mm solid rgba(255, 255, 255, 0.08);
+    }
+
+    .photo--nems { background-image: url("./images-menu/nems.png"); background-size: 115%; background-position: 50% 45%; }
+    .photo--yaki { background-image: url("./images-menu/yaki.png"); background-size: 118%; background-position: 50% 42%; }
+    .photo--accomp { background-image: url("./images-menu/accomp.jpg"); background-size: 120%; background-position: 50% 50%; }
+    .photo--starter-n { background-image: url("./images-menu/starter-nouilles.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--starter-r1 { background-image: url("./images-menu/starter-riz-legumes.jpg"); background-size: 118%; background-position: 50% 50%; }
+    .photo--starter-r2 { background-image: url("./images-menu/starter-riz-cantonnais.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--silver-nouilles { background-image: url("./images-menu/nouilles-poulet.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--silver-kao { background-image: url("./images-menu/kao-padthai-poulet.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--silver-croust { background-image: url("./images-menu/poulet-croustillant.png"); background-size: 112%; background-position: 50% 45%; }
+    .photo--silver-spicy { background-image: url("./images-menu/spicy-poulet.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--silver-bobun { background-image: url("./images-menu/bobun-poulet.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--silver-udon { background-image: url("./images-menu/udon-poulet.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--silver-peanuts { background-image: url("./images-menu/spicy-peanuts-poulet.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--silver-curry { background-image: url("./images-menu/poulet-curry.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--gold-spicy { background-image: url("./images-menu/spicy-gold.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--gold-bobun { background-image: url("./images-menu/bobun-gold.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--gold-udon { background-image: url("./images-menu/udon-gold.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--gold-nouilles { background-image: url("./images-menu/nouilles-gold.jpg"); background-size: 118%; background-position: 50% 48%; }
+    .photo--gold-kao { background-image: url("./images-menu/kao-padthai-gold.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--gold-loclac { background-image: url("./images-menu/boeuf-loc-lac.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--crousty-pad { background-image: url("./images-menu/pad-thai-crousty.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--crousty-kao { background-image: url("./images-menu/kao-padthai-crousty.png"); background-size: 115%; background-position: 50% 48%; }
+
+    
+    .jap2col { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; row-gap: 2.8mm; margin-bottom: 1.5mm; }
+    .jap-cat { display: flex; flex-direction: column; align-items: stretch; text-align: left; }
+    .jap-cat h3 { color: var(--red); font-size: 3.3mm; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.18; margin-bottom: 0.75mm; width: 100%; }
+    .jap-cat h3 .pieces { display: block; color: var(--gold-light); font-size: 2.9mm; letter-spacing: 0.05em; margin-top: 0.3mm; }
+    .jap-cat__row { display: flex; flex-direction: row; align-items: center; gap: 2.2mm; width: 100%; }
+    .jap-cat__row ul { flex: 1; min-width: 0; list-style: none; text-align: left; padding: 0; }
+    .jap-cat--side { justify-content: flex-end; }
+    .jap-side { display: flex; flex-direction: column; gap: 1.2mm; width: 100%; }
+    .jap-side__row { display: flex; flex-direction: row; align-items: center; gap: 2mm; width: 100%; }
+    .jap-side__text { flex: 1; min-width: 0; text-align: left; }
+    .jap-side__text h4 { color: var(--red); font-size: 2.2mm; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.15; margin-bottom: 0.15mm; }
+    .jap-side__text .mp { color: var(--gold-light); font-size: 3.1mm; font-weight: 700; margin-bottom: 0.15mm; display: block; }
+    .jap-side__text p { font-size: 1.52mm; color: var(--sub); line-height: 1.18; text-transform: uppercase; }
+    .jap-side__row .photo { width: var(--photo-cat); height: var(--photo-cat); flex-shrink: 0; }
+    .jap-cat li { display: grid; grid-template-columns: auto auto; column-gap: 1mm; justify-content: start; align-items: baseline; color: var(--sub); font-size: 2.6mm; font-weight: 600; line-height: 1.42; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.05mm 0; }
+    .jap-cat li .p { color: var(--gold-light); font-size: 2.85mm; font-weight: 700; white-space: nowrap; letter-spacing: 0.02em; }
+    .jap-cat li.item-desc .row .p { font-size: 2.85mm; }
+    .jap-cat li .desc { display: block; font-size: 2mm; font-weight: 500; color: var(--muted); line-height: 1.28; margin-top: 0.15mm; text-transform: uppercase; }
+    .jap-cat li.item-desc { flex-direction: column; align-items: stretch; margin-bottom: 0.15mm; }
+    .jap-cat li.item-desc .row { display: grid; grid-template-columns: auto auto; column-gap: 1mm; justify-content: start; align-items: baseline; width: auto; }
+    .page--jap {
+      overflow: hidden;
+    }
+
+    .page--jap { --photo-cat: 21mm; --price-gap: 1mm; --pad-x: 4mm; }
+    .jap-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .jap-bottom { margin-top: auto; flex-shrink: 0; }
+    .chirashis-wrap { margin-top: 1.5mm; background: var(--bg); }
+    .jap-main .pad.extras { margin-top: 0; padding-bottom: 0; }
+    .jap-main .footer { margin-top: 0; flex-shrink: 0; }
+    .page--jap .jap-cat__row .photo { width: var(--photo-cat); height: var(--photo-cat); flex-shrink: 0; }
+    .special3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin-bottom: 2mm; flex-shrink: 0; }
+    .special { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 1.2mm 0.8mm; border-left: 0.12mm solid rgba(255,255,255,0.07); overflow: hidden; position: relative; z-index: 1; }
+    .special:first-child { border-left: none; }
+    .special .photo { width: 13mm; height: 13mm; margin: 0 auto 0.25mm; }
+    .special h4 { color: var(--red); font-size: 2.85mm; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.15; margin-bottom: 0.25mm; }
+    .special h4 .price { display: block; color: var(--gold-light); font-size: 3.4mm; font-weight: 700; letter-spacing: 0.03em; margin-top: 0.1mm; }
+    .special li { font-size: 2.25mm; color: var(--sub); line-height: 1.22; list-style: none; }
+    .page--jap .bar--menus { font-size: 4.4mm; padding: 1.1mm var(--pad-x); margin-bottom: 1.2mm; margin-top: 1mm; }
+    .bar--chirashis,
+    .bar--section {
+      background: var(--bar);
+      text-align: center;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--red);
+      font-size: 4.4mm;
+      letter-spacing: 0.18em;
+      padding: 0.9mm var(--pad-x);
+      margin-bottom: 0.8mm;
+    }
+    .chirashis-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1mm 2mm; padding: 0 0 1mm; align-items: start; }
+    .chirashi-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.5mm 0.5mm 0.3mm; border-left: 0.12mm solid rgba(255,255,255,0.07); }
+    .chirashi-item:first-child { border-left: none; }
+    .chirashi-item .photo { width: 16mm; height: 16mm; margin: 0 auto 0.45mm; flex-shrink: 0; }
+    .chirashi-item h4 { color: var(--red); font-size: 2.85mm; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.15; margin-bottom: 0.25mm; }
+    .chirashi-item .mp { color: var(--gold-light); font-size: 3.6mm; font-weight: 700; letter-spacing: 0.03em; line-height: 1; }
+    .page--jap .footer { font-size: 1.85mm; padding: 0.8mm var(--pad-x) 0; }
+    .extra--wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1.2mm 2mm; padding: 0.6mm 0; border-top: 0.1mm solid rgba(255,255,255,0.08); }
+    .extra--wide .photo { width: 18mm; height: 18mm; flex-shrink: 0; }
+    .extra--wide h4 { margin-bottom: 0; }
+    .extra--box { grid-column: 1 / -1; text-align: center; padding: 0.8mm 0 0; border-top: 0.1mm solid rgba(255,255,255,0.08); }
+    .extra--box h4 { font-size: 2.8mm; margin-bottom: 0.25mm; }
+    .extra--box .mp { font-size: 4.2mm; margin-bottom: 0.35mm; display: block; }
+    .extra--box p { font-size: 2.05mm; color: var(--sub); line-height: 1.28; text-transform: uppercase; }
+    .bar--special { color: var(--white); font-size: 4.6mm; letter-spacing: 0.12em; }
+
+    /* ── Page 3 — Spécialités, menus froids, desserts, contact ── */
+    .page--extra { --photo-cat: 22mm; --pad-x: 5mm; overflow: hidden; }
+    .extra-main { flex: 1; display: flex; flex-direction: column; min-height: 0; justify-content: flex-start; gap: 0; }
+    .extra-main .bar--carte { margin-bottom: 1.5mm; }
+    .extra-section { margin-bottom: 1.2mm; }
+    .extra-feature {
+      display: flex;
+      align-items: center;
+      gap: 3.5mm;
+      padding: 1.2mm var(--pad-x) 1.5mm;
+    }
+    .extra-feature .photo { width: 24mm; height: 24mm; flex-shrink: 0; }
+    .extra-feature__text h4 {
+      color: var(--red);
+      font-size: 3.1mm;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      line-height: 1.2;
+      margin-bottom: 0.4mm;
+    }
+    .extra-feature__text .mp {
+      color: var(--gold-light);
+      font-size: 4.2mm;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      display: block;
+      margin-bottom: 0.5mm;
+    }
+    .extra-feature__text p {
+      font-size: 2.05mm;
+      color: var(--sub);
+      line-height: 1.36;
+      text-transform: uppercase;
+      max-width: 145mm;
+    }
+    .extra-poke {
+      display: flex;
+      align-items: center;
+      gap: 3.5mm;
+      padding: 1.2mm var(--pad-x) 1.5mm;
+    }
+    .extra-poke .photo { width: 20mm; height: 20mm; flex-shrink: 0; }
+    .extra-poke h4 {
+      color: var(--red);
+      font-size: 2.85mm;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.22;
+      margin-bottom: 0.3mm;
+    }
+    .extra-poke .mp { color: var(--gold-light); font-size: 3.8mm; font-weight: 700; }
+    .page--extra .chirashis-grid { gap: 1.5mm 2.5mm; padding: 0 var(--pad-x) 0.5mm; }
+    .page--extra .chirashi-item { padding: 0.8mm 0.5mm; }
+    .page--extra .chirashi-item .photo { width: 16mm; height: 16mm; margin-bottom: 0.5mm; }
+    .page--extra .bar--menus {
+      font-size: 4.6mm;
+      padding: 1mm var(--pad-x);
+      margin: 1.5mm 0 1mm;
+    }
+    .page--extra .special3 {
+      gap: 2.5mm;
+      margin-bottom: 1.5mm;
+      padding: 0 var(--pad-x);
+    }
+    .page--extra .special {
+      padding: 1.4mm 1mm 1.2mm;
+      min-height: 26mm;
+      justify-content: flex-start;
+    }
+    .page--extra .special .photo { width: 17mm; height: 17mm; margin-bottom: 0.5mm; }
+    .page--extra .special h4 { font-size: 3.15mm; margin-bottom: 0.35mm; }
+    .page--extra .special h4 .price { font-size: 4.1mm; margin-top: 0.2mm; }
+    .page--extra .special li { font-size: 2.35mm; line-height: 1.34; }
+    .future-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3mm;
+      padding: 0 var(--pad-x);
+      margin-bottom: 1.2mm;
+    }
+    .future-block { padding: 0; margin-bottom: 0; }
+    .future-block .bar--tier { margin-bottom: 0.8mm; text-align: center; font-size: 4mm; padding: 0.8mm var(--pad-x); }
+    .future-list {
+      list-style: none;
+      border: 0.12mm dashed rgba(212, 175, 55, 0.35);
+      border-radius: 1mm;
+      padding: 1mm 1.5mm;
+      min-height: 10mm;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .future-list li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2mm;
+      align-items: baseline;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 2.5mm;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.5;
+      border-bottom: 0.1mm dashed rgba(255, 255, 255, 0.08);
+      padding: 0.5mm 0;
+    }
+    .future-list li:last-child { border-bottom: none; }
+    .future-list li .p { color: rgba(212, 175, 55, 0.45); font-size: 2.7mm; font-weight: 700; }
+    .future-list__hint {
+      margin-top: 0.8mm;
+      font-size: 1.85mm;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.28);
+      text-align: center;
+    }
+    .contact-footer {
+      margin-top: auto;
+      flex-shrink: 0;
+      text-align: center;
+      padding: 1.8mm var(--pad-x) 1.5mm;
+      border-top: 0.15mm solid rgba(212, 175, 55, 0.22);
+      background: linear-gradient(180deg, transparent 0%, rgba(201, 10, 10, 0.06) 100%);
+    }
+    .contact-footer__title {
+      color: var(--gold-light);
+      font-size: 2.6mm;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      margin-bottom: 1.2mm;
+    }
+    .contact-footer__addr,
+    .contact-footer__phone {
+      font-size: 2.45mm;
+      color: var(--sub);
+      letter-spacing: 0.06em;
+      line-height: 1.45;
+      margin-bottom: 0.5mm;
+    }
+    .contact-footer__phone { color: var(--white); font-weight: 700; margin-bottom: 1.2mm; }
+    .contact-footer__social {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 4mm;
+      flex-wrap: wrap;
+    }
+    .contact-footer__social span {
+      font-size: 2.15mm;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.38);
+      padding: 0.6mm 1.4mm;
+      border: 0.12mm dashed rgba(255, 255, 255, 0.18);
+      border-radius: 0.8mm;
+    }
+    /* ── PHOTOS — images-jap (dossier Images menu) ── */
+    .photo--makis { background-image: url("./images-jap/makis.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--flocons { background-image: url("./images-jap/flocons.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--crunchs { background-image: url("./images-jap/crunchs.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--sashimi { background-image: url("./images-jap/sashimi.png"); background-size: 135%; background-position: 50% 58%; }
+    .photo--saumonroll { background-image: url("./images-jap/saumon-roll.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--frits { background-image: url("./images-jap/frits.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--calif { background-image: url("./images-jap/california.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--sushis { background-image: url("./images-jap/sushis.png"); background-size: 115%; background-position: 50% 50%; }
+    .photo--originaux { background-image: url("./images-jap/originaux.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--printemps { background-image: url("./images-jap/printemps.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--avocatroll { background-image: url("./images-jap/avocat-roll.png"); background-size: 115%; background-position: 50% 48%; }
+    .photo--box36 { background-image: url("./images-jap/box-54.png"); background-size: 150%; background-position: 50% 42%; }
+    .photo--poke { background-image: url("./images-jap/poke-saumon.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--menu-first { background-image: url("./images-menu/menu-asian-first.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--menu-combo { background-image: url("./images-menu/menu-asian-combo.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--menu-meli { background-image: url("./images-menu/menu-asian-meli-melo.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--chirashi-saumon { background-image: url("./images-menu/chirashi-saumon.png"); background-size: 120%; background-position: 50% 42%; }
+    .photo--chirashi-thon { background-image: url("./images-menu/chirashi-thon.png"); background-size: 120%; background-position: 50% 42%; }
+    .photo--chirashi-saumon-avocat { background-image: url("./images-menu/chirashi-saumon-avocat.png"); background-size: 120%; background-position: 50% 42%; }
+    body { flex-direction: column; align-items: center; gap: 12px; }
+    @media print { body { gap: 0; } .page { page-break-after: always; } .page:last-of-type { page-break-after: auto; } }
+
+    @media print {
+      body { background: white; padding: 0; margin: 0; }
+      .page { width: 210mm; height: 297mm; overflow: hidden; }
+      .page__sheet {
+        width: 210mm;
+        height: 297mm;
+      }
+    }
+
+    @media screen {
+      html { background: #111; }
+      .page { box-shadow: 0 0 24px rgba(0, 0, 0, 0.55); }
+    }
+  </style>
+</head>
+<body>
+
+  <article class="page">
+    <div class="page__sheet">
+      <header class="hero">
+        <div class="hero__frame">
+          <img class="logo" src="./logo-asian-nour-print.png" alt="Asian Nour Restaurant" />
+          <div class="hero__divider">
+            <p class="loc">Oran <span class="sep">·</span> Algérie</p>
+          </div>
+          <p class="tag">Cuisine <em>Wok</em> · Saveurs d'Asie</p>
+        </div>
+        <p class="tagline">Authenticité · Fraîcheur · Équilibre des saveurs</p>
+      </header>
+
+      <div class="wok-main">
+      <div class="bar bar--carte">À la carte</div>
+
+      <div class="pad">
+        <section class="top3">
+          <div class="col-block">
+            <h3>Entrées <span class="w">900 DZD</span></h3>
+            <div class="col-row">
+              <ul>
+                <li>3 Nems poulet</li>
+                <li>2 Nems crevettes</li>
+                <li>6 Poulets dynamites</li>
+                <li>2 Crevettes tempura</li>
+                <li>2 Croustys saumon</li>
+              </ul>
+              <div class="photo photo--nems"></div>
+            </div>
+          </div>
+          <div class="col-block">
+            <h3>Yakitoris <span class="w">800 DZD</span></h3>
+            <div class="col-row">
+              <ul>
+                <li>Poulet (3 pièces)</li>
+                <li>Poulet satay (3 pièces)</li>
+                <li>Boeuf fromage (2 pièces)</li>
+                <li>Crousty fromage (2 pièces)</li>
+              </ul>
+              <div class="photo photo--yaki"></div>
+            </div>
+          </div>
+          <div class="col-block">
+            <h3>Accompagnements <span class="w">400 DZD</span></h3>
+            <div class="col-row">
+              <ul>
+                <li>Riz nature</li>
+                <li>Riz vinaigré</li>
+                <li>Salade de choux</li>
+              </ul>
+              <div class="photo photo--accomp"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="bar bar--tier">Starter <span class="price">950 DZD</span></div>
+      <div class="pad row3">
+        <div class="cell"><div class="dish"><div class="dish__text"><div class="label">Nouilles sautées légumes</div></div><div class="photo photo--starter-n"></div></div></div>
+        <div class="cell"><div class="dish"><div class="dish__text"><div class="label">Riz légumes</div></div><div class="photo photo--starter-r1"></div></div></div>
+        <div class="cell"><div class="dish"><div class="dish__text"><div class="label">Riz cantonnais</div></div><div class="photo photo--starter-r2"></div></div></div>
+      </div>
+
+      <div class="bar bar--tier">Silver <span class="price">1 200 DZD</span></div>
+      <div class="pad silver-grid">
+        <div class="silver-item"><div class="dish__text"><div class="title">Nouilles sautées poulet</div></div><div class="photo photo--silver-nouilles"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Kao pad thaï poulet</div></div><div class="photo photo--silver-kao"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Poulet croustillant</div><div class="opts">Servi avec riz nature</div></div><div class="photo photo--silver-croust"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Spicy poulet</div></div><div class="photo photo--silver-spicy"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Bobun poulet</div></div><div class="photo photo--silver-bobun"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Udon poulet</div></div><div class="photo photo--silver-udon"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Spicy peanuts poulet</div></div><div class="photo photo--silver-peanuts"></div></div>
+        <div class="silver-item"><div class="dish__text"><div class="title">Poulet curry</div></div><div class="photo photo--silver-curry"></div></div>
+      </div>
+
+      <div class="bar bar--tier">Gold <span class="price">1 500 DZD</span></div>
+      <div class="pad gold-grid">
+        <div class="gold-item"><div class="dish__text"><div class="title">Spicy</div><div class="opts">Boeuf · Crevettes</div></div><div class="photo photo--gold-spicy"></div></div>
+        <div class="gold-item"><div class="dish__text"><div class="title">Bobun</div><div class="opts">Boeuf · Crevettes</div></div><div class="photo photo--gold-bobun"></div></div>
+        <div class="gold-item"><div class="dish__text"><div class="title">Udon</div><div class="opts">Boeuf · Crevettes</div></div><div class="photo photo--gold-udon"></div></div>
+        <div class="gold-item"><div class="dish__text"><div class="title">Nouilles sautées</div><div class="opts">Boeuf · Crevettes</div></div><div class="photo photo--gold-nouilles"></div></div>
+        <div class="gold-item"><div class="dish__text"><div class="title">Kao pad thaï</div><div class="opts">Boeuf · Crevettes</div></div><div class="photo photo--gold-kao"></div></div>
+        <div class="gold-item"><div class="dish__text"><div class="title">Boeuf loc lac</div></div><div class="photo photo--gold-loclac"></div></div>
+      </div>
+
+      <div class="pad crousty2">
+        <div class="crousty">
+          <div class="photo photo--crousty-pad"></div>
+          <div>
+            <h4>Pad thai crousty</h4>
+            <p>Nouilles plates, demi poulet croustillant, soja, cacahuète, citron</p>
+          </div>
+        </div>
+        <div class="crousty">
+          <div class="photo photo--crousty-kao"></div>
+          <div>
+            <h4>Kao pad thai crousty</h4>
+            <p>Riz thaï, demi poulet croustillant, soja, cacahuète, citron</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bar bar--menus">Menus chauds</div>
+      <section class="menus6">
+        <div class="menu">
+          <h4>Asian Classic<span class="price">2 500 DZD</span></h4>
+          <ul>
+            <li>1 Entrée au choix</li>
+            <li>1 Yakitori au choix</li>
+            <li>1 Plat Starter au choix</li>
+          </ul>
+        </div>
+        <div class="menu">
+          <h4>Asian Classe B<span class="price">2 100 DZD</span></h4>
+          <ul>
+            <li>1 Entrée ou Yakitori au choix</li>
+            <li>1 Plat Silver au choix</li>
+            <li>1 Boisson</li>
+          </ul>
+        </div>
+        <div class="menu">
+          <h4>Asian Express<span class="price">1 850 DZD</span></h4>
+          <ul>
+            <li>1 Entrée ou Yakitori au choix</li>
+            <li>1 Plat Starter au choix</li>
+            <li>1 Boisson</li>
+          </ul>
+        </div>
+        <div class="menu">
+          <h4>Asian Classic +<span class="price">2 750 DZD</span></h4>
+          <ul>
+            <li>1 Entrée au choix</li>
+            <li>1 Yakitori au choix</li>
+            <li>1 Plat Silver au choix</li>
+          </ul>
+        </div>
+        <div class="menu">
+          <h4>Asian Royal<span class="price">2 350 DZD</span></h4>
+          <ul>
+            <li>1 Entrée ou Yakitori au choix</li>
+            <li>1 Plat Gold au choix</li>
+            <li>1 Boisson</li>
+          </ul>
+        </div>
+        <div class="menu">
+          <h4>Asian Kid's<span class="price">1 200 DZD</span></h4>
+          <ul>
+            <li>2 Nems poulet ou 2 Yakitoris poulet</li>
+            <li>1 Plat Starter bébé</li>
+            <li>1 Boisson</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer class="footer">Oran · Algérie · Prix en DZD</footer>
+      </div>
+    </div>
+  </article>
+
+
+  <article class="page page--jap">
+    <div class="page__sheet">
+      <header class="hero">
+        <div class="hero__frame">
+          <img class="logo" src="./logo-asian-nour-print.png" alt="Asian Nour Restaurant" />
+          <div class="hero__divider">
+            <p class="loc">Oran <span class="sep">·</span> Algérie</p>
+          </div>
+          <p class="tag">Cuisine <em>Japonaise</em> · Saveurs d'Asie</p>
+        </div>
+        <p class="tagline">Authenticité · Fraîcheur · Équilibre des saveurs</p>
+      </header>
+
+      <div class="jap-main">
+      <div class="bar bar--carte">Cuisine japonaise</div>
+
+      <div class="pad jap2col">
+        <div class="jap-cat">
+          <h3>Makis <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Thon</span><span class="p">1 200</span></li>
+              <li><span>Saumon</span><span class="p">1 150</span></li>
+              <li><span>Saumon avocat</span><span class="p">1 700</span></li>
+              <li><span>Concombre cheese</span><span class="p">950</span></li>
+              <li><span>Avocat cheese</span><span class="p">1 300</span></li>
+            </ul>
+            <div class="photo photo--makis"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Californias <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Saumon avocat</span><span class="p">1 750</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">1 700</span></li>
+              <li><span>Concombre cheese</span><span class="p">1 000</span></li>
+              <li><span>Saumon fumé cheese</span><span class="p">1 400</span></li>
+              <li><span>Poulet mayonnaise</span><span class="p">1 150</span></li>
+            </ul>
+            <div class="photo photo--calif"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Flocons <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Saumon cheese</span><span class="p">1 300</span></li>
+              <li><span>Poulet mayonnaise</span><span class="p">1 050</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">1 600</span></li>
+              <li><span>Avocat cheese</span><span class="p">1 250</span></li>
+              <li><span>Crevette avocat boursin</span><span class="p">1 700</span></li>
+            </ul>
+            <div class="photo photo--flocons"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Sushis <span class="pieces">2 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Saumon</span><span class="p">500</span></li>
+              <li><span>Saumon avocat</span><span class="p">600</span></li>
+              <li><span>Thon</span><span class="p">550</span></li>
+              <li><span>Saumon braisé</span><span class="p">550</span></li>
+            </ul>
+            <div class="photo photo--sushis"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Crunchs <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Concombre cheese</span><span class="p">1 000</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">1 700</span></li>
+              <li><span>Crevette tempura</span><span class="p">1 400</span></li>
+              <li><span>Saumon fumé boursin</span><span class="p">1 400</span></li>
+              <li><span>Poulet boursin</span><span class="p">1 300</span></li>
+            </ul>
+            <div class="photo photo--crunchs"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Les originaux <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li class="item-desc"><div class="row"><span>Chèvres</span><span class="p">2 000</span></div><span class="desc">Chèvre frais, miel, roquette, noix</span></li>
+              <li class="item-desc"><div class="row"><span>Mangos</span><span class="p">2 000</span></div><span class="desc">Crevette tempura, mangue, sésame</span></li>
+              <li class="item-desc"><div class="row"><span>Latinos</span><span class="p">2 000</span></div><span class="desc">Poulet mariné, cheddar, sauce piquante</span></li>
+              <li class="item-desc"><div class="row"><span>Césars</span><span class="p">2 000</span></div><span class="desc">Poulet mariné, roquette, sauce césar</span></li>
+              <li class="item-desc"><div class="row"><span>Futomaki</span><span class="p">2 000</span></div><span class="desc">Saumon avocat cheese sauce sucrée</span></li>
+            </ul>
+            <div class="photo photo--originaux"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Sashimis saumons</h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>5 pièces</span><span class="p">1 600</span></li>
+              <li><span>10 pièces</span><span class="p">3 000</span></li>
+            </ul>
+            <div class="photo photo--sashimi"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Printemps <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Concombre cheese</span><span class="p">1 000</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">1 700</span></li>
+              <li><span>Saumon avocat menthe</span><span class="p">1 800</span></li>
+              <li><span>Saumon fumé avocat boursin</span><span class="p">1 950</span></li>
+            </ul>
+            <div class="photo photo--printemps"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Saumon roll's <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Cheese</span><span class="p">1 600</span></li>
+              <li><span>Avocat cheese</span><span class="p">2 150</span></li>
+              <li><span>Concombre cheese</span><span class="p">1 800</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">2 300</span></li>
+              <li><span>Braisé avocat cheese shichimi</span><span class="p">2 300</span></li>
+            </ul>
+            <div class="photo photo--saumonroll"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Avocat roll's <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Cheese</span><span class="p">1 200</span></li>
+              <li><span>Saumon fumé cheese</span><span class="p">1 800</span></li>
+              <li><span>Saumon concombre mayo</span><span class="p">1 850</span></li>
+              <li><span>Crevette tempura sauce spicy</span><span class="p">1 850</span></li>
+            </ul>
+            <div class="photo photo--avocatroll"></div>
+          </div>
+        </div>
+        <div class="jap-cat">
+          <h3>Frits <span class="pieces">8 pièces</span></h3>
+          <div class="jap-cat__row">
+            <ul>
+              <li><span>Saumon</span><span class="p">1 400</span></li>
+              <li><span>Thon cuit avocat</span><span class="p">1 900</span></li>
+              <li><span>Avocat cheese miel</span><span class="p">1 600</span></li>
+              <li><span>Saumon avocat boursin</span><span class="p">2 150</span></li>
+              <li><span>Poulet avocat cheddar curry</span><span class="p">2 000</span></li>
+            </ul>
+            <div class="photo photo--frits"></div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">Oran · Algérie · Prix en DZD</footer>
+      </div>
+    </div>
+  </article>
+
+
+  <article class="page page--extra">
+    <div class="page__sheet">
+      <header class="hero">
+        <div class="hero__frame">
+          <img class="logo" src="./logo-asian-nour-print.png" alt="Asian Nour Restaurant" />
+          <div class="hero__divider">
+            <p class="loc">Oran <span class="sep">·</span> Algérie</p>
+          </div>
+          <p class="tag">Spécialités <em>·</em> Infos · Saveurs d'Asie</p>
+        </div>
+        <p class="tagline">Authenticité · Fraîcheur · Équilibre des saveurs</p>
+      </header>
+
+      <div class="extra-main">
+        <div class="bar bar--carte">Box · Chirashis · Poké</div>
+
+        <section class="extra-section">
+          <div class="bar bar--section">Box</div>
+          <div class="extra-feature">
+            <div class="photo photo--box36"></div>
+            <div class="extra-feature__text">
+              <h4>36 pièces — Box 2 personnes</h4>
+              <span class="mp">8 000 DZD</span>
+              <p>6 Makis saumon · 6 Sushis saumon · 6 Flocons saumon cheese · 6 Crunchs thon cuit avocat · 6 Saumon roll's cheese · 6 Californias poulet mayonnaise</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="extra-section">
+          <div class="bar bar--section">Chirashis</div>
+          <div class="chirashis-grid">
+            <div class="chirashi-item">
+              <div class="photo photo--chirashi-saumon"></div>
+              <h4>Chirashi saumon</h4>
+              <span class="mp">1 600 DZD</span>
+            </div>
+            <div class="chirashi-item">
+              <div class="photo photo--chirashi-thon"></div>
+              <h4>Chirashi thon</h4>
+              <span class="mp">1 600 DZD</span>
+            </div>
+            <div class="chirashi-item">
+              <div class="photo photo--chirashi-saumon-avocat"></div>
+              <h4>Chirashi saumon avocat</h4>
+              <span class="mp">2 000 DZD</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="extra-section">
+          <div class="bar bar--section">Poké</div>
+          <div class="extra-poke">
+            <div class="photo photo--poke"></div>
+            <div>
+              <h4>Poké saumon avocat mangue concombre cheese</h4>
+              <span class="mp">2 700 DZD</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="bar bar--menus">Menus froids</div>
+        <div class="special3">
+          <div class="special">
+            <div class="photo photo--menu-first"></div>
+            <h4>Asian First<span class="price">2 450 DZD</span></h4>
+            <ul>
+              <li>6 Californias saumon avocat</li>
+              <li>3 Sushis saumon</li>
+              <li>1 Boisson</li>
+            </ul>
+          </div>
+          <div class="special">
+            <div class="photo photo--menu-combo"></div>
+            <h4>Asian Combo<span class="price">3 300 DZD</span></h4>
+            <ul>
+              <li>6 Makis saumon</li>
+              <li>6 Crunchs thon cuit avocat</li>
+              <li>2 Sushis saumon · 1 Boisson</li>
+            </ul>
+          </div>
+          <div class="special">
+            <div class="photo photo--menu-meli"></div>
+            <h4>Asian Meli Melo<span class="price">4 300 DZD</span></h4>
+            <ul>
+              <li>6 Saumon roll's cheese</li>
+              <li>6 Californias saumon avocat</li>
+              <li>6 Printemps concombre cheese · 1 Boisson</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="future-row">
+          <div class="future-block">
+            <div class="bar bar--tier">Desserts</div>
+            <ul class="future-list" data-future-list="desserts">
+              <li><span>Dessert 1</span><span class="p">—</span></li>
+              <li><span>Dessert 2</span><span class="p">—</span></li>
+            </ul>
+            <p class="future-list__hint">Liste à compléter</p>
+          </div>
+          <div class="future-block">
+            <div class="bar bar--tier">Boissons</div>
+            <ul class="future-list" data-future-list="boissons">
+              <li><span>Boisson 1</span><span class="p">—</span></li>
+              <li><span>Boisson 2</span><span class="p">—</span></li>
+            </ul>
+            <p class="future-list__hint">Liste à compléter</p>
+          </div>
+        </div>
+
+        <footer class="contact-footer">
+          <p class="contact-footer__title">Asian Nour — Oran</p>
+          <p class="contact-footer__addr">📍 Adresse · Oran, Algérie</p>
+          <p class="contact-footer__phone">📞 0XX XX XX XX XX</p>
+          <div class="contact-footer__social">
+            <span>Instagram · @asiannour.oran</span>
+            <span>TikTok · @asiannour.oran</span>
+            <span>Facebook · Asian Nour Oran</span>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </article>
+
+</body>
+</html>

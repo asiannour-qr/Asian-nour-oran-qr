@@ -1,0 +1,113 @@
+{
+  "restaurant": "Asian Nour — Oran",
+  "devise": "DZD",
+  "source": "MENU DZ 5.pdf",
+  "date": "2026-06-12",
+  "categories": [
+    {
+      "category": "Entrées",
+      "prix": 900,
+      "items": [
+        "3 Nems poulet",
+        "2 Nems crevettes",
+        "6 Poulets dynamites",
+        "2 Crevettes tempura",
+        "2 Croustys saumon"
+      ]
+    },
+    {
+      "category": "Yakitoris (2 pièces)",
+      "prix": 800,
+      "items": [
+        "Poulet (3 pièces)",
+        "Poulet satay (3 pièces)",
+        "Boeuf fromage (2 pièces)",
+        "Crousty fromage (2 pièces)"
+      ]
+    },
+    {
+      "category": "Accompagnements",
+      "prix": 400,
+      "items": ["Riz nature", "Riz vinaigré", "Salade de choux"]
+    },
+    {
+      "category": "Plats Starter",
+      "prix": 950,
+      "items": ["Nouilles sautées légumes", "Riz légumes", "Riz cantonnais"]
+    },
+    {
+      "category": "Plats Silver",
+      "prix": 1200,
+      "items": [
+        "Nouilles sautées poulet",
+        "Spicy poulet",
+        "Spicy peanuts poulet",
+        "Kao pad thaï poulet",
+        "Bobun poulet",
+        "Udon poulet",
+        "Poulet croustillant",
+        "Poulet curry"
+      ]
+    },
+    {
+      "category": "Plats Gold",
+      "prix": 1500,
+      "items": [
+        "Nouilles sautées boeuf",
+        "Nouilles sautées crevettes",
+        "Kao pad thaï boeuf",
+        "Kao pad thaï crevettes",
+        "Spicy boeuf",
+        "Spicy crevettes",
+        "Bobun boeuf",
+        "Bobun crevettes",
+        "Udon boeuf",
+        "Udon crevettes",
+        "Pad thaï crousty",
+        "Kao pad thaï crousty",
+        "Boeuf loc lac"
+      ]
+    },
+    {
+      "category": "Boissons",
+      "items": [
+        { "name": "Eau minérale 50cl", "prix": 150 },
+        { "name": "Eau pétillante 50cl", "prix": 150 },
+        { "name": "Soft drink", "prix": 200 }
+      ]
+    }
+  ],
+  "menusComposes": [
+    {
+      "name": "Asian Classic",
+      "prix": 2500,
+      "contenu": "1 entrée au choix + 1 yakitori au choix + 1 plat starter au choix"
+    },
+    {
+      "name": "Asian Classic +",
+      "prix": 2750,
+      "contenu": "1 entrée au choix + 1 yakitori au choix + 1 plat silver au choix"
+    },
+    {
+      "name": "Asian Royal",
+      "prix": 2350,
+      "contenu": "1 entrée ou yakitori au choix + 1 plat gold au choix + 1 boisson"
+    },
+    {
+      "name": "Asian Classe B",
+      "prix": 2100,
+      "contenu": "1 entrée ou yakitori au choix + 1 plat silver au choix + 1 boisson"
+    },
+    {
+      "name": "Asian Express",
+      "prix": 1850,
+      "contenu": "1 entrée ou yakitori au choix + 1 plat starter au choix + 1 boisson"
+    },
+    {
+      "name": "Asian Kid's",
+      "prix": 1200,
+      "contenu": "2 nems poulet ou 2 yakitoris poulet + 1 plat starter + 1 boisson"
+    }
+  ],
+  "note": "Boissons : prix estimés (absents du PDF). Sushi / froids non inclus dans ce PDF."
+}
