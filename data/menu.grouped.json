@@ -1,283 +1,94 @@
 [
   {
     "category": "Entrées",
-    "defaultPrice": 5.5,
+    "defaultPrice": 900,
     "items": [
       "3 Nems poulet",
-      "3 Nems crevettes",
-      "3 Crevettes tempura",
-      "4 Gyoza légumes",
-      "3 Croustys saumon",
-      "6 Poulets dynamites"
+      "2 Nems crevettes",
+      "6 Poulets dynamites",
+      "2 Crevettes tempura",
+      "2 Croustys saumon"
     ]
   },
   {
     "category": "Yakitoris (2 pièces)",
-    "defaultPrice": 5.5,
+    "defaultPrice": 800,
     "items": [
-      "Boeuf fromage",
-      "Poulet",
-      "Saumon",
-      "Boulettes de boeuf",
-      "Crousty fromage"
+      "Poulet (3 pièces)",
+      "Poulet satay (3 pièces)",
+      "Boeuf fromage (2 pièces)",
+      "Crousty fromage (2 pièces)"
     ]
   },
   {
     "category": "Accompagnements",
-    "defaultPrice": 3.5,
+    "defaultPrice": 400,
     "items": [
-      "Soupe miso",
-      "Salade de choux",
       "Riz nature",
-      "Riz vinaigré"
+      "Riz vinaigré",
+      "Salade de choux"
     ]
   },
   {
     "category": "Plats Starter",
-    "defaultPrice": 7.9,
+    "defaultPrice": 950,
     "items": [
       "Nouilles sautées légumes",
-      "Kao pad thaï légumes",
+      "Riz légumes",
       "Riz cantonnais"
     ]
   },
   {
     "category": "Plats Silver",
-    "defaultPrice": 9.9,
+    "defaultPrice": 1200,
     "items": [
       "Nouilles sautées poulet",
-      "Nouilles sautées boeuf",
-      "Nouilles sautées crevettes",
+      "Spicy poulet",
+      "Spicy peanuts poulet",
       "Kao pad thaï poulet",
-      "Kao pad thaï boeuf",
-      "Kao pad thaï crevettes",
-      "Poulet croustillant (servi avec riz nature)"
+      "Bobun poulet",
+      "Udon poulet",
+      "Poulet croustillant",
+      "Poulet curry"
     ]
   },
   {
     "category": "Plats Gold",
-    "defaultPrice": 12.9,
+    "defaultPrice": 1500,
     "items": [
-      "Spicy poulet",
+      "Nouilles sautées boeuf",
+      "Nouilles sautées crevettes",
+      "Kao pad thaï boeuf",
+      "Kao pad thaï crevettes",
       "Spicy boeuf",
       "Spicy crevettes",
-      "Bobun poulet",
       "Bobun boeuf",
       "Bobun crevettes",
-      "Udon poulet",
       "Udon boeuf",
       "Udon crevettes",
-      "Spicy peanuts poulet",
-      "Poulet curry",
-      "Boeuf loc lac",
-      "Pad thaï crousty (Nouilles plates, demi poulet croustillant, soja, cacahuète, ciboulette, citron)",
-      "Kao pad thaï crousty (Riz thaï, demi poulet croustillant, soja, cacahuète, ciboulette, citron)"
-    ]
-  },
-  {
-    "category": "Makis (6 pièces)",
-    "items": [
-      { "name": "Thon", "price": 5.1, "position": 1 },
-      { "name": "Saumon", "price": 5.0, "position": 2 },
-      { "name": "Saumon avocat", "price": 5.2, "position": 3 },
-      { "name": "Concombre cheese", "price": 4.8, "position": 4 },
-      { "name": "Avocat cheese", "price": 4.9, "position": 5 }
-    ]
-  },
-  {
-    "category": "Flocons (6 pièces)",
-    "items": [
-      { "name": "Saumon cheese", "price": 4.9, "position": 1 },
-      { "name": "Poulet mayonnaise", "price": 5.7, "position": 2 },
-      { "name": "Thon cuit avocat", "price": 5.0, "position": 3 },
-      { "name": "Avocat cheese", "price": 4.4, "position": 4 },
-      { "name": "Crevettes avocat boursin", "price": 5.6, "position": 5 }
-    ]
-  },
-  {
-    "category": "Crunchs (6 pièces)",
-    "items": [
-      { "name": "Concombre cheese", "price": 5.3, "position": 1 },
-      { "name": "Thon cuit avocat", "price": 5.6, "position": 2 },
-      { "name": "Crevettes tempura", "price": 6.3, "position": 3 },
-      { "name": "Saumon fumé boursin", "price": 5.7, "position": 4 },
-      { "name": "Poulet boursin", "price": 6.4, "position": 5 }
-    ]
-  },
-  {
-    "category": "Saumon Roll’s (6 pièces)",
-    "items": [
-      { "name": "Cheese", "price": 6.5, "position": 1 },
-      { "name": "Avocat cheese", "price": 6.8, "position": 2 },
-      { "name": "Concombre cheese", "price": 6.7, "position": 3 },
-      { "name": "Thon cuit avocat", "price": 6.9, "position": 4 },
-      { "name": "Saumon fumé concombre boursin", "price": 6.9, "position": 5 },
-      { "name": "Braisé tempura avocat", "price": 7.0, "position": 6 },
-      { "name": "Braisé avocat cheese shichimi", "price": 7.0, "position": 7 }
-    ]
-  },
-  {
-    "category": "Frits (6 pièces)",
-    "items": [
-      { "name": "Saumon", "price": 6.8, "position": 1 },
-      { "name": "Thon cuit avocat", "price": 7.0, "position": 2 },
-      { "name": "Avocat cheese miel", "price": 7.0, "position": 3 },
-      { "name": "Saumon avocado boursin", "price": 7.3, "position": 4 },
-      { "name": "Poulet avocat cheddar sauce curry", "price": 7.9, "position": 5 }
-    ]
-  },
-  {
-    "category": "Californias (6 pièces)",
-    "items": [
-      { "name": "Saumon avocat", "price": 5.4, "position": 1 },
-      { "name": "Thon cuit avocat", "price": 5.4, "position": 2 },
-      { "name": "Concombre cheese", "price": 5.2, "position": 3 },
-      { "name": "Saumon fumé cheese", "price": 5.6, "position": 4 },
-      { "name": "Poulet mayonnaise", "price": 6.0, "position": 5 }
-    ]
-  },
-  {
-    "category": "Sushis (2 pièces)",
-    "items": [
-      { "name": "Saumon", "price": 4.0, "position": 1 },
-      { "name": "Saumon avocat", "price": 4.2, "position": 2 },
-      { "name": "Thon", "price": 4.4, "position": 3 },
-      { "name": "Saumon braisé", "price": 4.4, "position": 4 }
-    ]
-  },
-  {
-    "category": "Les originaux (6 pièces)",
-    "items": [
-      { "name": "Chèvres (chèvre frais, miel, roquette, noix concassées)", "price": 7.2, "position": 1 },
-      { "name": "Mangos (crevettes tempura, mangue, sauce épicée, graine de sésame)", "price": 7.2, "position": 2 },
-      { "name": "Latinos (poulet mariné, cheddar, poivrons, oignons frits, sauce piquante)", "price": 7.2, "position": 3 },
-      { "name": "Césars (poulet marinés, roquette, sauce césar, parmesan, pavot)", "price": 7.2, "position": 4 },
-      { "name": "Futomaki (saumon, avocat, cheese, sauce sucrée)", "price": 7.2, "position": 5 }
-    ]
-  },
-  {
-    "category": "Printemps (6 pièces)",
-    "items": [
-      { "name": "Concombre cheese", "price": 5.9, "position": 1 },
-      { "name": "Thon cuit avocat", "price": 6.0, "position": 2 },
-      { "name": "Saumon avocat menthe", "price": 6.1, "position": 3 },
-      { "name": "Saumon fumé avocat boursin", "price": 7.3, "position": 4 },
-      { "name": "Poulet chèvre frais", "price": 6.2, "position": 5 }
-    ]
-  },
-  {
-    "category": "Avocat Roll’s (6 pièces)",
-    "items": [
-      { "name": "Cheese", "price": 6.4, "position": 1 },
-      { "name": "Burrata", "price": 7.2, "position": 2 },
-      { "name": "Saumon fumé cheese", "price": 7.2, "position": 3 },
-      { "name": "Saumon concombre mayonnaise", "price": 6.8, "position": 4 },
-      { "name": "Crevette tempura sauce épicée", "price": 7.8, "position": 5 }
-    ]
-  },
-  {
-    "category": "Menus Froids",
-    "items": [
-      {
-        "name": "Asian First",
-        "price": 12.9,
-        "description": "6 Californias saumon avocat + 3 Sushis saumon + 1 Boisson"
-      },
-      {
-        "name": "Asian Combo",
-        "price": 15.9,
-        "description": "6 Crunchs thon cuit avocat + 6 Avocat roll’s burrata + 6 Frits avocat cheese miel + 1 Boisson"
-      },
-      {
-        "name": "Asian Meli Melo",
-        "price": 18.9,
-        "description": "6 Saumon roll’s cheese + 6 Californias saumon avocat + 6 Printemps thon cuit avocat + 1 Boisson"
-      },
-      {
-        "name": "Asian Avocado",
-        "price": 19.9,
-        "description": "6 Crunchs thon cuit avocat + 6 Avocat roll’s burrata + 6 Frits avocat cheese miel + 1 Boisson"
-      },
-      {
-        "name": "Asian Mix",
-        "price": 21.9,
-        "description": "6 Californias saumon avocat + 6 Saumon roll’s cheese + 2 Yakitoris boeuf fromage + 1 Yakitori boulettes de boeuf + 1 Yakitori poulet + 1 Boisson"
-      },
-      {
-        "name": "Asian Frits",
-        "price": 22.9,
-        "description": "6 Frits avocat cheese miel + 6 Frits saumon avocat boursin + 6 Frits poulet avocat cheddar sauce curry + 1 Boisson"
-      }
-    ]
-  },
-  {
-    "category": "Asian Chirashis",
-    "items": [
-      { "name": "Saumon", "price": 15.9 },
-      { "name": "Thon saumon", "price": 16.9 },
-      { "name": "Thon", "price": 15.9 },
-      { "name": "Saumon avocat", "price": 16.9 }
-    ]
-  },
-  {
-    "category": "Asian Pokes",
-    "items": [
-      { "name": "Saumon, avocat, mangue, cheese, concombre", "price": 16.9 },
-      { "name": "3 Tempura crevettes, avocat, roquette, chèvre frais", "price": 16.9 }
-    ]
-  },
-  {
-    "category": "Asian Extras",
-    "items": [
-      { "name": "Tom Yam (Salade de crevettes au lait de coco et citronnelle)", "price": 8.9 },
-      { "name": "Salade dynamite (Poulet dynamite, salade, tomates, carottes, concombres, oignons, soja)", "price": 8.9 }
-    ]
-  },
-  {
-    "category": "Sashimis & Tatakis",
-    "items": [
-      { "name": "Sashimi saumon 5 pcs", "price": 6.7 },
-      { "name": "Sashimi saumon 12 pcs", "price": 12.1 },
-      { "name": "Sashimi thon 5 pcs", "price": 7.1 },
-      { "name": "Sashimi thon 12 pcs", "price": 13.1 },
-      { "name": "Tataki saumon 5 pcs", "price": 7.1 },
-      { "name": "Tataki saumon 12 pcs", "price": 12.7 },
-      { "name": "Tataki thon 5 pcs", "price": 7.7 },
-      { "name": "Tataki thon 12 pcs", "price": 13.7 }
-    ]
-  },
-  {
-    "category": "Boxes",
-    "items": [
-      {
-        "name": "36 pièces box 2 personnes",
-        "price": 38.9,
-        "description": "6 Makis saumon, 4 Sushis saumon, 2 Sushis thon, 6 Flocons saumon cheese, 6 Crunchs thon cuit avocat, 6 Saumon roll’s cheese, 6 Californias poulet mayonnaise"
-      },
-      {
-        "name": "54 pièces box 4 personnes",
-        "price": 59.9,
-        "description": "6 Sushis saumon, 4 Sushis thon, 2 Sushis saumon avocat, 6 Flocons avocat cheese, 6 Saumon roll’s cheese, 6 Californias thon cuit avocat, 6 Crunchs saumon fumé boursin, 6 Printemps saumon avocat menthe, 6 Makis concombre cheese, 6 Frits avocat cheese miel"
-      }
+      "Pad thaï crousty",
+      "Kao pad thaï crousty",
+      "Boeuf loc lac"
     ]
   },
   {
     "category": "Boissons",
     "items": [
-      { "name": "Eau minérale 50cl", "price": 1.5 },
-      { "name": "Eau pétillante 50cl", "price": 1.5 },
-      { "name": "Eau minérale 1L", "price": 3.0 },
-      { "name": "Eau pétillante 1L", "price": 3.0 },
-      { "name": "Soft drink", "price": 2.5 }
+      { "name": "Eau minérale 50cl", "price": 150 },
+      { "name": "Eau pétillante 50cl", "price": 150 },
+      { "name": "Soft drink", "price": 200 }
     ]
   },
   {
-    "category": "Desserts",
+    "category": "Boissons Kid",
     "items": [
-      { "name": "Tiramisu fait maison", "price": 4.7 },
-      { "name": "Tarte tatin, boule de glace", "price": 4.5 },
-      { "name": "Fondant chocolat, crème anglaise", "price": 4.5 },
-      { "name": "Flocon nutella banane (Riz sucré au lait de coco)", "price": 4.5 }
+      { "name": "Capri Sun", "price": 0 }
+    ]
+  },
+  {
+    "category": "Desserts Kid",
+    "items": [
+      { "name": "Compote", "price": 0 }
     ]
   }
 ]

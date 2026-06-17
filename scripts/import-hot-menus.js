@@ -6,7 +6,7 @@ const { PrismaClient } = require("@prisma/client");
 const HOT_MENU_DEFS = [
   {
     name: "Asian Classic",
-    priceCents: 1690,
+    priceCents: 250000,
     position: 10,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -16,7 +16,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Classic +",
-    priceCents: 1890,
+    priceCents: 275000,
     position: 20,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -26,7 +26,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Royal",
-    priceCents: 1890,
+    priceCents: 235000,
     position: 30,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées::xor=royal-main", minChoices: 1, maxChoices: 1 },
@@ -37,7 +37,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Classe B",
-    priceCents: 1590,
+    priceCents: 210000,
     position: 40,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées::xor=classeb-main", minChoices: 1, maxChoices: 1 },
@@ -48,29 +48,24 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Express",
-    priceCents: 1390,
+    priceCents: 185000,
     position: 50,
     groups: [
-      { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
-      { name: "Plat Silver", categoryFilter: "Plats Silver", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée", categoryFilter: "Entrées::xor=express-main", minChoices: 1, maxChoices: 1 },
+      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=express-main", minChoices: 1, maxChoices: 1 },
+      { name: "Plat Starter", categoryFilter: "Plats Starter", minChoices: 1, maxChoices: 1 },
       { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
   {
     name: "Asian Kid’s",
-    priceCents: 890,
+    priceCents: 120000,
     position: 60,
     groups: [
-      { name: "Entrée (2 pièces)", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)", minChoices: 1, maxChoices: 1 },
-      {
-        name: "Accompagnement Kid’s",
-        categoryFilter: "Accompagnements|Plats Starter",
-        minChoices: 1,
-        maxChoices: 1,
-      },
-      { name: "Dessert enfant", categoryFilter: "Desserts Kid", minChoices: 1, maxChoices: 1 },
-      { name: "Boisson enfant", categoryFilter: "Boissons Kid", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée (2 pièces)", categoryFilter: "Entrées::xor=kids-main", minChoices: 1, maxChoices: 1 },
+      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=kids-main", minChoices: 1, maxChoices: 1 },
+      { name: "Plat Starter", categoryFilter: "Plats Starter", minChoices: 1, maxChoices: 1 },
+      { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
 ];
