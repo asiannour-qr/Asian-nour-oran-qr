@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { DEFAULT_MENU_CARD_IMAGE } from "@/lib/settings";
+
 type DayHours = { ouvert: boolean; debut: string; fin: string };
 type OpeningHours = Record<string, DayHours>;
 
@@ -203,7 +205,7 @@ export default function AdminSettingsPage() {
   const menuCardPreview =
     pendingCardPreview ||
     settings?.menuCardImageUrl ||
-    "/carte/asian-nour/CARTE-2025.jpg";
+    DEFAULT_MENU_CARD_IMAGE;
 
   if (loading) {
     return (

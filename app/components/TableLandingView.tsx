@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import MenuCardImage from "@/app/components/MenuCardImage";
-import { DEFAULT_MENU_CARD_IMAGE, resolveMenuCardImageUrl, type OpeningHours } from "@/lib/settings";
+import MenuCardGallery from "@/app/components/MenuCardGallery";
+import { type OpeningHours } from "@/lib/settings";
 
 const JOURS_ORDRE = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"] as const;
 const JOURS_LABELS: Record<string, string> = {
@@ -33,7 +33,6 @@ export default function TableLandingView({
   onTakeCharge,
 }: TableLandingViewProps) {
   const [restaurantName, setRestaurantName] = useState("Asian Nour");
-  const [menuCardSrc, setMenuCardSrc] = useState(DEFAULT_MENU_CARD_IMAGE);
   const [hours, setHours] = useState<OpeningHours>({});
   const [address, setAddress] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
@@ -43,7 +42,6 @@ export default function TableLandingView({
       .then((r) => r.json())
       .then((data) => {
         setRestaurantName(data.restaurantName || "Asian Nour");
-        setMenuCardSrc(resolveMenuCardImageUrl(data));
         setHours(data.openingHours || {});
         setAddress(data.address ?? null);
         setPhone(data.phone ?? null);
@@ -85,7 +83,7 @@ export default function TableLandingView({
 
         <div className="surface-card w-full max-w-2xl px-4 sm:px-8 py-6 space-y-4">
           <h2 className="text-lg font-semibold text-center">Notre carte</h2>
-          <MenuCardImage src={menuCardSrc} alt={`Carte ${restaurantName}`} priority />
+          <MenuCardGallery alt={`Carte ${restaurantName}`} priorityFirst />
         </div>
 
         {hasHours && (

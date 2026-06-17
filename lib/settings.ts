@@ -2,8 +2,15 @@ import prisma from "@/lib/prisma";
 
 export const SETTINGS_ID = "default";
 
-/** Image par défaut (fichier statique) si aucune carte n’a été uploadée via l’admin. */
-export const DEFAULT_MENU_CARD_IMAGE = "/carte/asian-nour/CARTE-2025.jpg";
+/** Pages de la carte Oran (A4) affichées sur l'accueil quand aucune image admin n'est définie. */
+export const ORAN_MENU_CARD_PAGES = [
+  "/carte/asian-nour/carte-oran-01-wok.jpg",
+  "/carte/asian-nour/carte-oran-02-japonaise.jpg",
+  "/carte/asian-nour/carte-oran-03-specialites.jpg",
+] as const;
+
+/** Image par défaut (1ère page) — fallback legacy. */
+export const DEFAULT_MENU_CARD_IMAGE = ORAN_MENU_CARD_PAGES[0];
 
 export type DayHours = {
   ouvert: boolean;

@@ -28,8 +28,8 @@ export default function MenuCardImage({
     <Image
       src={src}
       alt={alt}
-      width={1600}
-      height={2263}
+      width={2480}
+      height={3508}
       quality={90}
       sizes="(max-width: 768px) 100vw, 900px"
       className={className}
