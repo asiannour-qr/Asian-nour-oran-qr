@@ -715,13 +715,28 @@ export default function TablePage() {
         takeCharge,
     ]);
 
-    const scrollToOrderTop = useCallback(() => {
+    const scrollToPageTop = useCallback(() => {
         if (typeof window === "undefined") return;
         setActiveCategoryId(null);
         window.requestAnimationFrame(() => {
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
     }, []);
+
+    const [showScrollTopFab, setShowScrollTopFab] = useState(false);
+
+    useEffect(() => {
+        if (!showOrderUi) {
+            setShowScrollTopFab(false);
+            return;
+        }
+        const onScroll = () => {
+            setShowScrollTopFab(window.scrollY > 320);
+        };
+        onScroll();
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+    }, [showOrderUi]);
 
     const updateGuestNames = useCallback(
         (updater: (prev: Record<string, string>) => Record<string, string>, persist: boolean) => {
@@ -1315,12 +1330,7 @@ export default function TablePage() {
         });
     }
 
-    function addToCartLine(
-        name: string,
-        priceCents: number,
-        personId?: string,
-        options?: { scrollToTop?: boolean }
-    ) {
+    function addToCartLine(name: string, priceCents: number, personId?: string) {
         if (!canModifyCart) {
             toast.error("Seul le téléphone maître peut ajouter des plats au panier.");
             return;
@@ -1337,9 +1347,6 @@ export default function TablePage() {
             return [...prev, { id: key, name, priceCents, qty: 1, personId: target }];
         });
         toastAddedToCart(name);
-        if (options?.scrollToTop && peopleCount > 1) {
-            scrollToOrderTop();
-        }
     }
 
     function decFromCart(id: string, personId: string) {
@@ -1533,7 +1540,7 @@ export default function TablePage() {
             detailParts.push(`${step.group.name}: ${names}`);
         }
         const label = detailParts.length > 0 ? `${menu.name} — ${detailParts.join(" • ")}` : menu.name;
-        addToCartLine(label, menu.priceCents, activePerson, { scrollToTop: true });
+        addToCartLine(label, menu.priceCents, activePerson);
         setComposeState(null);
         setComposeErrors({});
     }
@@ -2055,9 +2062,7 @@ export default function TablePage() {
                                                                     <button
                                                                         className="btn-soft text-xs px-2 py-1 shrink-0"
                                                                         onClick={() =>
-                                                                            addToCartLine(it.name, it.priceCents, undefined, {
-                                                                                scrollToTop: true,
-                                                                            })
+                                                                            addToCartLine(it.name, it.priceCents)
                                                                         }
                                                                     >
                                                                         + {getGuestNameForPersonId(activePerson)}
@@ -2239,10 +2244,34 @@ export default function TablePage() {
                     confirmLabel={`Ajouter pour ${getGuestNameForPersonId(activePerson)} (${formatMoney(coldMenuPick.priceCents)})`}
                     onClose={() => setColdMenuPick(null)}
                     onConfirm={(label, priceCents) => {
-                        addToCartLine(label, priceCents, undefined, { scrollToTop: true });
+                        addToCartLine(label, priceCents);
                         setColdMenuPick(null);
                     }}
                 />
+            )}
+
+            {showOrderUi && showScrollTopFab && !cartDrawerOpen && (
+                <button
+                    type="button"
+                    onClick={scrollToPageTop}
+                    className="fixed bottom-6 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-[rgba(190,127,57,0.45)] bg-[rgba(255,252,247,0.96)] px-4 py-2.5 text-sm font-medium text-[var(--color-heading)] shadow-[0_8px_24px_rgba(61,47,33,0.18)] backdrop-blur-sm transition hover:bg-white hover:shadow-[0_10px_28px_rgba(61,47,33,0.22)] active:translate-y-px sm:bottom-8 sm:right-6"
+                    aria-label="Retour en haut de la carte pour changer de convive ou de catégorie"
+                >
+                    <svg
+                        className="h-4 w-4 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M12 19V5" />
+                        <path d="m5 12 7-7 7 7" />
+                    </svg>
+                    Haut de la carte
+                </button>
             )}
 
             {cartDrawerOpen && canModifyCart && (
