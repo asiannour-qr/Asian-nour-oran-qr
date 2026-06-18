@@ -8,6 +8,7 @@ import {
   touchTableMaster,
 } from "@/lib/table-master";
 import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
+import { getTableDraftCart } from "@/lib/table-draft-cart";
 
 function readDeviceId(req: Request, body?: { deviceId?: unknown }): string {
   const fromBody = typeof body?.deviceId === "string" ? body.deviceId.trim() : "";
@@ -15,6 +16,18 @@ function readDeviceId(req: Request, body?: { deviceId?: unknown }): string {
   const url = new URL(req.url);
   const fromQuery = url.searchParams.get("deviceId")?.trim() ?? "";
   return fromQuery.length >= 8 ? fromQuery : "";
+}
+
+function serializeDraft(draft: Awaited<ReturnType<typeof getTableDraftCart>>) {
+  if (!draft) return null;
+  return {
+    items: draft.items,
+    peopleCount: draft.peopleCount,
+    tableComment: draft.tableComment,
+    guestNames: draft.guestNames,
+    updatedAt: draft.updatedAt.toISOString(),
+    itemCount: draft.items.reduce((sum, line) => sum + line.qty, 0),
+  };
 }
 
 export async function GET(req: Request, { params }: { params: { tableId: string } }) {
@@ -65,6 +78,7 @@ export async function POST(req: Request, { params }: { params: { tableId: string
         );
       }
       const record = await forceClaimTableMaster(tableId, deviceId);
+      const draft = await getTableDraftCart(tableId);
       return NextResponse.json({
         ok: true,
         isMaster: true,
@@ -72,6 +86,7 @@ export async function POST(req: Request, { params }: { params: { tableId: string
         forced: true,
         claimedAt: record.claimedAt.toISOString(),
         expiresAt: record.expiresAt.toISOString(),
+        draft: serializeDraft(draft),
       });
     }
 
@@ -93,6 +108,7 @@ export async function POST(req: Request, { params }: { params: { tableId: string
       hasMaster: true,
       claimedAt: result.record.claimedAt.toISOString(),
       expiresAt: result.record.expiresAt.toISOString(),
+      draft: serializeDraft(await getTableDraftCart(tableId)),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

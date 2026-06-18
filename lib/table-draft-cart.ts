@@ -70,6 +70,7 @@ export async function saveTableDraftCart(
     peopleCount?: number;
     tableComment?: string | null;
     guestNames?: Record<string, string>;
+    allowEmpty?: boolean;
   }
 ): Promise<TableDraftCartRecord> {
   const peopleCount = Math.max(1, Math.min(12, Math.round(payload.peopleCount ?? 1)));
@@ -77,6 +78,16 @@ export async function saveTableDraftCart(
   const tableComment =
     payload.tableComment == null ? null : String(payload.tableComment).slice(0, 2000) || null;
   const guestNames = sanitizeGuestNames(payload.guestNames);
+
+  const existing = await getTableDraftCart(tableId);
+  if (
+    items.length === 0 &&
+    existing &&
+    existing.items.length > 0 &&
+    payload.allowEmpty !== true
+  ) {
+    return existing;
+  }
 
   const row = await prisma.tableDraftCart.upsert({
     where: { tableId },

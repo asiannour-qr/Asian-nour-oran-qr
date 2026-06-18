@@ -153,11 +153,12 @@ export default function TablePage() {
 
     useEffect(() => {
         if (!orderMode) return;
+        const intervalMs = masterStatus.isMaster ? 3000 : masterStatus.hasMaster ? 5000 : 20000;
         const id = setInterval(() => {
             void refreshMasterStatus();
-        }, 20000);
+        }, intervalMs);
         return () => clearInterval(id);
-    }, [orderMode, refreshMasterStatus]);
+    }, [orderMode, masterStatus.hasMaster, masterStatus.isMaster, refreshMasterStatus]);
 
     useEffect(() => {
         if (staffMode) {
@@ -172,12 +173,6 @@ export default function TablePage() {
         }
     }, [orderMode, staffMode, masterStatus.hasMaster, masterStatus.isMaster, masterStatus.loading]);
 
-    const staffInitializing =
-        staffMode && !masterStatus.isMaster && (masterStatus.loading || claimingMaster);
-    const canModifyCart = staffMode
-        ? masterStatus.isMaster || claimingMaster
-        : masterStatus.isMaster && !readOnlyMode;
-
     const staffQuery = staffMode ? "?staff=1" : "";
 
     const browseMenu = useCallback(() => {
@@ -190,79 +185,6 @@ export default function TablePage() {
         setReadOnlyMode(true);
         router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
     }, [router, staffMode, tableId]);
-
-    const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
-        if (!activeDeviceId) return;
-        setClaimingMaster(true);
-        try {
-            const res = await fetch(`/api/tables/${tableId}/master`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    deviceId: activeDeviceId,
-                    force: options?.force === true || staffMode,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                if (staffMode && res.status === 401) {
-                    toast.error("Session serveur expirée — reconnectez-vous depuis l'écran serveur.");
-                } else if (!options?.silent) {
-                    toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
-                }
-                await refreshMasterStatus();
-                return;
-            }
-            setMasterStatus({ hasMaster: true, isMaster: true, loading: false });
-            setReadOnlyMode(false);
-            setOrderMode(true);
-            if (!options?.silent) {
-                router.replace(
-                    `/table/${tableId}${staffMode ? "?staff=1&order=1" : "?order=1"}`,
-                    { scroll: true }
-                );
-                toast.success(
-                    staffMode
-                        ? "Mode serveur — vous gérez la commande pour cette table."
-                        : "Vous gérez la commande pour cette table."
-                );
-            }
-        } catch {
-            if (!options?.silent) toast.error("Impossible de prendre la commande.");
-        } finally {
-            setClaimingMaster(false);
-        }
-    }, [activeDeviceId, refreshMasterStatus, router, staffMode, tableId]);
-
-    useEffect(() => {
-        if (!staffMode || !activeDeviceId || masterStatus.loading || masterStatus.isMaster) return;
-        if (staffClaimInFlightRef.current) return;
-        staffClaimInFlightRef.current = true;
-        void takeCharge({ force: true, silent: true }).finally(() => {
-            staffClaimInFlightRef.current = false;
-        });
-    }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
-
-    const releaseMaster = useCallback(async () => {
-        if (!activeDeviceId) return;
-        try {
-            const res = await fetch(`/api/tables/${tableId}/master`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId: activeDeviceId }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                toast.error(data?.message || "Impossible de libérer la commande.");
-                return;
-            }
-            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
-            setReadOnlyMode(true);
-            toast.success("Relais passé. Reprenez la gestion ou laissez un autre convive appuyer sur « Je gère la commande ».");
-        } catch {
-            toast.error("Erreur lors de la libération.");
-        }
-    }, [activeDeviceId, tableId]);
 
     const showLanding = useCallback(() => {
         if (staffMode) {
@@ -299,6 +221,230 @@ export default function TablePage() {
     const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
     const [draftReady, setDraftReady] = useState(false);
     const draftLoadKeyRef = useRef("");
+    const cartRef = useRef(cart);
+    cartRef.current = cart;
+    const masterStatusRef = useRef(masterStatus);
+    masterStatusRef.current = masterStatus;
+    const draftPayloadRef = useRef<{
+        deviceId: string;
+        items: Array<{ id: string; name: string; priceCents: number; qty: number; personId: string }>;
+        peopleCount: number;
+        tableComment: string | null;
+        guestNames: Record<string, string>;
+    } | null>(null);
+
+    const applyDraftFromPayload = useCallback(
+        (
+            draft: {
+                items?: CartLine[];
+                peopleCount?: number;
+                tableComment?: string | null;
+                guestNames?: Record<string, string>;
+            } | null
+            | undefined,
+            options?: { toast?: boolean }
+        ) => {
+            if (!draft) return false;
+            const lines = Array.isArray(draft.items) ? draft.items : [];
+            let applied = false;
+
+            if (lines.length > 0) {
+                setCart(
+                    lines.map((line) => ({
+                        id: String(line.id),
+                        name: String(line.name),
+                        priceCents: Number(line.priceCents) || 0,
+                        qty: Number(line.qty) || 1,
+                        personId: String(line.personId || "P1"),
+                    }))
+                );
+                applied = true;
+                if (options?.toast && staffMode) {
+                    const itemCount = lines.reduce(
+                        (sum, line) => sum + (Number(line.qty) || 0),
+                        0
+                    );
+                    toast.success(
+                        `Panier client repris (${itemCount} article${itemCount > 1 ? "s" : ""}).`
+                    );
+                }
+            }
+
+            if (typeof draft.peopleCount === "number") {
+                const nextPeople = Math.max(1, Math.min(12, Math.round(draft.peopleCount)));
+                setPeopleCount(nextPeople);
+                previousPeopleCountRef.current = nextPeople;
+                if (typeof window !== "undefined") {
+                    window.localStorage.setItem(`table:${tableId}:people`, String(nextPeople));
+                }
+                applied = true;
+            }
+            if (typeof draft.tableComment === "string") {
+                setTableComment(draft.tableComment);
+                applied = true;
+            }
+            if (draft.guestNames && typeof draft.guestNames === "object") {
+                const count =
+                    typeof draft.peopleCount === "number"
+                        ? Math.max(1, Math.min(12, Math.round(draft.peopleCount)))
+                        : peopleCount;
+                const sanitized = sanitizeGuestNamesRecord(
+                    draft.guestNames as Record<string, string>,
+                    { count }
+                );
+                setGuestNames(sanitized);
+                guestNamesPersistedRef.current = sanitized;
+                applied = true;
+            }
+
+            return applied;
+        },
+        [peopleCount, staffMode, tableId]
+    );
+
+    const pushDraftCartNow = useCallback(async () => {
+        const payload = draftPayloadRef.current;
+        if (!payload?.deviceId) return;
+        try {
+            await fetch(`/api/tables/${tableId}/draft-cart`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                keepalive: true,
+            });
+        } catch {
+            // best effort
+        }
+    }, [tableId]);
+
+    const staffDraftLoading = staffMode && masterStatus.isMaster && !draftReady;
+    const staffInitializing =
+        staffMode &&
+        ((!masterStatus.isMaster && (masterStatus.loading || claimingMaster)) || staffDraftLoading);
+    const canModifyCart = staffMode
+        ? masterStatus.isMaster && draftReady
+        : masterStatus.isMaster && !readOnlyMode;
+    const canSyncDraft =
+        Boolean(activeDeviceId) &&
+        masterStatus.isMaster &&
+        (staffMode ? draftReady : true);
+
+    const releaseMaster = useCallback(async () => {
+        if (!activeDeviceId) return;
+        if (cartRef.current.length > 0 || peopleCount > 1 || tableComment.trim()) {
+            await pushDraftCartNow();
+        }
+        try {
+            const res = await fetch(`/api/tables/${tableId}/master`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId: activeDeviceId }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                toast.error(data?.message || "Impossible de libérer la commande.");
+                return;
+            }
+            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
+            draftLoadKeyRef.current = "";
+            setDraftReady(false);
+            if (staffMode) {
+                toast.success(
+                    "Main rendue à la table. Les convives peuvent reprendre la gestion et envoyer en cuisine."
+                );
+                router.push("/serveur");
+                return;
+            }
+            setReadOnlyMode(true);
+            toast.success(
+                "Relais passé. Reprenez la gestion ou laissez un autre convive appuyer sur « Je gère la commande »."
+            );
+        } catch {
+            toast.error("Erreur lors de la libération.");
+        }
+    }, [activeDeviceId, peopleCount, pushDraftCartNow, router, staffMode, tableComment, tableId]);
+
+    const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
+        if (!activeDeviceId) return;
+        setClaimingMaster(true);
+        try {
+            const res = await fetch(`/api/tables/${tableId}/master`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    deviceId: activeDeviceId,
+                    force: options?.force === true || staffMode,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                if (staffMode && res.status === 401) {
+                    toast.error("Session serveur expirée — reconnectez-vous depuis l'écran serveur.");
+                } else if (!options?.silent) {
+                    toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
+                }
+                await refreshMasterStatus();
+                return;
+            }
+            if (data.draft) {
+                const draftItems = Array.isArray(data.draft.items) ? data.draft.items : [];
+                applyDraftFromPayload(data.draft, { toast: staffMode && draftItems.length > 0 });
+                if (draftItems.length > 0) {
+                    draftLoadKeyRef.current = `${tableId}:${activeDeviceId}`;
+                    setDraftReady(true);
+                } else {
+                    draftLoadKeyRef.current = "";
+                    setDraftReady(false);
+                }
+            } else {
+                draftLoadKeyRef.current = "";
+                setDraftReady(false);
+            }
+            setMasterStatus({ hasMaster: true, isMaster: true, loading: false });
+            setReadOnlyMode(false);
+            setOrderMode(true);
+            if (!options?.silent) {
+                router.replace(
+                    `/table/${tableId}${staffMode ? "?staff=1&order=1" : "?order=1"}`,
+                    { scroll: true }
+                );
+                toast.success(
+                    staffMode
+                        ? "Mode serveur — vous gérez la commande pour cette table."
+                        : "Vous gérez la commande pour cette table."
+                );
+            }
+        } catch {
+            if (!options?.silent) toast.error("Impossible de prendre la commande.");
+        } finally {
+            setClaimingMaster(false);
+        }
+    }, [
+        activeDeviceId,
+        applyDraftFromPayload,
+        refreshMasterStatus,
+        router,
+        staffMode,
+        tableId,
+    ]);
+
+    useEffect(() => {
+        if (!staffMode || !activeDeviceId || masterStatus.loading || masterStatus.isMaster) return;
+        if (staffClaimInFlightRef.current) return;
+        staffClaimInFlightRef.current = true;
+        void takeCharge({ force: true, silent: true }).finally(() => {
+            staffClaimInFlightRef.current = false;
+        });
+    }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
+
+    const prevIsMasterRef = useRef(false);
+    useEffect(() => {
+        const wasMaster = prevIsMasterRef.current;
+        prevIsMasterRef.current = masterStatus.isMaster;
+        if (wasMaster && !masterStatus.isMaster && cartRef.current.length > 0 && !staffMode) {
+            void pushDraftCartNow();
+        }
+    }, [masterStatus.isMaster, pushDraftCartNow, staffMode]);
 
     const scrollToOrderTop = useCallback(() => {
         if (typeof window === "undefined") return;
@@ -436,15 +582,14 @@ export default function TablePage() {
     }, [peopleCount, tableId]);
 
     useEffect(() => {
-        if (!canModifyCart) {
-            draftLoadKeyRef.current = "";
-            setDraftReady(false);
+        if (!masterStatus.isMaster) {
+            if (staffMode) {
+                draftLoadKeyRef.current = "";
+                setDraftReady(false);
+            }
+            return;
         }
-    }, [canModifyCart]);
-
-    useEffect(() => {
-        const draftSessionKey =
-            canModifyCart && activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
+        const draftSessionKey = activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
         if (!draftSessionKey) return;
         if (draftLoadKeyRef.current === draftSessionKey) {
             setDraftReady(true);
@@ -461,51 +606,9 @@ export default function TablePage() {
                 if (cancelled) return;
 
                 const draft = data?.draft;
-                if (draft) {
-                    const lines = Array.isArray(draft.items) ? draft.items : [];
-                    if (lines.length > 0) {
-                        setCart(
-                            lines.map((line: CartLine) => ({
-                                id: String(line.id),
-                                name: String(line.name),
-                                priceCents: Number(line.priceCents) || 0,
-                                qty: Number(line.qty) || 1,
-                                personId: String(line.personId || "P1"),
-                            }))
-                        );
-                        const itemCount = lines.reduce(
-                            (sum: number, line: CartLine) => sum + (Number(line.qty) || 0),
-                            0
-                        );
-                        if (staffMode && itemCount > 0) {
-                            toast.success(
-                                `Panier client repris (${itemCount} article${itemCount > 1 ? "s" : ""}).`
-                            );
-                        }
-                    }
-                    if (typeof draft.peopleCount === "number") {
-                        const nextPeople = Math.max(1, Math.min(12, Math.round(draft.peopleCount)));
-                        setPeopleCount(nextPeople);
-                        previousPeopleCountRef.current = nextPeople;
-                        if (typeof window !== "undefined") {
-                            window.localStorage.setItem(`table:${tableId}:people`, String(nextPeople));
-                        }
-                    }
-                    if (typeof draft.tableComment === "string") {
-                        setTableComment(draft.tableComment);
-                    }
-                    if (draft.guestNames && typeof draft.guestNames === "object") {
-                        const count =
-                            typeof draft.peopleCount === "number"
-                                ? Math.max(1, Math.min(12, Math.round(draft.peopleCount)))
-                                : peopleCount;
-                        const sanitized = sanitizeGuestNamesRecord(
-                            draft.guestNames as Record<string, string>,
-                            { count }
-                        );
-                        setGuestNames(sanitized);
-                        guestNamesPersistedRef.current = sanitized;
-                    }
+                const lines = Array.isArray(draft?.items) ? draft.items : [];
+                if (lines.length > 0 || (draft && cartRef.current.length === 0)) {
+                    applyDraftFromPayload(draft, { toast: staffMode && lines.length > 0 });
                 }
             } catch {
                 // sync locale continue même si le chargement échoue
@@ -520,12 +623,14 @@ export default function TablePage() {
         return () => {
             cancelled = true;
         };
-    }, [canModifyCart, activeDeviceId, staffMode, tableId]);
+    }, [activeDeviceId, applyDraftFromPayload, masterStatus.isMaster, staffMode, tableId]);
 
     useEffect(() => {
-        if (!draftReady || !canModifyCart || !activeDeviceId) return;
-
-        const payload = {
+        if (!activeDeviceId) {
+            draftPayloadRef.current = null;
+            return;
+        }
+        draftPayloadRef.current = {
             deviceId: activeDeviceId,
             items: cart.map((l) => ({
                 id: l.id,
@@ -538,6 +643,13 @@ export default function TablePage() {
             tableComment: tableComment.trim() || null,
             guestNames: sanitizeGuestNamesRecord(guestNames, { count: peopleCount }),
         };
+    }, [activeDeviceId, cart, peopleCount, tableComment, guestNames]);
+
+    useEffect(() => {
+        if (!canSyncDraft) return;
+
+        const payload = draftPayloadRef.current;
+        if (!payload) return;
 
         const timer = window.setTimeout(() => {
             void fetch(`/api/tables/${tableId}/draft-cart`, {
@@ -548,40 +660,21 @@ export default function TablePage() {
         }, 200);
 
         return () => window.clearTimeout(timer);
-    }, [
-        draftReady,
-        canModifyCart,
-        activeDeviceId,
-        tableId,
-        cart,
-        peopleCount,
-        tableComment,
-        guestNames,
-    ]);
+    }, [canSyncDraft, tableId, cart, peopleCount, tableComment, guestNames]);
 
     useEffect(() => {
-        if (!draftReady || !canModifyCart || !activeDeviceId) return;
+        if (!canSyncDraft || cart.length === 0) return;
+        const id = window.setInterval(() => {
+            void pushDraftCartNow();
+        }, 2000);
+        return () => window.clearInterval(id);
+    }, [canSyncDraft, cart.length, pushDraftCartNow]);
+
+    useEffect(() => {
+        if (!canSyncDraft) return;
 
         const flushDraftCart = () => {
-            const payload = {
-                deviceId: activeDeviceId,
-                items: cart.map((l) => ({
-                    id: l.id,
-                    name: l.name,
-                    priceCents: l.priceCents,
-                    qty: l.qty,
-                    personId: l.personId,
-                })),
-                peopleCount,
-                tableComment: tableComment.trim() || null,
-                guestNames: sanitizeGuestNamesRecord(guestNames, { count: peopleCount }),
-            };
-            void fetch(`/api/tables/${tableId}/draft-cart`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-                keepalive: true,
-            });
+            void pushDraftCartNow();
         };
 
         const onHide = () => {
@@ -594,16 +687,35 @@ export default function TablePage() {
             document.removeEventListener("visibilitychange", onHide);
             window.removeEventListener("pagehide", flushDraftCart);
         };
-    }, [
-        draftReady,
-        canModifyCart,
-        activeDeviceId,
-        tableId,
-        cart,
-        peopleCount,
-        tableComment,
-        guestNames,
-    ]);
+    }, [canSyncDraft, pushDraftCartNow]);
+
+    useEffect(() => {
+        if (!staffMode || !masterStatus.isMaster || !draftReady) return;
+
+        let ticks = 0;
+        const id = window.setInterval(() => {
+            ticks += 1;
+            if (ticks > 10 || cartRef.current.length > 0) {
+                window.clearInterval(id);
+                return;
+            }
+            void (async () => {
+                try {
+                    const res = await fetch(`/api/tables/${tableId}/draft-cart`, { cache: "no-store" });
+                    const data = await res.json();
+                    const lines = Array.isArray(data?.draft?.items) ? data.draft.items : [];
+                    if (lines.length > 0) {
+                        applyDraftFromPayload(data.draft, { toast: true });
+                        window.clearInterval(id);
+                    }
+                } catch {
+                    // ignore
+                }
+            })();
+        }, 2000);
+
+        return () => window.clearInterval(id);
+    }, [applyDraftFromPayload, draftReady, masterStatus.isMaster, staffMode, tableId]);
 
     useEffect(() => {
         const previous = previousPeopleCountRef.current;
@@ -1310,12 +1422,20 @@ export default function TablePage() {
                 <Toaster position="top-right" />
 
                 {staffMode && canModifyCart && (
-                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-                        🍽️ <strong>Mode serveur</strong> — vous avez la priorité sur les téléphones clients.
-                        {hasCartItems
-                            ? " Le panier en cours (client ou serveur) est synchronisé — complétez puis envoyez."
-                            : " Ajoutez ou complétez la commande ; le panier se remet à zéro après chaque envoi."}
-                        {" "}Libérez la table depuis l&apos;écran serveur quand les clients partent.
+                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900 flex flex-wrap items-center justify-between gap-3">
+                        <span>
+                            🍽️ <strong>Mode serveur</strong> — vous avez la priorité sur les téléphones clients.
+                            {hasCartItems
+                                ? " Le panier est synchronisé — envoyez en cuisine ou rendez la main à la table."
+                                : " Ajoutez la commande, envoyez en cuisine, ou rendez la main aux convives."}
+                        </span>
+                        <button
+                            type="button"
+                            className="btn-ghost text-sm shrink-0 border border-violet-400/60 bg-white/70 hover:bg-white"
+                            onClick={() => void releaseMaster()}
+                        >
+                            Redonner la main à la table
+                        </button>
                     </div>
                 )}
 
@@ -1332,8 +1452,8 @@ export default function TablePage() {
 
                 {!staffMode && !masterStatus.loading && masterStatus.hasMaster && !masterStatus.isMaster && (
                     <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                        👀 <strong>Consultation seule</strong> — un autre convive gère le panier sur son téléphone.
-                        Parcourez la carte librement ; seul le téléphone maître peut modifier le panier.
+                        👀 <strong>Consultation seule</strong> — le serveur ou un autre convive gère le panier pour le
+                        moment. Parcourez la carte librement ; seul le téléphone maître peut modifier le panier.
                     </div>
                 )}
 

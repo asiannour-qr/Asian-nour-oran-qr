@@ -6,6 +6,7 @@ import {
   type DraftCartItem,
 } from "@/lib/table-draft-cart";
 import { getTableMaster, isMasterDevice } from "@/lib/table-master";
+import { isStaffDeviceId } from "@/lib/staff-session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -66,14 +67,23 @@ export async function PUT(req: Request, { params }: { params: { tableId: string 
     }
 
     const master = await getTableMaster(tableId);
-    if (!isMasterDevice(master, deviceId)) {
-      return NextResponse.json(
-        { ok: false, message: "Seul le téléphone maître peut enregistrer le panier." },
-        { status: 403 }
-      );
+    const items = Array.isArray(body.items) ? (body.items as DraftCartItem[]) : [];
+    const isMaster = isMasterDevice(master, deviceId);
+
+    if (!isMaster) {
+      const clientCatchUp =
+        items.length > 0 &&
+        !isStaffDeviceId(deviceId) &&
+        master &&
+        isStaffDeviceId(master.deviceId);
+      if (!clientCatchUp) {
+        return NextResponse.json(
+          { ok: false, message: "Seul le téléphone maître peut enregistrer le panier." },
+          { status: 403 }
+        );
+      }
     }
 
-    const items = Array.isArray(body.items) ? (body.items as DraftCartItem[]) : [];
     const peopleCount =
       typeof body.peopleCount === "number" ? body.peopleCount : Number(body.peopleCount);
     const tableComment =
@@ -90,6 +100,7 @@ export async function PUT(req: Request, { params }: { params: { tableId: string 
       peopleCount: Number.isFinite(peopleCount) ? peopleCount : undefined,
       tableComment,
       guestNames,
+      allowEmpty: body?.allowEmpty === true,
     });
 
     const itemCount = draft.items.reduce((sum, line) => sum + line.qty, 0);
