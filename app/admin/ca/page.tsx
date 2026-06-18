@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import RevenueHistoryTable from "./RevenueHistoryTable";
+import { formatMoney } from "@/lib/currency";
+import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 type RevenueResponse = {
     todayDateLabel: string;
@@ -43,12 +45,7 @@ export default function AdminRevenuePage() {
         return () => clearInterval(id);
     }, [fetchRevenue]);
 
-    const formatEuro = useCallback((cents: number) => {
-        const dzdFormatter = new Intl.NumberFormat("fr-DZ", {
-            maximumFractionDigits: 0,
-        });
-        return `${dzdFormatter.format(Math.round((cents ?? 0) / 100))} DZD`;
-    }, []);
+    const formatMoneyDisplay = useCallback((cents: number) => formatMoney(cents ?? 0), []);
 
     return (
         <main className="page-shell space-y-8">
@@ -78,7 +75,7 @@ export default function AdminRevenuePage() {
                     </div>
                     {lastUpdated && (
                         <span className="text-xs surface-muted-text">
-                            Maj {lastUpdated.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" })}
+                            Maj {lastUpdated.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: RESTAURANT_TZ })}
                         </span>
                     )}
                 </div>
@@ -86,18 +83,18 @@ export default function AdminRevenuePage() {
                     {loading ? (
                         <span className="text-4xl text-[var(--color-heading)]">…</span>
                     ) : (
-                        formatEuro(data?.todayTotal ?? 0)
+                        formatMoneyDisplay(data?.todayTotal ?? 0)
                     )}
                 </div>
                 {data && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                         <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
                             <p className="text-xs uppercase tracking-[0.25em] surface-muted-text">🍽 Sur place</p>
-                            <p className="text-xl font-semibold text-[var(--color-heading)]">{formatEuro(data.todayDineIn)}</p>
+                            <p className="text-xl font-semibold text-[var(--color-heading)]">{formatMoneyDisplay(data.todayDineIn)}</p>
                         </div>
                         <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
                             <p className="text-xs uppercase tracking-[0.25em] surface-muted-text">🥡 À emporter</p>
-                            <p className="text-xl font-semibold text-[var(--color-heading)]">{formatEuro(data.todayTakeaway)}</p>
+                            <p className="text-xl font-semibold text-[var(--color-heading)]">{formatMoneyDisplay(data.todayTakeaway)}</p>
                         </div>
                         <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
                             <p className="text-xs uppercase tracking-[0.25em] surface-muted-text">🧾 Commandes</p>
@@ -132,7 +129,7 @@ export default function AdminRevenuePage() {
                                         {p.name}
                                     </span>
                                     <span className="text-right font-semibold">{p.qty}</span>
-                                    <span className="text-right surface-muted-text">{formatEuro(p.revenue)}</span>
+                                    <span className="text-right surface-muted-text">{formatMoneyDisplay(p.revenue)}</span>
                                 </li>
                             ))}
                         </ul>
@@ -148,7 +145,7 @@ export default function AdminRevenuePage() {
                 {loading && !data ? (
                     <div className="surface-muted-text text-sm">Chargement…</div>
                 ) : (
-                    <RevenueHistoryTable history={data?.history ?? []} formatEuro={formatEuro} />
+                    <RevenueHistoryTable history={data?.history ?? []} formatMoney={formatMoneyDisplay} />
                 )}
             </section>
         </main>

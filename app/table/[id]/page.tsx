@@ -24,6 +24,7 @@ import {
 import CategorySlider from "@/app/components/CategorySlider";
 import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
 import { isColdMenuItem } from "@/lib/cold-menus";
+import { formatMoney } from "@/lib/currency";
 
 type MenuItem = {
     id: string;
@@ -53,10 +54,6 @@ type ComposeState = {
     steps: ComposeStep[];
     selectionMap: Record<string, string[]>;
 };
-
-function euro(cents: number) {
-    return Math.round(cents / 100) + " DZD";
-}
 
 // 🔹 alias tolérés pour rattraper Starter/Silver/Gold
 const CAT_ALIASES: Record<string, string | string[]> = {
@@ -1475,7 +1472,7 @@ export default function TablePage() {
                     {canModifyCart && (
                     <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="text-sm sm:text-base font-semibold">
-                            Panier — {cartItemCount} article(s) — {euro(totalCents)}
+                            Panier — {cartItemCount} article(s) — {formatMoney(totalCents)}
                         </div>
                         <div className="flex items-center gap-2">
                             <button
@@ -1543,7 +1540,7 @@ export default function TablePage() {
                                                 <div className="px-5 py-5 flex flex-col gap-3 flex-1">
                                                     <div className="flex-1">
                                                         <div className="text-lg font-semibold text-sharp">{m.name}</div>
-                                                        <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
+                                                        <div className="surface-muted-text text-sm">{formatMoney(m.priceCents)}</div>
                                                     </div>
                                                     <button className="btn-primary" onClick={() => composeMenu(m)} disabled={!canModifyCart}>
                                                         {canModifyCart
@@ -1598,7 +1595,7 @@ export default function TablePage() {
                                                             ) : null}
                                                         </div>
                                                         <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                            <span className="text-sm font-semibold text-[var(--color-accent-strong)]">{euro(it.priceCents)}</span>
+                                                            <span className="text-sm font-semibold text-[var(--color-accent-strong)]">{formatMoney(it.priceCents)}</span>
                                                             {unavailable ? (
                                                                 <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
                                                                     Indisponible
@@ -1663,7 +1660,7 @@ export default function TablePage() {
                                     Composer {composeState.menu.name}
                                 </h3>
                                 <span className="text-sm surface-muted-text shrink-0">
-                                    Total menu&nbsp;: {euro(composeState.menu.priceCents)}
+                                    Total menu&nbsp;: {formatMoney(composeState.menu.priceCents)}
                                 </span>
                             </div>
 
@@ -1783,7 +1780,7 @@ export default function TablePage() {
                                     onClick={confirmCompose}
                                     disabled={Object.keys(composeErrors).length > 0}
                                 >
-                                    Ajouter ({euro(composeState.menu.priceCents)})
+                                    Ajouter ({formatMoney(composeState.menu.priceCents)})
                                 </button>
                             </div>
                         </div>
@@ -1795,8 +1792,8 @@ export default function TablePage() {
                 <ColdMenuDrinkModal
                     menu={coldMenuPick}
                     menuItems={menuItems}
-                    formatPrice={euro}
-                    confirmLabel={`Ajouter pour ${getGuestNameForPersonId(activePerson)} (${euro(coldMenuPick.priceCents)})`}
+                    formatPrice={formatMoney}
+                    confirmLabel={`Ajouter pour ${getGuestNameForPersonId(activePerson)} (${formatMoney(coldMenuPick.priceCents)})`}
                     onClose={() => setColdMenuPick(null)}
                     onConfirm={(label, priceCents) => {
                         addToCartLine(label, priceCents, undefined, { scrollToTop: true });
@@ -1812,7 +1809,7 @@ export default function TablePage() {
                         <header className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
                             <div>
                                 <div className="text-lg font-semibold">Mon panier</div>
-                                <div className="text-xs surface-muted-text">{cartItemCount} article(s) — {euro(totalCents)}</div>
+                                <div className="text-xs surface-muted-text">{cartItemCount} article(s) — {formatMoney(totalCents)}</div>
                             </div>
                             <button className="btn-ghost" onClick={closeCartDrawer}>
                                 Fermer
@@ -1849,7 +1846,7 @@ export default function TablePage() {
                                             <div>
                                                 <div className="font-semibold">{displayName}</div>
                                                 <div className="text-xs surface-muted-text">
-                                                    {count} article(s) — {euro(subtotal)}
+                                                    {count} article(s) — {formatMoney(subtotal)}
                                                 </div>
                                             </div>
                                             <span className="text-lg font-semibold">
@@ -1860,7 +1857,7 @@ export default function TablePage() {
                                             <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
                                                 <div className="flex items-center justify-between text-xs surface-muted-text">
                                                     <span>
-                                                        Sous-total&nbsp;{euro(subtotal)}
+                                                        Sous-total&nbsp;{formatMoney(subtotal)}
                                                     </span>
                                                     <button
                                                         className="btn-ghost text-xs"
@@ -1881,7 +1878,7 @@ export default function TablePage() {
                                                             >
                                                                 <div className="flex-1">
                                                                     <div className="font-medium text-sm leading-snug">{line.name}</div>
-                                                                    <div className="text-xs surface-muted-text">{euro(line.priceCents)}</div>
+                                                                    <div className="text-xs surface-muted-text">{formatMoney(line.priceCents)}</div>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     <button
@@ -1921,7 +1918,7 @@ export default function TablePage() {
                         <footer className="shrink-0 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
                             <div className="flex items-center justify-between font-semibold">
                                 <span>Total</span>
-                                <span>{euro(totalCents)}</span>
+                                <span>{formatMoney(totalCents)}</span>
                             </div>
                             <button className="btn-primary w-full py-3.5" onClick={submitOrder} disabled={!hasCartItems}>
                                 Envoyer la commande

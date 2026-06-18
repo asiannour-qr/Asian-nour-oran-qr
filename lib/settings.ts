@@ -1,16 +1,16 @@
 import prisma from "@/lib/prisma";
+import { SITE_CONFIG } from "@/lib/site";
 
 export const SETTINGS_ID = "default";
 
-/** Pages de la carte Oran (A4) affichées sur l'accueil quand aucune image admin n'est définie. */
-export const ORAN_MENU_CARD_PAGES = [
-  "/carte/asian-nour/carte-oran-01-wok.jpg",
-  "/carte/asian-nour/carte-oran-02-japonaise.jpg",
-  "/carte/asian-nour/carte-oran-03-specialites.jpg",
-] as const;
+/** Pages carte par défaut (accueil / tables) si aucune image admin. */
+export const DEFAULT_MENU_CARD_PAGES = SITE_CONFIG.menuCardPages;
+
+/** @deprecated Alias historique Oran — préférer DEFAULT_MENU_CARD_PAGES */
+export const ORAN_MENU_CARD_PAGES = DEFAULT_MENU_CARD_PAGES;
 
 /** Image par défaut (1ère page) — fallback legacy. */
-export const DEFAULT_MENU_CARD_IMAGE = ORAN_MENU_CARD_PAGES[0];
+export const DEFAULT_MENU_CARD_IMAGE = DEFAULT_MENU_CARD_PAGES[0];
 
 export type DayHours = {
   ouvert: boolean;

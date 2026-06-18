@@ -9,6 +9,7 @@ import {
   MenuComposerDrawer,
 } from "./MenuComposerDrawer";
 import { ConfirmDeleteModal } from "@/app/components/ConfirmDeleteModal";
+import { formatMoney } from "@/lib/currency";
 
 type LoadedMenu = AdminMenu & { id: string; groups: AdminMenuGroup[] };
 
@@ -39,10 +40,6 @@ function normalizeMenu(menu: any): LoadedMenu {
     position: Number.isFinite(Number(menu?.position)) ? Number(menu.position) : 0,
     groups,
   };
-}
-
-function euro(cents: number) {
-  return Math.round(cents / 100) + " DZD";
 }
 
 export default function AdminMenusPage() {
@@ -319,7 +316,7 @@ export default function AdminMenusPage() {
                       )}
                     </div>
                     <p className="text-sm surface-muted-text">
-                      {euro(menu.priceCents)} · Position {menu.position}
+                      {formatMoney(menu.priceCents)} · Position {menu.position}
                     </p>
                   </div>
                   </div>

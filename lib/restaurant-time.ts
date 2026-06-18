@@ -1,4 +1,6 @@
-export const RESTAURANT_TZ = "Africa/Algiers";
+import { SITE_CONFIG } from "@/lib/site";
+
+export const RESTAURANT_TZ = SITE_CONFIG.timeZone;
 
 export function dateKey(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -46,13 +48,16 @@ export function formatMonthLabel(monthKeyValue: string): string {
   }).format(d);
 }
 
-export function formatTimeAlgiers(iso: string): string {
+export function formatRestaurantTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: RESTAURANT_TZ,
   });
 }
+
+/** @deprecated Utiliser formatRestaurantTime */
+export const formatTimeAlgiers = formatRestaurantTime;
 
 export function parseDateKey(key: string): Date {
   return new Date(`${key}T12:00:00`);

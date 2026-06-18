@@ -1,5 +1,5 @@
 import MenuCardImage from "@/app/components/MenuCardImage";
-import { ORAN_MENU_CARD_PAGES } from "@/lib/settings";
+import { DEFAULT_MENU_CARD_PAGES } from "@/lib/settings";
 
 type MenuCardGalleryProps = {
   alt: string;
@@ -15,7 +15,7 @@ export default function MenuCardGallery({
 }: MenuCardGalleryProps) {
   return (
     <div className="space-y-4">
-      {ORAN_MENU_CARD_PAGES.map((src, index) => (
+      {DEFAULT_MENU_CARD_PAGES.map((src, index) => (
         <MenuCardImage
           key={src}
           src={src}

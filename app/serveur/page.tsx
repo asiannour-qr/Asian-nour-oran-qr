@@ -14,6 +14,8 @@ import {
   MAX_TABLE_TICKETS,
   type ServeurOrderLite,
 } from "@/lib/serveur-table-orders";
+import { formatMoney } from "@/lib/currency";
+import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
 
@@ -24,16 +26,12 @@ type OrderLite = ServeurOrderLite & {
 
 const ACTIVE_STATUSES = new Set(["NEW", "IN_PROGRESS"]);
 
-function dzd(cents: number) {
-  return `${Math.round(cents / 100)} DZD`;
-}
-
 function formatTime(iso?: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Algiers",
+    timeZone: RESTAURANT_TZ,
   });
 }
 
@@ -387,7 +385,7 @@ export default function ServeurPage() {
                           Reçue à {formatTime(o.createdAt)}
                         </div>
                       </div>
-                      <div className="text-lg font-bold">{dzd(o.total ?? 0)}</div>
+                      <div className="text-lg font-bold">{formatMoney(o.total ?? 0)}</div>
                     </div>
 
                     {(o.items?.length ?? 0) > 0 && (
@@ -485,7 +483,7 @@ export default function ServeurPage() {
                           {formatTime(o.createdAt)} · {o.status}
                         </div>
                       </div>
-                      <div className="font-bold">{dzd(o.total ?? 0)}</div>
+                      <div className="font-bold">{formatMoney(o.total ?? 0)}</div>
                     </div>
                     <div className="flex justify-end">
                       <button
@@ -666,7 +664,7 @@ export default function ServeurPage() {
                           >
                             <div className="flex items-center justify-between gap-2 text-sm">
                               <span className="font-semibold">{formatTime(o.createdAt)} · {o.status}</span>
-                              <span className="font-bold">{dzd(o.total ?? 0)}</span>
+                              <span className="font-bold">{formatMoney(o.total ?? 0)}</span>
                             </div>
                             {(o.items?.length ?? 0) > 0 && (
                               <ul className="text-xs space-y-0.5 surface-muted-text">

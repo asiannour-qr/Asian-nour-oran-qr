@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { csvRevenueHeaders } from "@/lib/currency";
+import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const RESTAURANT_TZ = "Africa/Algiers";
 
 function formatDateLabel(date: Date) {
     return new Intl.DateTimeFormat("fr-FR", {
@@ -94,11 +94,12 @@ export async function GET(req: Request) {
         // Export CSV (?format=csv) pour la comptabilité
         const url = new URL(req.url);
         if (url.searchParams.get("format") === "csv") {
-            const toDzd = (cents: number) => String(Math.round(cents / 100));
+            const toAmount = (cents: number) => String(Math.round(cents / 100));
+            const headers = csvRevenueHeaders();
             const lines = [
-                "Date;CA total (DZD);Sur place (DZD);A emporter (DZD);Nb commandes",
+                `Date;${headers.total};${headers.dineIn};${headers.takeaway};Nb commandes`,
                 ...history.map((h) =>
-                    [h.dateLabel, toDzd(h.total), toDzd(h.dineIn), toDzd(h.takeaway), String(h.count)].join(";")
+                    [h.dateLabel, toAmount(h.total), toAmount(h.dineIn), toAmount(h.takeaway), String(h.count)].join(";")
                 ),
             ];
             // BOM UTF-8 pour ouverture correcte dans Excel

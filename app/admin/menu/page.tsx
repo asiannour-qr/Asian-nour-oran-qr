@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { ConfirmDeleteModal } from "@/app/components/ConfirmDeleteModal";
+import { currencySuffix, formatMoney, formatMoneyInputValue, priceInputLabel } from "@/lib/currency";
 
 type Item = {
     id: string;
@@ -15,10 +16,6 @@ type Item = {
     available: boolean;
     position: number;
 };
-
-function euros(cents: number) {
-    return String(Math.round(cents / 100));
-}
 
 function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     const [uploading, setUploading] = useState(false);
@@ -300,7 +297,7 @@ export default function AdminMenuPage() {
                         className="md:col-span-2"
                     />
                     <input
-                        placeholder="Prix (DZD)"
+                        placeholder={priceInputLabel()}
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                     />
@@ -376,11 +373,11 @@ export default function AdminMenuPage() {
                                         </td>
                                         <td className="flex items-center gap-1">
                                             <input
-                                                defaultValue={euros(it.priceCents)}
+                                                defaultValue={formatMoneyInputValue(it.priceCents)}
                                                 onBlur={(e) => updateField(it.id, { price: Number(e.target.value.replace(",", ".")) })}
                                                 className="w-20"
                                             />
-                                            <span className="surface-muted-text text-sm">DZD</span>
+                                            <span className="surface-muted-text text-sm">{currencySuffix()}</span>
                                         </td>
                                         <td>
                                             <input

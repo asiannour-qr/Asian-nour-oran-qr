@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { formatMoney } from "@/lib/currency";
+import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 type PrinterConfig = {
   ip: string;
@@ -107,11 +109,11 @@ function RecentOrdersPrintSection() {
                 <div>
                   <div className="font-medium">{orderLabel(o)}</div>
                   <div className="text-xs surface-muted-text">
-                    {o.status} · {Math.round(o.total / 100)} DZD ·{" "}
+                    {o.status} · {formatMoney(o.total)} ·{" "}
                     {new Date(o.createdAt).toLocaleTimeString("fr-FR", {
                       hour: "2-digit",
                       minute: "2-digit",
-                      timeZone: "Africa/Algiers",
+                      timeZone: RESTAURANT_TZ,
                     })}
                   </div>
                 </div>
@@ -252,7 +254,7 @@ function PrinterSection({
               {new Date(config.updatedAt).toLocaleString("fr-FR", {
                 dateStyle: "short",
                 timeStyle: "short",
-                timeZone: "Africa/Algiers",
+                timeZone: RESTAURANT_TZ,
               })}
             </p>
           )}

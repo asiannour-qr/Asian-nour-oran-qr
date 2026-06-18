@@ -10,6 +10,7 @@ import {
   MenuComposerModal,
 } from "@/app/components/MenuComposerModal";
 import { isColdMenuItem } from "@/lib/cold-menus";
+import { formatMoney } from "@/lib/currency";
 
 type MenuItem = {
   id: string;
@@ -26,10 +27,6 @@ type CartLine = { id: string; name: string; priceCents: number; qty: number };
 
 // Catégories réservées à la composition des menus (non vendues à l'unité)
 const HIDDEN_MENU_CATEGORIES = new Set(["Boissons Kid", "Desserts Kid"]);
-
-function euro(cents: number) {
-  return `${Math.round(cents / 100)} DZD`;
-}
 
 function slugifyCategory(label: string, fallback: string) {
   const base = label
@@ -344,7 +341,7 @@ export default function EmporterPage() {
         <div className="sticky top-[56px] sm:top-[64px] z-30 space-y-3">
           <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm sm:text-base font-semibold">
-              Panier — {itemCount} article(s) — {euro(totalCents)}
+              Panier — {itemCount} article(s) — {formatMoney(totalCents)}
             </div>
             <div className="flex items-center gap-2">
               <button className="btn-ghost" onClick={clearEntireCart} disabled={!hasCartItems}>
@@ -403,7 +400,7 @@ export default function EmporterPage() {
                         <div className="px-5 py-5 flex flex-col gap-3 flex-1">
                           <div className="flex-1">
                             <div className="text-lg font-semibold text-sharp">{m.name}</div>
-                            <div className="surface-muted-text text-sm">{euro(m.priceCents)}</div>
+                            <div className="surface-muted-text text-sm">{formatMoney(m.priceCents)}</div>
                           </div>
                           <button className="btn-primary" onClick={() => setComposingMenu(m)}>
                             Composer ce menu
@@ -461,7 +458,7 @@ export default function EmporterPage() {
                           </div>
                           <div className="flex items-center justify-between gap-1 flex-wrap">
                             <span className="text-sm font-semibold text-[var(--color-accent-strong)]">
-                              {euro(it.priceCents)}
+                              {formatMoney(it.priceCents)}
                             </span>
                             {unavailable ? (
                               <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
@@ -512,7 +509,7 @@ export default function EmporterPage() {
         <MenuComposerModal
           menu={composingMenu}
           menuItems={menu}
-          formatPrice={euro}
+          formatPrice={formatMoney}
           onClose={() => setComposingMenu(null)}
           onConfirm={(label, priceCents) => {
             addToCart(label, priceCents);
@@ -525,7 +522,7 @@ export default function EmporterPage() {
         <ColdMenuDrinkModal
           menu={coldMenuPick}
           menuItems={menu}
-          formatPrice={euro}
+          formatPrice={formatMoney}
           onClose={() => setColdMenuPick(null)}
           onConfirm={(label, priceCents) => {
             addToCart(label, priceCents);
@@ -543,7 +540,7 @@ export default function EmporterPage() {
               <div>
                 <div className="text-lg font-semibold">Mon panier</div>
                 <div className="text-xs surface-muted-text">
-                  {itemCount} article(s) — {euro(totalCents)}
+                  {itemCount} article(s) — {formatMoney(totalCents)}
                 </div>
               </div>
               <button className="btn-ghost" onClick={() => setDrawerOpen(false)}>
@@ -580,7 +577,7 @@ export default function EmporterPage() {
                     >
                       <div className="flex-1">
                         <div className="font-medium text-sm leading-snug">{line.name}</div>
-                        <div className="text-xs surface-muted-text">{euro(line.priceCents)}</div>
+                        <div className="text-xs surface-muted-text">{formatMoney(line.priceCents)}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -612,7 +609,7 @@ export default function EmporterPage() {
             <footer className="shrink-0 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
               <div className="flex items-center justify-between font-semibold">
                 <span>Total</span>
-                <span>{euro(totalCents)}</span>
+                <span>{formatMoney(totalCents)}</span>
               </div>
               <button
                 className="btn-primary w-full py-3.5"

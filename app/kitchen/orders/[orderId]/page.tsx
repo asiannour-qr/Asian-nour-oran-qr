@@ -1,6 +1,7 @@
 import { prisma } from "../../../../lib/prisma";
 import { getGuestNames } from "@/lib/guest-names-store";
 import { guestNameFromMap } from "@/lib/guest-name-utils";
+import { formatMoney } from "@/lib/currency";
 
 export default async function OrderPage({
   params,
@@ -23,7 +24,7 @@ export default async function OrderPage({
         <span className="chip">Ticket cuisine</span>
         <h1 className="text-3xl font-semibold">Commande #{order.id}</h1>
         <p className="surface-muted-text text-sm">
-          Table {order.tableId} — Total {Math.round(order.total / 100)} DZD
+          Table {order.tableId} — Total {formatMoney(order.total)}
         </p>
       </header>
 
@@ -40,7 +41,7 @@ export default async function OrderPage({
                 ) : null}
               </div>
               <span className="tabular-nums text-sm surface-muted-text">
-                {Math.round((it.price ?? 0) / 100)} DZD
+                {formatMoney(it.price ?? 0)}
               </span>
             </li>
           ))}
@@ -54,7 +55,7 @@ export default async function OrderPage({
 
         <div className="flex justify-between items-center pt-3 border-t border-[rgba(120,110,98,0.18)]">
           <span className="font-medium">Total</span>
-          <span className="text-xl font-semibold">{Math.round(order.total / 100)} DZD</span>
+          <span className="text-xl font-semibold">{formatMoney(order.total)}</span>
         </div>
       </section>
     </main>

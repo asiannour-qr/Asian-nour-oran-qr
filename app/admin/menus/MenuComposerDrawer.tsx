@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { priceInputLabel } from "@/lib/currency";
 
 export type AdminMenuGroup = {
   id?: string;
@@ -389,7 +390,7 @@ export function MenuComposerDrawer({
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="space-y-1">
-                  <span className="text-sm font-medium surface-muted-text">Prix (DZD)</span>
+                  <span className="text-sm font-medium surface-muted-text">{priceInputLabel()}</span>
                   <input
                     value={priceInput}
                     onChange={(e) => setPriceInput(e.target.value)}

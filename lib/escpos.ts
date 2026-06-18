@@ -1,3 +1,6 @@
+import { formatMoney } from "@/lib/currency";
+import { RESTAURANT_TZ } from "@/lib/restaurant-time";
+
 const ESC = 0x1b;
 const GS = 0x1d;
 const LINE_WIDTH = 32; // Xprinter XP-260M 80mm, police A
@@ -52,10 +55,6 @@ function lineLR(left: string, right: string): Buffer {
   return Buffer.from(`${l}${" ".repeat(space)}${r}\n`, "ascii");
 }
 
-function formatEuro(cents: number): string {
-  return `${Math.round(cents / 100)} DZD`;
-}
-
 function formatDate(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return "-";
@@ -63,7 +62,7 @@ function formatDate(value: Date | string): string {
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
-    timeZone: "Africa/Algiers",
+    timeZone: RESTAURANT_TZ,
   });
 }
 
@@ -73,7 +72,7 @@ function formatTime(value: Date | string): string {
   return date.toLocaleTimeString("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Africa/Algiers",
+    timeZone: RESTAURANT_TZ,
   });
 }
 
@@ -282,14 +281,14 @@ export function buildEscPosCustomerTicket(
 
   // Articles consolidés + prix (reçu client, sans découpage convive)
   for (const item of consolidateItems(order.items)) {
-    chunks.push(lineLR(`${item.qty} x ${item.name}`, formatEuro(item.price * item.qty)));
+    chunks.push(lineLR(`${item.qty} x ${item.name}`, formatMoney(item.price * item.qty)));
   }
 
   // Total
   chunks.push(separator());
   chunks.push(setBold(true));
   chunks.push(setSize(1, 2));
-  chunks.push(lineLR("TOTAL", formatEuro(order.total)));
+  chunks.push(lineLR("TOTAL", formatMoney(order.total)));
   chunks.push(resetSize());
   chunks.push(setBold(false));
 
@@ -331,7 +330,7 @@ export function buildEscPosTestTicket(): Buffer {
   chunks.push(textLine("Asian Nour"));
   chunks.push(setAlign("left"));
   chunks.push(feed(1));
-  chunks.push(textLine(`Date: ${new Date().toLocaleString("fr-FR", { timeZone: "Africa/Algiers" })}`));
+  chunks.push(textLine(`Date: ${new Date().toLocaleString("fr-FR", { timeZone: RESTAURANT_TZ })}`));
   chunks.push(textLine("Imprimante ESC/POS OK"));
   chunks.push(feed(2));
   chunks.push(cutPaper());

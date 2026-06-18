@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { DEFAULT_MENU_CARD_IMAGE } from "@/lib/settings";
+import { SITE_CONFIG } from "@/lib/site";
 
 type DayHours = { ouvert: boolean; debut: string; fin: string };
 type OpeningHours = Record<string, DayHours>;
@@ -250,7 +251,7 @@ export default function AdminSettingsPage() {
               name="address"
               defaultValue={settings.address ?? ""}
               className="input w-full"
-              placeholder="12 Bd de l'ALN, Oran"
+              placeholder={SITE_CONFIG.settingsPlaceholders.address}
             />
           </div>
           <div>
@@ -259,7 +260,7 @@ export default function AdminSettingsPage() {
               name="phone"
               defaultValue={settings.phone ?? ""}
               className="input w-full"
-              placeholder="+213 41 XX XX XX"
+              placeholder={SITE_CONFIG.settingsPlaceholders.phone}
             />
           </div>
           <button type="submit" className="btn-primary mt-2" disabled={saving}>

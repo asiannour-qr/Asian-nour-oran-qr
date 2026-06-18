@@ -11,7 +11,8 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { guestNameFromMap } from "@/lib/guest-name-utils";
-import { dateKey } from "@/lib/restaurant-time";
+import { dateKey, RESTAURANT_TZ } from "@/lib/restaurant-time";
+import { formatMoney } from "@/lib/currency";
 
 type OrderItem = {
   id: string;
@@ -89,7 +90,7 @@ export default function KitchenPage() {
     [playAlert]
   );
 
-  const formatPrice = useCallback((cents: number) => `${Math.round(cents / 100)} DZD`, []);
+  const formatPrice = useCallback((cents: number) => formatMoney(cents), []);
 
 const formatDate = useCallback((iso: string | Date | null | undefined) => {
     if (!iso) return "—";
@@ -99,7 +100,7 @@ const formatDate = useCallback((iso: string | Date | null | undefined) => {
       year: "2-digit",
       month: "2-digit",
       day: "2-digit",
-      timeZone: "Africa/Algiers",
+      timeZone: RESTAURANT_TZ,
     });
   }, []);
 
@@ -110,7 +111,7 @@ const formatDate = useCallback((iso: string | Date | null | undefined) => {
     return date.toLocaleTimeString("fr-FR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Africa/Algiers",
+      timeZone: RESTAURANT_TZ,
     });
   }, []);
 
@@ -707,7 +708,7 @@ const escapeHtml = useCallback((value: string) => {
                           <div className="text-lg font-semibold tracking-wide">Table {o.tableId}</div>
                         )}
                         <div className="text-xs surface-muted-text uppercase tracking-[0.28em]">
-                          Total {Math.round(o.total / 100)} DZD
+                          Total {formatPrice(o.total)}
                     </div>
                   </div>
                   <span className={`px-2 py-1 text-xs rounded ${statusBadgeClasses(o.status)}`}>
@@ -739,7 +740,7 @@ const escapeHtml = useCallback((value: string) => {
                         </div>
                       </div>
                       <span className="text-xs surface-muted-text">
-                        {Math.round((it.price ?? 0) / 100)} DZD
+                        {formatPrice(it.price ?? 0)}
                       </span>
                     </li>
                   ))}
@@ -828,7 +829,7 @@ const escapeHtml = useCallback((value: string) => {
                           <div className="text-lg font-semibold tracking-wide">Table {o.tableId}</div>
                         )}
                         <div className="text-xs surface-muted-text uppercase tracking-[0.28em]">
-                          Total {Math.round(o.total / 100)} DZD · Servie
+                          Total {formatPrice(o.total)} · Servie
                         </div>
                       </div>
                       <span className={`px-2 py-1 text-xs rounded ${statusBadgeClasses(o.status)}`}>

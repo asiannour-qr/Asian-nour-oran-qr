@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { formatTimeAlgiers } from "@/lib/restaurant-time";
+import { formatRestaurantTime } from "@/lib/restaurant-time";
+import { formatMoney } from "@/lib/currency";
 
 type ArchiveItem = {
   id: string;
@@ -37,9 +38,6 @@ function orderTitle(o: ArchiveItem): string {
   return `Table ${o.tableId}`;
 }
 
-function formatDzd(cents: number): string {
-  return `${Math.round(cents / 100)} DZD`;
-}
 
 export default function AdminArchivesPage() {
   const [months, setMonths] = useState<ArchiveMonth[]>([]);
@@ -183,7 +181,7 @@ export default function AdminArchivesPage() {
                                       <div>
                                         <div className="font-semibold">{orderTitle(o)}</div>
                                         <div className="text-xs surface-muted-text">
-                                          {formatTimeAlgiers(o.createdAt)} · {o.status} · {formatDzd(o.total)}
+                                          {formatRestaurantTime(o.createdAt)} · {o.status} · {formatMoney(o.total)}
                                         </div>
                                       </div>
                                       <div className="flex flex-wrap gap-2">

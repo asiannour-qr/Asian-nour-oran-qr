@@ -10,10 +10,10 @@ type HistoryEntry = {
 
 type RevenueHistoryTableProps = {
     history: HistoryEntry[];
-    formatEuro: (cents: number) => string;
+    formatMoney: (cents: number) => string;
 };
 
-export default function RevenueHistoryTable({ history, formatEuro }: RevenueHistoryTableProps) {
+export default function RevenueHistoryTable({ history, formatMoney }: RevenueHistoryTableProps) {
     if (!history.length) {
         return <div className="surface-muted-text text-sm">Aucune commande sur la période.</div>;
     }
@@ -35,9 +35,9 @@ export default function RevenueHistoryTable({ history, formatEuro }: RevenueHist
                                 <span className="ml-2 text-xs surface-muted-text">({entry.count} cmd)</span>
                             )}
                         </span>
-                        <span className="text-right surface-muted-text">{formatEuro(entry.dineIn ?? 0)}</span>
-                        <span className="text-right surface-muted-text">{formatEuro(entry.takeaway ?? 0)}</span>
-                        <span className="text-right font-semibold">{formatEuro(entry.total)}</span>
+                        <span className="text-right surface-muted-text">{formatMoney(entry.dineIn ?? 0)}</span>
+                        <span className="text-right surface-muted-text">{formatMoney(entry.takeaway ?? 0)}</span>
+                        <span className="text-right font-semibold">{formatMoney(entry.total)}</span>
                     </li>
                 ))}
             </ul>
