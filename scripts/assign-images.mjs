@@ -54,6 +54,8 @@ const MAPPING = {
   "MENU-ASIAN-COMBO.png": "cmgv70h6c002jg5ahphzag2v2", // Menus Froids / Asian Combo
   "MENU-ASIAN-FIRST.png": "cmgv70h58002ig5ahbybv205t", // Menus Froids / Asian First
   "MENU-ASIAN-MELI-MELO.png": "cmgv70h7h002kg5aha36nrvi5", // Menus Froids / Asian Meli Melo
+  "menu-asian-avocado.png": "cmgv70h8k002lg5ah03ke6vxg", // Menus Froids / Asian Avocado
+  "menu-asian-frits.png": "cmgv70haq002ng5ah3xtldku1", // Menus Froids / Asian Frits
   "NEMS-POULET.png": "cmgv70eb30000g5ahkgp1xcxf", // Entrées / 3 Nems poulet
   "ORIGINAL-CHÈVRE.png": "cmgv70goe0023g5ahjovk7dyk", // Les originaux / Chèvres
   "ORIGINAL-LATINOS.png": "cmgv70gqo0025g5ahyja5ouw3", // Les originaux / Latinos
