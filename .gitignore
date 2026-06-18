@@ -9,3 +9,4 @@ public/qrs
 tsconfig.tsbuildinfo
 images-a-importer/
 node_modules.bak/
+scripts/build-carte-psd.*
