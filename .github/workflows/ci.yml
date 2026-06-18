@@ -9,6 +9,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      # Prisma validate exige une URL non vide même sans connexion réelle.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +29,7 @@ jobs:
       - run: npm run prisma:validate
 
       - name: Test handoff convive ↔ serveur (DB)
+        if: ${{ secrets.DATABASE_URL != '' }}
         run: npm run test:handoff
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
