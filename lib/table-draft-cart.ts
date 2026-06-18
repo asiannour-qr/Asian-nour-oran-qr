@@ -1,4 +1,13 @@
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+
+export function isDraftCartStorageMissingError(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return err.code === "P2021" || err.code === "P2022";
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return /TableDraftCart|does not exist/i.test(message);
+}
 
 export type DraftCartItem = {
   id: string;
@@ -51,16 +60,24 @@ function sanitizeGuestNames(raw: unknown): Record<string, string> {
 }
 
 export async function getTableDraftCart(tableId: string): Promise<TableDraftCartRecord | null> {
-  const row = await prisma.tableDraftCart.findUnique({ where: { tableId } });
-  if (!row) return null;
-  return {
-    tableId: row.tableId,
-    items: sanitizeItems(row.items),
-    peopleCount: Math.max(1, Math.min(12, row.peopleCount || 1)),
-    tableComment: row.tableComment?.slice(0, 2000) ?? null,
-    guestNames: sanitizeGuestNames(row.guestNames),
-    updatedAt: row.updatedAt,
-  };
+  try {
+    const row = await prisma.tableDraftCart.findUnique({ where: { tableId } });
+    if (!row) return null;
+    return {
+      tableId: row.tableId,
+      items: sanitizeItems(row.items),
+      peopleCount: Math.max(1, Math.min(12, row.peopleCount || 1)),
+      tableComment: row.tableComment?.slice(0, 2000) ?? null,
+      guestNames: sanitizeGuestNames(row.guestNames),
+      updatedAt: row.updatedAt,
+    };
+  } catch (err: unknown) {
+    if (isDraftCartStorageMissingError(err)) {
+      console.warn("[table-draft-cart] TableDraftCart absente — migration requise.");
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function saveTableDraftCart(
@@ -89,33 +106,53 @@ export async function saveTableDraftCart(
     return existing;
   }
 
-  const row = await prisma.tableDraftCart.upsert({
-    where: { tableId },
-    create: {
-      tableId,
-      items,
-      peopleCount,
-      tableComment,
-      guestNames: Object.keys(guestNames).length > 0 ? guestNames : undefined,
-    },
-    update: {
-      items,
-      peopleCount,
-      tableComment,
-      guestNames: Object.keys(guestNames).length > 0 ? guestNames : null,
-    },
-  });
+  try {
+    const row = await prisma.tableDraftCart.upsert({
+      where: { tableId },
+      create: {
+        tableId,
+        items,
+        peopleCount,
+        tableComment,
+        guestNames: Object.keys(guestNames).length > 0 ? guestNames : undefined,
+      },
+      update: {
+        items,
+        peopleCount,
+        tableComment,
+        guestNames: Object.keys(guestNames).length > 0 ? guestNames : null,
+      },
+    });
 
-  return {
-    tableId: row.tableId,
-    items: sanitizeItems(row.items),
-    peopleCount: row.peopleCount,
-    tableComment: row.tableComment,
-    guestNames: sanitizeGuestNames(row.guestNames),
-    updatedAt: row.updatedAt,
-  };
+    return {
+      tableId: row.tableId,
+      items: sanitizeItems(row.items),
+      peopleCount: row.peopleCount,
+      tableComment: row.tableComment,
+      guestNames: sanitizeGuestNames(row.guestNames),
+      updatedAt: row.updatedAt,
+    };
+  } catch (err: unknown) {
+    if (isDraftCartStorageMissingError(err)) {
+      console.warn("[table-draft-cart] TableDraftCart absente — brouillon ignoré.");
+      return {
+        tableId,
+        items,
+        peopleCount,
+        tableComment,
+        guestNames,
+        updatedAt: new Date(),
+      };
+    }
+    throw err;
+  }
 }
 
 export async function clearTableDraftCart(tableId: string): Promise<void> {
-  await prisma.tableDraftCart.delete({ where: { tableId } }).catch(() => {});
+  try {
+    await prisma.tableDraftCart.delete({ where: { tableId } });
+  } catch (err: unknown) {
+    if (isDraftCartStorageMissingError(err)) return;
+    // Ligne déjà absente ou autre erreur non bloquante.
+  }
 }
