@@ -7,7 +7,7 @@ import {
   releaseTableMaster,
   touchTableMaster,
 } from "@/lib/table-master";
-import { assertStaffSession } from "@/lib/staff-session";
+import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
 
 function readDeviceId(req: Request, body?: { deviceId?: unknown }): string {
   const fromBody = typeof body?.deviceId === "string" ? body.deviceId.trim() : "";
@@ -58,6 +58,12 @@ export async function POST(req: Request, { params }: { params: { tableId: string
     if (force) {
       const unauthorized = assertStaffSession();
       if (unauthorized) return unauthorized;
+      if (!isStaffDeviceId(deviceId)) {
+        return NextResponse.json(
+          { ok: false, message: "Prise forcée réservée au mode serveur." },
+          { status: 400 }
+        );
+      }
       const record = await forceClaimTableMaster(tableId, deviceId);
       return NextResponse.json({
         ok: true,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearTableMaster } from "@/lib/table-master";
+import { clearTableDraftCart } from "@/lib/table-draft-cart";
 import { releaseTable } from "@/lib/table-occupancy";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export async function POST(
   try {
     const released = await releaseTable(tableId);
     await clearTableMaster(tableId);
+    await clearTableDraftCart(tableId);
     return NextResponse.json({
       ok: true,
       released,

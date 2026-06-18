@@ -4,6 +4,7 @@ import { clearCart, getCart } from "@/lib/cart";
 import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
 import { storeGuestNames } from "@/lib/guest-names-store";
 import { getTableMaster, isMasterDevice, clearTableMaster } from "@/lib/table-master";
+import { clearTableDraftCart } from "@/lib/table-draft-cart";
 import { occupyTable } from "@/lib/table-occupancy";
 import { z } from "zod";
 
@@ -199,6 +200,7 @@ export async function POST(
 
         storeGuestNames(order.id, guestNames);
         clearCart(tableId);
+        await clearTableDraftCart(tableId);
         await occupyTable(tableId, order.id);
 
         return NextResponse.json({ ok: true, id: order.id });

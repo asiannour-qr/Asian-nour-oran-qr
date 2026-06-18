@@ -126,3 +126,13 @@ model TableOccupancy {
   occupiedAt  DateTime @default(now())
   lastOrderId String?
 }
+
+// Panier brouillon partagé par table (sync entre téléphones / reprise serveur)
+model TableDraftCart {
+  tableId      String   @id
+  items        Json     @default("[]")
+  peopleCount  Int      @default(1)
+  tableComment String?
+  guestNames   Json?
+  updatedAt    DateTime @updatedAt
+}

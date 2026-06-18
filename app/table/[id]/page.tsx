@@ -104,6 +104,7 @@ export default function TablePage() {
         loading: true,
     });
     const [claimingMaster, setClaimingMaster] = useState(false);
+    const staffClaimInFlightRef = useRef(false);
 
     useEffect(() => {
         setDeviceId(getOrCreateTableDeviceId());
@@ -120,7 +121,7 @@ export default function TablePage() {
         }
         if (params.get("order") === "1") {
             setOrderMode(true);
-            if (params.get("view") === "carte") setReadOnlyMode(true);
+            if (!isStaff && params.get("view") === "carte") setReadOnlyMode(true);
         }
     }, []);
 
@@ -162,25 +163,35 @@ export default function TablePage() {
     }, [orderMode, refreshMasterStatus]);
 
     useEffect(() => {
+        if (staffMode) {
+            setReadOnlyMode(false);
+            return;
+        }
         if (!orderMode || masterStatus.loading) return;
         if (masterStatus.isMaster) {
             setReadOnlyMode(false);
         } else if (masterStatus.hasMaster) {
             setReadOnlyMode(true);
         }
-    }, [orderMode, masterStatus.hasMaster, masterStatus.isMaster, masterStatus.loading]);
+    }, [orderMode, staffMode, masterStatus.hasMaster, masterStatus.isMaster, masterStatus.loading]);
 
-    const canModifyCart = masterStatus.isMaster && !readOnlyMode;
+    const staffInitializing =
+        staffMode && !masterStatus.isMaster && (masterStatus.loading || claimingMaster);
+    const canModifyCart = staffMode
+        ? masterStatus.isMaster || claimingMaster
+        : masterStatus.isMaster && !readOnlyMode;
 
     const staffQuery = staffMode ? "?staff=1" : "";
 
     const browseMenu = useCallback(() => {
-        setReadOnlyMode(true);
         setOrderMode(true);
-        router.replace(
-            `/table/${tableId}${staffMode ? "?staff=1&order=1&view=carte" : "?order=1&view=carte"}`,
-            { scroll: true }
-        );
+        if (staffMode) {
+            setReadOnlyMode(false);
+            router.replace(`/table/${tableId}?staff=1&order=1`, { scroll: true });
+            return;
+        }
+        setReadOnlyMode(true);
+        router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
     }, [router, staffMode, tableId]);
 
     const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
@@ -197,7 +208,9 @@ export default function TablePage() {
             });
             const data = await res.json();
             if (!res.ok) {
-                if (!options?.silent) {
+                if (staffMode && res.status === 401) {
+                    toast.error("Session serveur expirée — reconnectez-vous depuis l'écran serveur.");
+                } else if (!options?.silent) {
                     toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
                 }
                 await refreshMasterStatus();
@@ -225,9 +238,13 @@ export default function TablePage() {
     }, [activeDeviceId, refreshMasterStatus, router, staffMode, tableId]);
 
     useEffect(() => {
-        if (!staffMode || masterStatus.loading || masterStatus.isMaster) return;
-        void takeCharge({ force: true });
-    }, [staffMode, masterStatus.isMaster, masterStatus.loading, takeCharge]);
+        if (!staffMode || !activeDeviceId || masterStatus.loading || masterStatus.isMaster) return;
+        if (staffClaimInFlightRef.current) return;
+        staffClaimInFlightRef.current = true;
+        void takeCharge({ force: true, silent: true }).finally(() => {
+            staffClaimInFlightRef.current = false;
+        });
+    }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
 
     const releaseMaster = useCallback(async () => {
         if (!activeDeviceId) return;
@@ -251,10 +268,14 @@ export default function TablePage() {
     }, [activeDeviceId, tableId]);
 
     const showLanding = useCallback(() => {
+        if (staffMode) {
+            router.push("/serveur");
+            return;
+        }
         setOrderMode(false);
         setReadOnlyMode(false);
         router.replace(`/table/${tableId}${staffQuery}`, { scroll: true });
-    }, [router, staffQuery, tableId]);
+    }, [router, staffMode, staffQuery, tableId]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -279,6 +300,8 @@ export default function TablePage() {
     const cartScrollRef = useRef<HTMLDivElement>(null);
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
     const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
+    const [draftReady, setDraftReady] = useState(false);
+    const draftLoadKeyRef = useRef("");
 
     const scrollToOrderTop = useCallback(() => {
         if (typeof window === "undefined") return;
@@ -414,6 +437,176 @@ export default function TablePage() {
         if (typeof window === "undefined") return;
         window.localStorage.setItem(`table:${tableId}:people`, String(peopleCount));
     }, [peopleCount, tableId]);
+
+    useEffect(() => {
+        if (!canModifyCart) {
+            draftLoadKeyRef.current = "";
+            setDraftReady(false);
+        }
+    }, [canModifyCart]);
+
+    useEffect(() => {
+        const draftSessionKey =
+            canModifyCart && activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
+        if (!draftSessionKey) return;
+        if (draftLoadKeyRef.current === draftSessionKey) {
+            setDraftReady(true);
+            return;
+        }
+
+        let cancelled = false;
+        setDraftReady(false);
+
+        void (async () => {
+            try {
+                const res = await fetch(`/api/tables/${tableId}/draft-cart`, { cache: "no-store" });
+                const data = await res.json();
+                if (cancelled) return;
+
+                const draft = data?.draft;
+                if (draft) {
+                    const lines = Array.isArray(draft.items) ? draft.items : [];
+                    if (lines.length > 0) {
+                        setCart(
+                            lines.map((line: CartLine) => ({
+                                id: String(line.id),
+                                name: String(line.name),
+                                priceCents: Number(line.priceCents) || 0,
+                                qty: Number(line.qty) || 1,
+                                personId: String(line.personId || "P1"),
+                            }))
+                        );
+                        const itemCount = lines.reduce(
+                            (sum: number, line: CartLine) => sum + (Number(line.qty) || 0),
+                            0
+                        );
+                        if (staffMode && itemCount > 0) {
+                            toast.success(
+                                `Panier client repris (${itemCount} article${itemCount > 1 ? "s" : ""}).`
+                            );
+                        }
+                    }
+                    if (typeof draft.peopleCount === "number") {
+                        const nextPeople = Math.max(1, Math.min(12, Math.round(draft.peopleCount)));
+                        setPeopleCount(nextPeople);
+                        previousPeopleCountRef.current = nextPeople;
+                        if (typeof window !== "undefined") {
+                            window.localStorage.setItem(`table:${tableId}:people`, String(nextPeople));
+                        }
+                    }
+                    if (typeof draft.tableComment === "string") {
+                        setTableComment(draft.tableComment);
+                    }
+                    if (draft.guestNames && typeof draft.guestNames === "object") {
+                        const count =
+                            typeof draft.peopleCount === "number"
+                                ? Math.max(1, Math.min(12, Math.round(draft.peopleCount)))
+                                : peopleCount;
+                        const sanitized = sanitizeGuestNamesRecord(
+                            draft.guestNames as Record<string, string>,
+                            { count }
+                        );
+                        setGuestNames(sanitized);
+                        guestNamesPersistedRef.current = sanitized;
+                    }
+                }
+            } catch {
+                // sync locale continue même si le chargement échoue
+            } finally {
+                if (!cancelled) {
+                    draftLoadKeyRef.current = draftSessionKey;
+                    setDraftReady(true);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [canModifyCart, activeDeviceId, staffMode, tableId]);
+
+    useEffect(() => {
+        if (!draftReady || !canModifyCart || !activeDeviceId) return;
+
+        const payload = {
+            deviceId: activeDeviceId,
+            items: cart.map((l) => ({
+                id: l.id,
+                name: l.name,
+                priceCents: l.priceCents,
+                qty: l.qty,
+                personId: l.personId,
+            })),
+            peopleCount,
+            tableComment: tableComment.trim() || null,
+            guestNames: sanitizeGuestNamesRecord(guestNames, { count: peopleCount }),
+        };
+
+        const timer = window.setTimeout(() => {
+            void fetch(`/api/tables/${tableId}/draft-cart`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+        }, 200);
+
+        return () => window.clearTimeout(timer);
+    }, [
+        draftReady,
+        canModifyCart,
+        activeDeviceId,
+        tableId,
+        cart,
+        peopleCount,
+        tableComment,
+        guestNames,
+    ]);
+
+    useEffect(() => {
+        if (!draftReady || !canModifyCart || !activeDeviceId) return;
+
+        const flushDraftCart = () => {
+            const payload = {
+                deviceId: activeDeviceId,
+                items: cart.map((l) => ({
+                    id: l.id,
+                    name: l.name,
+                    priceCents: l.priceCents,
+                    qty: l.qty,
+                    personId: l.personId,
+                })),
+                peopleCount,
+                tableComment: tableComment.trim() || null,
+                guestNames: sanitizeGuestNamesRecord(guestNames, { count: peopleCount }),
+            };
+            void fetch(`/api/tables/${tableId}/draft-cart`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                keepalive: true,
+            });
+        };
+
+        const onHide = () => {
+            if (document.visibilityState === "hidden") flushDraftCart();
+        };
+
+        document.addEventListener("visibilitychange", onHide);
+        window.addEventListener("pagehide", flushDraftCart);
+        return () => {
+            document.removeEventListener("visibilitychange", onHide);
+            window.removeEventListener("pagehide", flushDraftCart);
+        };
+    }, [
+        draftReady,
+        canModifyCart,
+        activeDeviceId,
+        tableId,
+        cart,
+        peopleCount,
+        tableComment,
+        guestNames,
+    ]);
 
     useEffect(() => {
         const previous = previousPeopleCountRef.current;
@@ -1026,10 +1219,11 @@ export default function TablePage() {
 
             setOrderConfirmedOpen(true);
             resetTableAfterOrder();
-            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
             if (staffMode) {
+                setMasterStatus((prev) => ({ ...prev, loading: true }));
                 await takeCharge({ force: true, silent: true });
             } else {
+                setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
                 showLanding();
             }
             router.refresh();
@@ -1055,6 +1249,11 @@ export default function TablePage() {
                     onBrowseMenu={browseMenu}
                     onTakeCharge={() => void takeCharge()}
                 />
+            ) : staffInitializing ? (
+                <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg,#f5efe6)] px-6 text-center">
+                    <p className="text-lg font-semibold text-[var(--color-heading)]">Mode serveur</p>
+                    <p className="text-sm surface-muted-text">Prise en charge de la table {tableId}…</p>
+                </div>
             ) : (
             <>
             <header className="sticky top-0 z-40 border-b border-[rgba(190,127,57,0.22)] bg-[rgba(245,239,230,0.85)] backdrop-blur-md">
@@ -1065,7 +1264,7 @@ export default function TablePage() {
                             onClick={showLanding}
                             className="text-xs sm:text-sm text-[var(--color-heading)] underline-offset-2 hover:underline"
                         >
-                            Accueil table
+                            {staffMode ? "Retour serveur" : "Accueil table"}
                         </button>
                         <span className="text-base font-semibold text-[var(--color-heading)] sm:text-lg">Asian Nour</span>
                         <span className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[rgba(255,252,247,0.88)] px-3 py-1 text-xs font-medium text-[var(--color-heading)]">
@@ -1115,33 +1314,33 @@ export default function TablePage() {
 
                 {staffMode && canModifyCart && (
                     <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-                        🍽️ <strong>Mode serveur</strong> — priorité sur les téléphones clients. Panier remis à zéro
-                        après envoi ; vous pouvez ajouter une commande complémentaire. Libérez la table depuis
-                        l&apos;écran serveur quand les clients partent.
+                        🍽️ <strong>Mode serveur</strong> — vous avez la priorité sur les téléphones clients.
+                        {hasCartItems
+                            ? " Le panier en cours (client ou serveur) est synchronisé — complétez puis envoyez."
+                            : " Ajoutez ou complétez la commande ; le panier se remet à zéro après chaque envoi."}
+                        {" "}Libérez la table depuis l&apos;écran serveur quand les clients partent.
                     </div>
                 )}
 
-                {canModifyCart && (
+                {canModifyCart && !staffMode && (
                     <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                         <span>
-                            📱 <strong>{staffMode ? "Serveur — vous gérez la commande" : "Vous gérez la commande"}</strong> pour cette table.
+                            📱 <strong>Vous gérez la commande</strong> pour cette table.
                         </span>
-                        {!staffMode && (
-                            <button type="button" className="btn-ghost text-sm shrink-0" onClick={() => void releaseMaster()}>
-                                Passer le relais
-                            </button>
-                        )}
+                        <button type="button" className="btn-ghost text-sm shrink-0" onClick={() => void releaseMaster()}>
+                            Passer le relais
+                        </button>
                     </div>
                 )}
 
-                {!masterStatus.loading && masterStatus.hasMaster && !masterStatus.isMaster && (
+                {!staffMode && !masterStatus.loading && masterStatus.hasMaster && !masterStatus.isMaster && (
                     <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
                         👀 <strong>Consultation seule</strong> — un autre convive gère le panier sur son téléphone.
                         Parcourez la carte librement ; seul le téléphone maître peut modifier le panier.
                     </div>
                 )}
 
-                {!masterStatus.loading && !masterStatus.hasMaster && (
+                {!staffMode && !masterStatus.loading && !masterStatus.hasMaster && (
                     <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-3">
                         <p>
                             📱 <strong>Aucun téléphone ne gère la commande</strong> pour cette table pour le moment.
@@ -1170,9 +1369,11 @@ export default function TablePage() {
                     <p className="surface-muted-text text-sm">
                         {readOnlyMode
                             ? "Parcourez la carte et les menus. Seul le téléphone maître peut ajouter au panier."
-                            : "Composez votre menu ou sélectionnez vos plats à la carte. Choisissez le convive avant chaque ajout, puis envoyez une seule commande."}
+                            : staffMode
+                              ? "Ajoutez les plats pour cette table, puis envoyez la commande en cuisine."
+                              : "Composez votre menu ou sélectionnez vos plats à la carte. Choisissez le convive avant chaque ajout, puis envoyez une seule commande."}
                     </p>
-                    {canModifyCart && (
+                    {canModifyCart && !staffMode && (
                     <div className="flex flex-wrap items-center gap-4 pt-1">
                         <div className="flex items-center gap-2">
                             <span className="text-xs uppercase tracking-[0.2em] surface-muted-text">
