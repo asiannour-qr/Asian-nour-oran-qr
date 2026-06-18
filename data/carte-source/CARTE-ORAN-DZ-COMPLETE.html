@@ -603,37 +603,43 @@
     }
     .future-block { padding: 0; margin-bottom: 0; }
     .future-block .bar--tier { margin-bottom: 0.8mm; text-align: center; font-size: 4mm; padding: 0.8mm var(--pad-x); }
+    .future-block__head {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+      margin-bottom: 0.8mm;
+      padding: 0 0.5mm;
+    }
+    .future-block__head .photo { width: 14mm; height: 14mm; flex-shrink: 0; }
     .future-list {
       list-style: none;
-      border: 0.12mm dashed rgba(212, 175, 55, 0.35);
+      border: 0.12mm solid rgba(212, 175, 55, 0.22);
       border-radius: 1mm;
       padding: 1mm 1.5mm;
       min-height: 10mm;
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.03);
     }
     .future-list li {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 2mm;
       align-items: baseline;
-      color: rgba(255, 255, 255, 0.42);
-      font-size: 2.5mm;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 2.35mm;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       line-height: 1.5;
-      border-bottom: 0.1mm dashed rgba(255, 255, 255, 0.08);
+      border-bottom: 0.1mm solid rgba(255, 255, 255, 0.08);
       padding: 0.5mm 0;
     }
     .future-list li:last-child { border-bottom: none; }
-    .future-list li .p { color: rgba(212, 175, 55, 0.45); font-size: 2.7mm; font-weight: 700; }
-    .future-list__hint {
-      margin-top: 0.8mm;
-      font-size: 1.85mm;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.28);
-      text-align: center;
+    .future-list li .p { color: var(--gold-light); font-size: 2.7mm; font-weight: 700; }
+    .page--extra .special3--cold2 {
+      grid-template-columns: repeat(2, 1fr);
+      max-width: 68%;
+      margin-left: auto;
+      margin-right: auto;
     }
     .contact-footer {
       margin-top: auto;
@@ -688,11 +694,16 @@
     .photo--originaux { background-image: url("./images-jap/originaux.png"); background-size: 118%; background-position: 50% 48%; }
     .photo--printemps { background-image: url("./images-jap/printemps.png"); background-size: 118%; background-position: 50% 48%; }
     .photo--avocatroll { background-image: url("./images-jap/avocat-roll.png"); background-size: 115%; background-position: 50% 48%; }
-    .photo--box36 { background-image: url("./images-jap/box-54.png"); background-size: 150%; background-position: 50% 42%; }
+    .photo--box36 { background-image: url("./images-jap/box-36-pieces.png"); background-size: 150%; background-position: 50% 42%; }
+    .photo--box54 { background-image: url("./images-jap/box-54-pieces.png"); background-size: 150%; background-position: 50% 42%; }
     .photo--poke { background-image: url("./images-jap/poke-saumon.png"); background-size: 118%; background-position: 50% 48%; }
     .photo--menu-first { background-image: url("./images-menu/menu-asian-first.png"); background-size: 118%; background-position: 50% 48%; }
     .photo--menu-combo { background-image: url("./images-menu/menu-asian-combo.png"); background-size: 118%; background-position: 50% 48%; }
     .photo--menu-meli { background-image: url("./images-menu/menu-asian-meli-melo.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--menu-avocado { background-image: url("./images-menu/menu-asian-avocado.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--menu-frits { background-image: url("./images-menu/menu-asian-frits.png"); background-size: 118%; background-position: 50% 48%; }
+    .photo--desserts { background-image: url("./images-menu/dessert-tiramisu.jpg"); background-size: 120%; background-position: 50% 50%; }
+    .photo--boissons { background-image: url("./images-menu/boisson-soft-drink.png"); background-size: 115%; background-position: 50% 48%; }
     .photo--chirashi-saumon { background-image: url("./images-menu/chirashi-saumon.png"); background-size: 120%; background-position: 50% 42%; }
     .photo--chirashi-thon { background-image: url("./images-menu/chirashi-thon.png"); background-size: 120%; background-position: 50% 42%; }
     .photo--chirashi-saumon-avocat { background-image: url("./images-menu/chirashi-saumon-avocat.png"); background-size: 120%; background-position: 50% 42%; }
@@ -1061,8 +1072,16 @@
             <div class="photo photo--box36"></div>
             <div class="extra-feature__text">
               <h4>36 pièces — Box 2 personnes</h4>
-              <span class="mp">8 000 DZD</span>
+              <span class="mp">3 890 DZD</span>
               <p>6 Makis saumon · 6 Sushis saumon · 6 Flocons saumon cheese · 6 Crunchs thon cuit avocat · 6 Saumon roll's cheese · 6 Californias poulet mayonnaise</p>
+            </div>
+          </div>
+          <div class="extra-feature">
+            <div class="photo photo--box54"></div>
+            <div class="extra-feature__text">
+              <h4>54 pièces — Box 4 personnes</h4>
+              <span class="mp">5 990 DZD</span>
+              <p>6 Sushis saumon · 6 Flocons avocat cheese · 6 Saumon roll's cheese · 6 Californias thon cuit avocat · 6 Crunch saumon fumé boursin · 6 Printemps saumon avocat menthe · 6 Makis concombre cheese · 6 Frits avocat cheese miel</p>
             </div>
           </div>
         </section>
@@ -1129,23 +1148,51 @@
             </ul>
           </div>
         </div>
+        <div class="special3 special3--cold2">
+          <div class="special">
+            <div class="photo photo--menu-avocado"></div>
+            <h4>Asian Avocado<span class="price">3 900 DZD</span></h4>
+            <ul>
+              <li>6 Crunchs thon cuit avocat</li>
+              <li>6 Avocat roll's burrata</li>
+              <li>6 Frits avocat cheese miel · 1 Boisson</li>
+            </ul>
+          </div>
+          <div class="special">
+            <div class="photo photo--menu-frits"></div>
+            <h4>Asian Frits<span class="price">4 500 DZD</span></h4>
+            <ul>
+              <li>6 Frits avocat cheese miel</li>
+              <li>6 Frits saumon avocat boursin</li>
+              <li>6 Frits poulet avocat cheddar curry · 1 Boisson</li>
+            </ul>
+          </div>
+        </div>
 
         <div class="future-row">
           <div class="future-block">
-            <div class="bar bar--tier">Desserts</div>
+            <div class="future-block__head">
+              <div class="photo photo--desserts"></div>
+              <div class="bar bar--tier">Desserts</div>
+            </div>
             <ul class="future-list" data-future-list="desserts">
-              <li><span>Dessert 1</span><span class="p">—</span></li>
-              <li><span>Dessert 2</span><span class="p">—</span></li>
+              <li><span>Tiramisu fait maison</span><span class="p">470</span></li>
+              <li><span>Fondant chocolat, crème anglaise</span><span class="p">450</span></li>
+              <li><span>Tarte tatin, boule de glace</span><span class="p">450</span></li>
+              <li><span>Flocon nutella banane</span><span class="p">450</span></li>
             </ul>
-            <p class="future-list__hint">Liste à compléter</p>
           </div>
           <div class="future-block">
-            <div class="bar bar--tier">Boissons</div>
+            <div class="future-block__head">
+              <div class="photo photo--boissons"></div>
+              <div class="bar bar--tier">Boissons</div>
+            </div>
             <ul class="future-list" data-future-list="boissons">
-              <li><span>Boisson 1</span><span class="p">—</span></li>
-              <li><span>Boisson 2</span><span class="p">—</span></li>
+              <li><span>Eau minérale 50cl</span><span class="p">150</span></li>
+              <li><span>Eau pétillante 50cl</span><span class="p">150</span></li>
+              <li><span>Soft drink</span><span class="p">250</span></li>
+              <li><span>Selecto</span><span class="p">250</span></li>
             </ul>
-            <p class="future-list__hint">Liste à compléter</p>
           </div>
         </div>
 
