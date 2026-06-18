@@ -31,6 +31,8 @@ const MAPPING = {
   "riz-cantonais.png": "cmgv70ev6000hg5ahxceob9kq", // Plats Starter / Riz cantonnais
   // Même photo pour les deux formats
   "sashimi-saumon-5-pieces.png": ["cmgv70hkm002wg5ahi8wakmlo", "cmgv70hlq002xg5ahnxaab5g4"], // Sashimi saumon 5 + 12 pcs
+  "sashimi-thon-5-pieces.png": "cmgv70hmv002yg5ah4gx4tnmv", // Sashimi thon 5 pcs
+  "sashimi-thon-10-pieces.png": "cmgv70hny002zg5ah8d246ryk", // Sashimi thon 12 pcs
 };
 
 function slugify(filename) {
