@@ -29,7 +29,4 @@ jobs:
       - run: npm run prisma:validate
 
       - name: Test handoff convive ↔ serveur (DB)
-        if: ${{ secrets.DATABASE_URL != '' }}
         run: npm run test:handoff
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}

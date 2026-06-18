@@ -13,6 +13,12 @@ if (!process.env.DATABASE_URL) {
   process.exit(0);
 }
 
+const isCiPlaceholderDb = /127\.0\.0\.1:5432\/ci/.test(process.env.DATABASE_URL);
+if (isCiPlaceholderDb) {
+  console.log("⏭️  test:handoff ignoré (URL CI factice — pas de base Neon)");
+  process.exit(0);
+}
+
 const prisma = new PrismaClient();
 const TABLE = process.env.TEST_TABLE_ID || "99";
 const CLIENT = "test-db-client-handoff";
