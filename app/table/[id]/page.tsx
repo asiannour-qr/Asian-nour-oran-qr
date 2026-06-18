@@ -17,7 +17,6 @@ import {
 } from "@/lib/guest-name-utils";
 import {
     getDefaultGuestNames,
-    loadGuestNamesForTable,
     persistGuestNamesForTable,
     resetGuestNames as resetGuestNamesForTable,
 } from "@/lib/guest-names-store";
@@ -116,7 +115,13 @@ export default function TablePage() {
         loading: true,
     });
     const [claimingMaster, setClaimingMaster] = useState(false);
+    const [staffTableReady, setStaffTableReady] = useState(false);
     const staffClaimInFlightRef = useRef(false);
+    const idleTableResetDoneRef = useRef(false);
+    const sessionCleanupRef = useRef({
+        reset: () => {},
+        clearDraft: async () => {},
+    });
 
     useEffect(() => {
         setDeviceId(getOrCreateTableDeviceId());
@@ -409,9 +414,17 @@ export default function TablePage() {
     }, [tableId]);
 
     const staffInitializing =
-        staffMode &&
-        !masterStatus.isMaster &&
-        (masterStatus.loading || claimingMaster);
+        staffMode && !staffTableReady && (masterStatus.loading || claimingMaster);
+
+    useEffect(() => {
+        setStaffTableReady(false);
+    }, [tableId]);
+
+    useEffect(() => {
+        if (staffMode && masterStatus.isMaster) {
+            setStaffTableReady(true);
+        }
+    }, [staffMode, masterStatus.isMaster]);
     const canModifyCart = staffMode
         ? masterStatus.isMaster
         : masterStatus.isMaster && !readOnlyMode;
@@ -452,18 +465,24 @@ export default function TablePage() {
 
     const releaseMasterSilent = useCallback(async () => {
         if (!activeDeviceId || !masterStatusRef.current.isMaster) return;
-        await pushDraftCartNow();
         try {
+            if (staffMode) {
+                await pushDraftCartNow();
+            }
             await fetch(`/api/tables/${tableId}/master`, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ deviceId: activeDeviceId }),
                 keepalive: true,
             });
+            if (!staffMode) {
+                await sessionCleanupRef.current.clearDraft();
+                sessionCleanupRef.current.reset();
+            }
         } catch {
             // best effort
         }
-    }, [activeDeviceId, pushDraftCartNow, tableId]);
+    }, [activeDeviceId, pushDraftCartNow, staffMode, tableId]);
 
     const showLanding = useCallback(() => {
         if (staffMode) {
@@ -504,6 +523,11 @@ export default function TablePage() {
                 toast.success("Vous reprenez la commande pour cette table.");
             }
             return;
+        }
+
+        if (!staffMode && !options?.silent && !masterStatusRef.current.hasMaster) {
+            await sessionCleanupRef.current.clearDraft();
+            sessionCleanupRef.current.reset();
         }
 
         setClaimingMaster(true);
@@ -590,14 +614,6 @@ export default function TablePage() {
             staffClaimInFlightRef.current = false;
         });
     }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
-
-    useEffect(() => {
-        if (!staffMode || masterStatus.isMaster || masterStatus.loading || claimingMaster) return;
-        const id = window.setInterval(() => {
-            void takeCharge({ force: true, silent: true });
-        }, 2000);
-        return () => window.clearInterval(id);
-    }, [claimingMaster, masterStatus.isMaster, masterStatus.loading, staffMode, takeCharge]);
 
     const prevIsMasterRef = useRef(false);
     const prevMasterTypeRef = useRef<"staff" | "client" | null>(null);
@@ -715,6 +731,64 @@ export default function TablePage() {
         }
     }, [resetGuestNamesState, tableId]);
 
+    const resetClientTableSession = useCallback(() => {
+        resetGuestNamesState();
+        previousPeopleCountRef.current = 1;
+        setPeopleCount(1);
+        setActivePerson("P1");
+        setCart([]);
+        setExpandedPersons(new Set());
+        setTableComment("");
+        setShowGuestNameEditor(false);
+        setEditingPersonId(null);
+        setComposeState(null);
+        setComposeErrors({});
+        setCartDrawerOpen(false);
+        draftLoadKeyRef.current = "";
+        setDraftReady(false);
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem(`table:${tableId}:people`, "1");
+        }
+    }, [resetGuestNamesState, tableId]);
+
+    const clearServerDraft = useCallback(async () => {
+        try {
+            await fetch(`/api/tables/${tableId}/draft-cart`, {
+                method: "DELETE",
+                keepalive: true,
+            });
+        } catch {
+            // best effort
+        }
+    }, [tableId]);
+
+    useEffect(() => {
+        sessionCleanupRef.current = {
+            reset: resetClientTableSession,
+            clearDraft: clearServerDraft,
+        };
+    }, [clearServerDraft, resetClientTableSession]);
+
+    useEffect(() => {
+        if (staffMode || orderMode || masterStatus.loading) return;
+        if (masterStatus.hasMaster) {
+            idleTableResetDoneRef.current = false;
+            return;
+        }
+        if (idleTableResetDoneRef.current) return;
+        idleTableResetDoneRef.current = true;
+        resetClientTableSession();
+        void clearServerDraft();
+    }, [
+        clearServerDraft,
+        masterStatus.hasMaster,
+        masterStatus.loading,
+        orderMode,
+        resetClientTableSession,
+        staffMode,
+        tableId,
+    ]);
+
     async function loadAll() {
         setLoading(true);
         try {
@@ -749,23 +823,6 @@ export default function TablePage() {
     useEffect(() => {
         loadAll();
     }, []);
-
-    useEffect(() => {
-        if (staffMode) return;
-        if (typeof window === "undefined") return;
-        const stored = window.localStorage.getItem(`table:${tableId}:people`);
-        const n = Number(stored);
-        if (Number.isFinite(n) && n >= 1 && n <= 12) {
-            setPeopleCount(Math.round(n));
-        }
-    }, [staffMode, tableId]);
-
-    useEffect(() => {
-        if (staffMode) return;
-        const loaded = loadGuestNamesForTable(tableId);
-        guestNamesPersistedRef.current = loaded;
-        setGuestNames(loaded);
-    }, [guestNamesStorageKey, staffMode, tableId]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -1511,7 +1568,6 @@ export default function TablePage() {
             setOrderConfirmedOpen(true);
             resetTableAfterOrder();
             if (staffMode) {
-                setMasterStatus((prev) => ({ ...prev, loading: true }));
                 await takeCharge({ force: true, silent: true });
             } else {
                 setMasterStatus({ hasMaster: false, isMaster: false, masterType: null, loading: false });
@@ -1603,12 +1659,6 @@ export default function TablePage() {
             </header>
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
-
-                {staffMode && !canModifyCart && !staffInitializing && (
-                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-                        ⏳ <strong>Prise en charge serveur</strong> — connexion à la table en cours…
-                    </div>
-                )}
 
                 {staffMode && canModifyCart && (
                     <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900 flex flex-wrap items-center justify-between gap-3">
