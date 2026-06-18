@@ -4,8 +4,10 @@ import {
   forceClaimTableMaster,
   getTableMaster,
   isMasterDevice,
+  isStaffMasterRecord,
   releaseTableMaster,
   touchTableMaster,
+  clearStaleStaffMaster,
 } from "@/lib/table-master";
 import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
 import { getTableDraftCart } from "@/lib/table-draft-cart";
@@ -38,12 +40,21 @@ export async function GET(req: Request, { params }: { params: { tableId: string 
     }
 
     const deviceId = readDeviceId(req);
-    const master = await getTableMaster(tableId);
+    if (deviceId && !isStaffDeviceId(deviceId)) {
+      await clearStaleStaffMaster(tableId);
+    }
+    let master = await getTableMaster(tableId);
+
+    if (master && deviceId && isMasterDevice(master, deviceId) && isStaffDeviceId(deviceId)) {
+      await touchTableMaster(tableId, deviceId);
+      master = await getTableMaster(tableId);
+    }
 
     return NextResponse.json({
       ok: true,
       hasMaster: Boolean(master),
       isMaster: isMasterDevice(master, deviceId),
+      masterType: master ? (isStaffMasterRecord(master) ? "staff" : "client") : null,
       claimedAt: master?.claimedAt?.toISOString() ?? null,
       expiresAt: master?.expiresAt?.toISOString() ?? null,
     });

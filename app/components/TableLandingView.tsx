@@ -19,6 +19,7 @@ type TableLandingViewProps = {
   tableId: string;
   hasMaster: boolean;
   isMaster: boolean;
+  masterType: "staff" | "client" | null;
   claiming: boolean;
   onBrowseMenu: () => void;
   onTakeCharge: () => void;
@@ -28,6 +29,7 @@ export default function TableLandingView({
   tableId,
   hasMaster,
   isMaster,
+  masterType,
   claiming,
   onBrowseMenu,
   onTakeCharge,
@@ -50,7 +52,9 @@ export default function TableLandingView({
   }, []);
 
   const hasHours = JOURS_ORDRE.some((j) => hours[j]);
-  const masterTakenByOther = hasMaster && !isMaster;
+  const masterTakenByStaff = hasMaster && !isMaster && masterType === "staff";
+  const masterTakenByOtherClient = hasMaster && !isMaster && masterType === "client";
+  const masterTakenByOther = masterTakenByStaff || masterTakenByOtherClient;
 
   return (
     <div className="min-h-screen bg-[var(--bg,#f5efe6)] text-[var(--fg,#2f2922)] pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))]">
@@ -73,9 +77,11 @@ export default function TableLandingView({
         <div className="w-full max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-medium">📱 Un seul téléphone maître par table</p>
           <p className="mt-1 text-amber-800/90">
-            {masterTakenByOther
-              ? "Un autre convive gère déjà le panier sur son téléphone. Vous pouvez consulter la carte ci-dessous."
-              : hasMaster && isMaster
+            {masterTakenByStaff
+              ? "Le serveur gère la commande pour le moment. S'il n'est plus à votre table, la main sera rendue automatiquement dans quelques instants — réessayez « Je gère la commande »."
+              : masterTakenByOtherClient
+                ? "Un autre convive gère déjà le panier sur son téléphone. Vous pouvez consulter la carte ci-dessous."
+                : hasMaster && isMaster
                 ? "Vous gérez la commande pour cette table. Vous pouvez reprendre le panier ou consulter la carte."
                 : "Personne ne gère la commande pour le moment — appuyez sur le bouton ci-dessous pour devenir le téléphone maître. Les autres convives pourront consulter la carte sans modifier le panier."}
           </p>
@@ -120,14 +126,16 @@ export default function TableLandingView({
           <button
             type="button"
             onClick={onTakeCharge}
-            disabled={claiming || masterTakenByOther}
+            disabled={claiming || masterTakenByOtherClient}
             className="w-full inline-flex justify-center px-5 py-3.5 rounded-2xl bg-[#7a5640] text-white text-base font-semibold shadow-elevated hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {claiming
               ? "Prise en charge…"
-              : masterTakenByOther
+              : masterTakenByOtherClient
                 ? "Commande déjà gérée par un autre téléphone"
-                : isMaster
+                : masterTakenByStaff
+                  ? "Je gère la commande pour la table"
+                  : isMaster
                   ? "Reprendre la commande"
                   : "Je gère la commande pour la table"}
           </button>

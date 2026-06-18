@@ -98,6 +98,7 @@ export default function TablePage() {
     const [masterStatus, setMasterStatus] = useState({
         hasMaster: false,
         isMaster: false,
+        masterType: null as "staff" | "client" | null,
         loading: true,
     });
     const [claimingMaster, setClaimingMaster] = useState(false);
@@ -136,6 +137,10 @@ export default function TablePage() {
                 setMasterStatus({
                     hasMaster: Boolean(data.hasMaster),
                     isMaster: Boolean(data.isMaster),
+                    masterType:
+                        data.masterType === "staff" || data.masterType === "client"
+                            ? data.masterType
+                            : null,
                     loading: false,
                 });
             } else {
@@ -150,6 +155,14 @@ export default function TablePage() {
         if (!activeDeviceId) return;
         void refreshMasterStatus();
     }, [activeDeviceId, refreshMasterStatus]);
+
+    useEffect(() => {
+        if (orderMode || staffMode || !activeDeviceId) return;
+        const id = setInterval(() => {
+            void refreshMasterStatus();
+        }, 5000);
+        return () => clearInterval(id);
+    }, [orderMode, staffMode, activeDeviceId, refreshMasterStatus]);
 
     useEffect(() => {
         if (!orderMode) return;
@@ -185,16 +198,6 @@ export default function TablePage() {
         setReadOnlyMode(true);
         router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
     }, [router, staffMode, tableId]);
-
-    const showLanding = useCallback(() => {
-        if (staffMode) {
-            router.push("/serveur");
-            return;
-        }
-        setOrderMode(false);
-        setReadOnlyMode(false);
-        router.replace(`/table/${tableId}${staffQuery}`, { scroll: true });
-    }, [router, staffMode, staffQuery, tableId]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -345,7 +348,7 @@ export default function TablePage() {
                 toast.error(data?.message || "Impossible de libérer la commande.");
                 return;
             }
-            setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
+            setMasterStatus({ hasMaster: false, isMaster: false, masterType: null, loading: false });
             draftLoadKeyRef.current = "";
             setDraftReady(false);
             if (staffMode) {
@@ -363,6 +366,48 @@ export default function TablePage() {
             toast.error("Erreur lors de la libération.");
         }
     }, [activeDeviceId, peopleCount, pushDraftCartNow, router, staffMode, tableComment, tableId]);
+
+    const releaseMasterSilent = useCallback(async () => {
+        if (!activeDeviceId || !masterStatusRef.current.isMaster) return;
+        if (cartRef.current.length > 0 || peopleCount > 1 || tableComment.trim()) {
+            await pushDraftCartNow();
+        }
+        try {
+            await fetch(`/api/tables/${tableId}/master`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId: activeDeviceId }),
+                keepalive: true,
+            });
+        } catch {
+            // best effort
+        }
+    }, [activeDeviceId, peopleCount, pushDraftCartNow, tableComment, tableId]);
+
+    const showLanding = useCallback(() => {
+        if (staffMode) {
+            void releaseMasterSilent().finally(() => {
+                router.push("/serveur");
+            });
+            return;
+        }
+        setOrderMode(false);
+        setReadOnlyMode(false);
+        router.replace(`/table/${tableId}${staffQuery}`, { scroll: true });
+    }, [releaseMasterSilent, router, staffMode, staffQuery, tableId]);
+
+    useEffect(() => {
+        if (!staffMode || !masterStatus.isMaster) return;
+
+        const onLeave = () => {
+            void releaseMasterSilent();
+        };
+
+        window.addEventListener("pagehide", onLeave);
+        return () => {
+            window.removeEventListener("pagehide", onLeave);
+        };
+    }, [masterStatus.isMaster, releaseMasterSilent, staffMode]);
 
     const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
         if (!activeDeviceId) return;
@@ -400,7 +445,12 @@ export default function TablePage() {
                 draftLoadKeyRef.current = "";
                 setDraftReady(false);
             }
-            setMasterStatus({ hasMaster: true, isMaster: true, loading: false });
+            setMasterStatus({
+                hasMaster: true,
+                isMaster: true,
+                masterType: staffMode ? "staff" : "client",
+                loading: false,
+            });
             setReadOnlyMode(false);
             setOrderMode(true);
             if (!options?.silent) {
@@ -1332,7 +1382,7 @@ export default function TablePage() {
                 setMasterStatus((prev) => ({ ...prev, loading: true }));
                 await takeCharge({ force: true, silent: true });
             } else {
-                setMasterStatus({ hasMaster: false, isMaster: false, loading: false });
+                setMasterStatus({ hasMaster: false, isMaster: false, masterType: null, loading: false });
                 showLanding();
             }
             router.refresh();
@@ -1354,6 +1404,7 @@ export default function TablePage() {
                     tableId={tableId}
                     hasMaster={masterStatus.hasMaster}
                     isMaster={masterStatus.isMaster}
+                    masterType={masterStatus.masterType}
                     claiming={claimingMaster}
                     onBrowseMenu={browseMenu}
                     onTakeCharge={() => void takeCharge()}

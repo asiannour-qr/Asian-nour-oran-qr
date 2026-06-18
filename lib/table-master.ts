@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
+import { isStaffDeviceId } from "@/lib/staff-session";
 
 export const TABLE_MASTER_TTL_MS = 4 * 60 * 60 * 1000;
+/** Sans activité serveur sur la table, le verrou staff est considéré abandonné. */
+export const STAFF_MASTER_IDLE_MS = 45 * 1000;
 
 export type TableMasterRecord = {
   tableId: string;
@@ -19,13 +22,36 @@ export async function getTableMaster(tableId: string): Promise<TableMasterRecord
   return row;
 }
 
+export function isStaffMasterRecord(record: TableMasterRecord | null): boolean {
+  return Boolean(record && isStaffDeviceId(record.deviceId));
+}
+
+export function isStaffMasterIdle(record: TableMasterRecord, now = Date.now()): boolean {
+  return now - record.claimedAt.getTime() > STAFF_MASTER_IDLE_MS;
+}
+
+/** Supprime un verrou serveur laissé ouvert après départ de la tablette. */
+export async function clearStaleStaffMaster(tableId: string): Promise<boolean> {
+  const existing = await getTableMaster(tableId);
+  if (!existing || !isStaffMasterRecord(existing) || !isStaffMasterIdle(existing)) {
+    return false;
+  }
+  await prisma.tableOrderMaster.delete({ where: { tableId } }).catch(() => {});
+  return true;
+}
+
 export async function claimTableMaster(
   tableId: string,
   deviceId: string
 ): Promise<{ ok: true; record: TableMasterRecord } | { ok: false; code: "TAKEN" }> {
+  await clearStaleStaffMaster(tableId);
   const existing = await getTableMaster(tableId);
   if (existing && existing.deviceId !== deviceId) {
-    return { ok: false, code: "TAKEN" };
+    if (isStaffMasterRecord(existing) && isStaffMasterIdle(existing)) {
+      await prisma.tableOrderMaster.delete({ where: { tableId } });
+    } else {
+      return { ok: false, code: "TAKEN" };
+    }
   }
 
   const now = new Date();
@@ -68,9 +94,13 @@ export async function clearTableMaster(tableId: string): Promise<void> {
 export async function touchTableMaster(tableId: string, deviceId: string): Promise<boolean> {
   const existing = await getTableMaster(tableId);
   if (!existing || existing.deviceId !== deviceId) return false;
+  const now = new Date();
   await prisma.tableOrderMaster.update({
     where: { tableId },
-    data: { expiresAt: new Date(Date.now() + TABLE_MASTER_TTL_MS) },
+    data: {
+      claimedAt: now,
+      expiresAt: new Date(now.getTime() + TABLE_MASTER_TTL_MS),
+    },
   });
   return true;
 }
