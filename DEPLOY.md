@@ -18,6 +18,16 @@
    npm run prisma:deploy
    ```
 
+6. Vérifiez le système table après déploiement :
+
+   ```bash
+   curl https://<votre-domaine>/api/health/table-system
+   ```
+
+   Réponse attendue : `{ "ok": true, "message": "Système table opérationnel" }`
+
+   Documentation : [`docs/TABLE-SYSTEM.md`](../docs/TABLE-SYSTEM.md)
+
 ## Configuration Vercel
 
 - **Build Command** : `npm run build`

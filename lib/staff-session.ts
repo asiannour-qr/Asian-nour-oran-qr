@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/session-node";
+import { STAFF_DEVICE_PREFIX } from "@/lib/table-contract";
 
 /** Session cuisine ou admin (tablette serveur / staff). */
 export function assertStaffSession() {
@@ -15,5 +16,5 @@ export function assertStaffSession() {
 }
 
 export function isStaffDeviceId(deviceId: string | null | undefined): boolean {
-  return Boolean(deviceId && deviceId.startsWith("staff-serv-"));
+  return Boolean(deviceId && deviceId.startsWith(STAFF_DEVICE_PREFIX));
 }

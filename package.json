@@ -20,6 +20,8 @@
     "prisma:generate": "./node_modules/.bin/prisma generate",
     "prisma:pull": "./node_modules/.bin/prisma db pull",
     "migrate:deploy": "./node_modules/.bin/prisma migrate deploy",
+    "test:handoff": "node scripts/test-table-staff-handoff-db.mjs",
+    "verify:table": "npm run typecheck && npm run prisma:validate && npm run test:handoff",
     "prisma:deploy": "./node_modules/.bin/prisma migrate deploy",
     "postinstall": "./node_modules/.bin/prisma generate",
     "setup": "npm ci --ignore-scripts && ./node_modules/.bin/prisma generate",

@@ -1,4 +1,6 @@
-/** Identifiant maître dédié à la tablette serveur (prioritaire sur les convives). */
-export function getStaffTableDeviceId(tableId: string): string {
-  return `staff-serv-${String(tableId).trim()}`;
-}
+export {
+  STAFF_DEVICE_PREFIX,
+  getStaffTableDeviceId,
+  isStaffTableDeviceId,
+  normalizeTableId,
+} from "@/lib/table-contract";
