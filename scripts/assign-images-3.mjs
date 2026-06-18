@@ -33,6 +33,10 @@ const MAPPING = {
   "sashimi-saumon-5-pieces.png": ["cmgv70hkm002wg5ahi8wakmlo", "cmgv70hlq002xg5ahnxaab5g4"], // Sashimi saumon 5 + 12 pcs
   "sashimi-thon-5-pieces.png": "cmgv70hmv002yg5ah4gx4tnmv", // Sashimi thon 5 pcs
   "sashimi-thon-10-pieces.png": "cmgv70hny002zg5ah8d246ryk", // Sashimi thon 12 pcs
+  "tataki-saumon-5-pieces.png": "cmgv70hp10030g5ahyps6qzqi", // Tataki saumon 5 pcs
+  "tataki-saumon-10-pieces.png": "cmgv70hq50031g5ahpr27jtm1", // Tataki saumon 12 pcs
+  "tataki-thon-5-pieces.png": "cmgv70hr90032g5ahr7mpi86f", // Tataki thon 5 pcs
+  "tataki-thon-10-pieces.png": "cmgv70hse0033g5ah8nkfoyn0", // Tataki thon 12 pcs
 };
 
 function slugify(filename) {
