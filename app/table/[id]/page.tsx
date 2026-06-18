@@ -180,7 +180,9 @@ export default function TablePage() {
     useEffect(() => {
         if (orderMode || staffMode || !activeDeviceId) return;
         const waitingForMaster = masterStatus.hasMaster && !masterStatus.isMaster;
-        const intervalMs = waitingForMaster ? 3000 : 5000;
+        const waitingForStaffRelease =
+            waitingForMaster && masterStatus.masterType === "staff";
+        const intervalMs = waitingForStaffRelease ? 1000 : waitingForMaster ? 2000 : 5000;
         const id = setInterval(() => {
             void refreshMasterStatus();
         }, intervalMs);
@@ -191,17 +193,33 @@ export default function TablePage() {
         activeDeviceId,
         masterStatus.hasMaster,
         masterStatus.isMaster,
+        masterStatus.masterType,
         refreshMasterStatus,
     ]);
 
     useEffect(() => {
         if (!orderMode) return;
-        const intervalMs = masterStatus.isMaster ? 3000 : masterStatus.hasMaster ? 5000 : 20000;
+        const waitingForMaster = masterStatus.hasMaster && !masterStatus.isMaster;
+        const waitingForStaffRelease =
+            waitingForMaster && masterStatus.masterType === "staff";
+        const intervalMs = masterStatus.isMaster
+            ? 3000
+            : waitingForStaffRelease
+              ? 1000
+              : waitingForMaster
+                ? 2000
+                : 20000;
         const id = setInterval(() => {
             void refreshMasterStatus();
         }, intervalMs);
         return () => clearInterval(id);
-    }, [orderMode, masterStatus.hasMaster, masterStatus.isMaster, refreshMasterStatus]);
+    }, [
+        orderMode,
+        masterStatus.hasMaster,
+        masterStatus.isMaster,
+        masterStatus.masterType,
+        refreshMasterStatus,
+    ]);
 
     useEffect(() => {
         if (staffMode) {
@@ -213,6 +231,8 @@ export default function TablePage() {
             setReadOnlyMode(false);
         } else if (masterStatus.hasMaster) {
             setReadOnlyMode(true);
+        } else {
+            setReadOnlyMode(false);
         }
     }, [orderMode, staffMode, masterStatus.hasMaster, masterStatus.isMaster, masterStatus.loading]);
 
@@ -290,9 +310,11 @@ export default function TablePage() {
                         (sum, line) => sum + (Number(line.qty) || 0),
                         0
                     );
-                    toast.success(
-                        `Panier client repris (${itemCount} article${itemCount > 1 ? "s" : ""}).`
-                    );
+                    if (itemCount > 0) {
+                        toast.success(
+                            `Panier client repris (${itemCount} article${itemCount > 1 ? "s" : ""}).`
+                        );
+                    }
                 }
             }
 
@@ -304,6 +326,14 @@ export default function TablePage() {
                     window.localStorage.setItem(`table:${tableId}:people`, String(nextPeople));
                 }
                 applied = true;
+                if (
+                    options?.toast &&
+                    staffMode &&
+                    lines.length === 0 &&
+                    nextPeople > 1
+                ) {
+                    toast.success(`Convives repris (${nextPeople} personnes).`);
+                }
             }
             if (typeof draft.tableComment === "string") {
                 setTableComment(draft.tableComment);
@@ -326,6 +356,24 @@ export default function TablePage() {
             return applied;
         },
         [peopleCount, staffMode, tableId]
+    );
+
+    const fetchDraftFromServer = useCallback(
+        async (options?: { toast?: boolean }) => {
+            try {
+                const res = await fetch(`/api/tables/${tableId}/draft-cart`, { cache: "no-store" });
+                const data = await res.json();
+                const draft = data?.draft;
+                if (draft) {
+                    applyDraftFromPayload(draft, { toast: options?.toast });
+                    return draft;
+                }
+            } catch {
+                // ignore
+            }
+            return null;
+        },
+        [applyDraftFromPayload, tableId]
     );
 
     const pushDraftCartNow = useCallback(async () => {
@@ -357,9 +405,7 @@ export default function TablePage() {
 
     const releaseMaster = useCallback(async () => {
         if (!activeDeviceId) return;
-        if (cartRef.current.length > 0 || peopleCount > 1 || tableComment.trim()) {
-            await pushDraftCartNow();
-        }
+        await pushDraftCartNow();
         try {
             const res = await fetch(`/api/tables/${tableId}/master`, {
                 method: "DELETE",
@@ -388,13 +434,11 @@ export default function TablePage() {
         } catch {
             toast.error("Erreur lors de la libération.");
         }
-    }, [activeDeviceId, peopleCount, pushDraftCartNow, router, staffMode, tableComment, tableId]);
+    }, [activeDeviceId, pushDraftCartNow, router, staffMode, tableId]);
 
     const releaseMasterSilent = useCallback(async () => {
         if (!activeDeviceId || !masterStatusRef.current.isMaster) return;
-        if (cartRef.current.length > 0 || peopleCount > 1 || tableComment.trim()) {
-            await pushDraftCartNow();
-        }
+        await pushDraftCartNow();
         try {
             await fetch(`/api/tables/${tableId}/master`, {
                 method: "DELETE",
@@ -405,7 +449,7 @@ export default function TablePage() {
         } catch {
             // best effort
         }
-    }, [activeDeviceId, peopleCount, pushDraftCartNow, tableComment, tableId]);
+    }, [activeDeviceId, pushDraftCartNow, tableId]);
 
     const showLanding = useCallback(() => {
         if (staffMode) {
@@ -472,8 +516,16 @@ export default function TablePage() {
                 return;
             }
             if (data.draft) {
+                applyDraftFromPayload(data.draft, { toast: staffMode });
+            }
+            if (staffMode) {
+                draftLoadKeyRef.current = "";
+                setDraftReady(false);
+                await fetchDraftFromServer({ toast: true });
+                draftLoadKeyRef.current = `${tableId}:${activeDeviceId}`;
+                setDraftReady(true);
+            } else if (data.draft) {
                 const draftItems = Array.isArray(data.draft.items) ? data.draft.items : [];
-                applyDraftFromPayload(data.draft, { toast: staffMode && draftItems.length > 0 });
                 if (draftItems.length > 0) {
                     draftLoadKeyRef.current = `${tableId}:${activeDeviceId}`;
                     setDraftReady(true);
@@ -516,6 +568,7 @@ export default function TablePage() {
         activeDeviceId,
         applyDraftFromPayload,
         enterOrderMode,
+        fetchDraftFromServer,
         refreshMasterStatus,
         staffMode,
         tableId,
@@ -531,13 +584,40 @@ export default function TablePage() {
     }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
 
     const prevIsMasterRef = useRef(false);
+    const prevMasterTypeRef = useRef<"staff" | "client" | null>(null);
+    const prevHasMasterRef = useRef(false);
     useEffect(() => {
         const wasMaster = prevIsMasterRef.current;
+        const prevType = prevMasterTypeRef.current;
+        const prevHas = prevHasMasterRef.current;
         prevIsMasterRef.current = masterStatus.isMaster;
-        if (wasMaster && !masterStatus.isMaster && cartRef.current.length > 0 && !staffMode) {
+        prevMasterTypeRef.current = masterStatus.masterType;
+        prevHasMasterRef.current = masterStatus.hasMaster;
+
+        if (wasMaster && !masterStatus.isMaster && !staffMode) {
             void pushDraftCartNow();
         }
-    }, [masterStatus.isMaster, pushDraftCartNow, staffMode]);
+
+        if (
+            !staffMode &&
+            !masterStatus.loading &&
+            prevType === "staff" &&
+            prevHas &&
+            !masterStatus.hasMaster
+        ) {
+            setReadOnlyMode(false);
+            draftLoadKeyRef.current = "";
+            void takeCharge({ silent: true });
+        }
+    }, [
+        masterStatus.hasMaster,
+        masterStatus.isMaster,
+        masterStatus.loading,
+        masterStatus.masterType,
+        pushDraftCartNow,
+        staffMode,
+        takeCharge,
+    ]);
 
     const scrollToOrderTop = useCallback(() => {
         if (typeof window === "undefined") return;
@@ -655,19 +735,21 @@ export default function TablePage() {
     }, []);
 
     useEffect(() => {
+        if (staffMode) return;
         if (typeof window === "undefined") return;
         const stored = window.localStorage.getItem(`table:${tableId}:people`);
         const n = Number(stored);
         if (Number.isFinite(n) && n >= 1 && n <= 12) {
             setPeopleCount(Math.round(n));
         }
-    }, [tableId]);
+    }, [staffMode, tableId]);
 
     useEffect(() => {
+        if (staffMode) return;
         const loaded = loadGuestNamesForTable(tableId);
         guestNamesPersistedRef.current = loaded;
         setGuestNames(loaded);
-    }, [guestNamesStorageKey, tableId]);
+    }, [guestNamesStorageKey, staffMode, tableId]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -699,9 +781,10 @@ export default function TablePage() {
                 if (cancelled) return;
 
                 const draft = data?.draft;
-                const lines = Array.isArray(draft?.items) ? draft.items : [];
-                if (lines.length > 0 || (draft && cartRef.current.length === 0)) {
-                    applyDraftFromPayload(draft, { toast: staffMode && lines.length > 0 });
+                if (draft) {
+                    applyDraftFromPayload(draft, {
+                        toast: staffMode && Array.isArray(draft.items) && draft.items.length > 0,
+                    });
                 }
             } catch {
                 // sync locale continue même si le chargement échoue
@@ -788,27 +871,17 @@ export default function TablePage() {
         let ticks = 0;
         const id = window.setInterval(() => {
             ticks += 1;
-            if (ticks > 10 || cartRef.current.length > 0) {
+            const hasContent =
+                cartRef.current.length > 0 || previousPeopleCountRef.current > 1;
+            if (ticks > 15 || hasContent) {
                 window.clearInterval(id);
                 return;
             }
-            void (async () => {
-                try {
-                    const res = await fetch(`/api/tables/${tableId}/draft-cart`, { cache: "no-store" });
-                    const data = await res.json();
-                    const lines = Array.isArray(data?.draft?.items) ? data.draft.items : [];
-                    if (lines.length > 0) {
-                        applyDraftFromPayload(data.draft, { toast: true });
-                        window.clearInterval(id);
-                    }
-                } catch {
-                    // ignore
-                }
-            })();
-        }, 2000);
+            void fetchDraftFromServer({ toast: ticks === 1 });
+        }, 1000);
 
         return () => window.clearInterval(id);
-    }, [applyDraftFromPayload, draftReady, masterStatus.isMaster, staffMode, tableId]);
+    }, [draftReady, fetchDraftFromServer, masterStatus.isMaster, staffMode]);
 
     useEffect(() => {
         const previous = previousPeopleCountRef.current;
@@ -1584,7 +1657,7 @@ export default function TablePage() {
                               ? "Ajoutez les plats pour cette table, puis envoyez la commande en cuisine."
                               : "Composez votre menu ou sélectionnez vos plats à la carte. Choisissez le convive avant chaque ajout, puis envoyez une seule commande."}
                     </p>
-                    {canModifyCart && !staffMode && (
+                    {canModifyCart && (
                     <div className="flex flex-wrap items-center gap-4 pt-1">
                         <div className="flex items-center gap-2">
                             <span className="text-xs uppercase tracking-[0.2em] surface-muted-text">

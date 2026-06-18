@@ -7,9 +7,8 @@ import {
   isStaffMasterRecord,
   releaseTableMaster,
   touchTableMaster,
-  clearStaleStaffMaster,
-  clearStaleClientMaster,
   clearStaleMasters,
+  clearTableMaster,
 } from "@/lib/table-master";
 import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
 import { getTableDraftCart } from "@/lib/table-draft-cart";
@@ -88,8 +87,10 @@ export async function POST(req: Request, { params }: { params: { tableId: string
           { status: 400 }
         );
       }
+      const draftBefore = await getTableDraftCart(tableId);
       const record = await forceClaimTableMaster(tableId, deviceId);
-      const draft = await getTableDraftCart(tableId);
+      const draftAfter = await getTableDraftCart(tableId);
+      const draft = draftAfter ?? draftBefore;
       return NextResponse.json({
         ok: true,
         isMaster: true,
@@ -139,6 +140,13 @@ export async function DELETE(req: Request, { params }: { params: { tableId: stri
     const deviceId = readDeviceId(req, body);
     if (!deviceId) {
       return NextResponse.json({ ok: false, message: "deviceId requis" }, { status: 400 });
+    }
+
+    if (isStaffDeviceId(deviceId)) {
+      const unauthorized = assertStaffSession();
+      if (unauthorized) return unauthorized;
+      await clearTableMaster(tableId);
+      return NextResponse.json({ ok: true, hasMaster: false, isMaster: false, released: true });
     }
 
     const released = await releaseTableMaster(tableId, deviceId);
