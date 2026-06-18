@@ -108,20 +108,41 @@ export default function TablePage() {
         setDeviceId(getOrCreateTableDeviceId());
     }, []);
 
-    useEffect(() => {
+    const syncModeFromUrl = useCallback(() => {
         if (typeof window === "undefined") return;
-        const params = new URLSearchParams(window.location.search);
-        const isStaff = params.get("staff") === "1";
+        const urlParams = new URLSearchParams(window.location.search);
+        const isStaff = urlParams.get("staff") === "1";
         if (isStaff) {
             setStaffMode(true);
             setOrderMode(true);
             setReadOnlyMode(false);
         }
-        if (params.get("order") === "1") {
+        if (urlParams.get("order") === "1") {
             setOrderMode(true);
-            if (!isStaff && params.get("view") === "carte") setReadOnlyMode(true);
+            if (!isStaff && urlParams.get("view") === "carte") setReadOnlyMode(true);
         }
     }, []);
+
+    useEffect(() => {
+        syncModeFromUrl();
+    }, [syncModeFromUrl, tableId]);
+
+    const enterOrderMode = useCallback(
+        (options?: { readOnly?: boolean; silent?: boolean }) => {
+            setOrderMode(true);
+            setReadOnlyMode(options?.readOnly === true);
+            if (!options?.silent) {
+                const query = staffMode
+                    ? "?staff=1&order=1"
+                    : options?.readOnly
+                      ? "?order=1&view=carte"
+                      : "?order=1";
+                router.replace(`/table/${tableId}${query}`, { scroll: true });
+                window.requestAnimationFrame(() => syncModeFromUrl());
+            }
+        },
+        [router, staffMode, syncModeFromUrl, tableId]
+    );
 
     const activeDeviceId = staffMode ? getStaffTableDeviceId(tableId) : deviceId;
 
@@ -189,15 +210,8 @@ export default function TablePage() {
     const staffQuery = staffMode ? "?staff=1" : "";
 
     const browseMenu = useCallback(() => {
-        setOrderMode(true);
-        if (staffMode) {
-            setReadOnlyMode(false);
-            router.replace(`/table/${tableId}?staff=1&order=1`, { scroll: true });
-            return;
-        }
-        setReadOnlyMode(true);
-        router.replace(`/table/${tableId}?order=1&view=carte`, { scroll: true });
-    }, [router, staffMode, tableId]);
+        enterOrderMode({ readOnly: !staffMode });
+    }, [enterOrderMode, staffMode]);
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -410,8 +424,24 @@ export default function TablePage() {
     }, [masterStatus.isMaster, releaseMasterSilent, staffMode]);
 
     const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
-        if (!activeDeviceId) return;
+        if (!activeDeviceId) {
+            if (!options?.silent) {
+                toast.error("Chargement en cours… Réessayez dans une seconde.");
+            }
+            return;
+        }
+
+        if (!options?.force && !staffMode && masterStatusRef.current.isMaster) {
+            enterOrderMode({ silent: options?.silent });
+            if (!options?.silent) {
+                toast.success("Vous reprenez la commande pour cette table.");
+            }
+            return;
+        }
+
         setClaimingMaster(true);
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 15000);
         try {
             const res = await fetch(`/api/tables/${tableId}/master`, {
                 method: "POST",
@@ -420,6 +450,7 @@ export default function TablePage() {
                     deviceId: activeDeviceId,
                     force: options?.force === true || staffMode,
                 }),
+                signal: controller.signal,
             });
             const data = await res.json();
             if (!res.ok) {
@@ -428,7 +459,7 @@ export default function TablePage() {
                 } else if (!options?.silent) {
                     toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
                 }
-                await refreshMasterStatus();
+                void refreshMasterStatus();
                 return;
             }
             if (data.draft) {
@@ -451,29 +482,32 @@ export default function TablePage() {
                 masterType: staffMode ? "staff" : "client",
                 loading: false,
             });
-            setReadOnlyMode(false);
-            setOrderMode(true);
+            enterOrderMode({ silent: options?.silent });
             if (!options?.silent) {
-                router.replace(
-                    `/table/${tableId}${staffMode ? "?staff=1&order=1" : "?order=1"}`,
-                    { scroll: true }
-                );
                 toast.success(
                     staffMode
                         ? "Mode serveur — vous gérez la commande pour cette table."
                         : "Vous gérez la commande pour cette table."
                 );
             }
-        } catch {
-            if (!options?.silent) toast.error("Impossible de prendre la commande.");
+        } catch (err: unknown) {
+            if (!options?.silent) {
+                const aborted = err instanceof DOMException && err.name === "AbortError";
+                toast.error(
+                    aborted
+                        ? "Délai dépassé — vérifiez la connexion et réessayez."
+                        : "Impossible de prendre la commande."
+                );
+            }
         } finally {
+            window.clearTimeout(timeoutId);
             setClaimingMaster(false);
         }
     }, [
         activeDeviceId,
         applyDraftFromPayload,
+        enterOrderMode,
         refreshMasterStatus,
-        router,
         staffMode,
         tableId,
     ]);
