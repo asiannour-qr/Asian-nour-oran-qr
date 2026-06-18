@@ -86,14 +86,28 @@ function slugifyCategory(value: string, fallback: string) {
     return base || fallback;
 }
 
+function readTableUrlFlags() {
+    if (typeof window === "undefined") {
+        return { staff: false, order: false, carteView: false };
+    }
+    const params = new URLSearchParams(window.location.search);
+    const staff = params.get("staff") === "1";
+    const order = params.get("order") === "1";
+    return {
+        staff,
+        order: order || staff,
+        carteView: !staff && params.get("view") === "carte",
+    };
+}
+
 export default function TablePage() {
     // ⚠️ dossier = app/table/[id] : le param s’appelle "id"
     const params = useParams<{ id: string }>();
     const tableId = params?.id ?? "1";
     const router = useRouter();
-    const [orderMode, setOrderMode] = useState(false);
-    const [readOnlyMode, setReadOnlyMode] = useState(false);
-    const [staffMode, setStaffMode] = useState(false);
+    const [orderMode, setOrderMode] = useState(() => readTableUrlFlags().order);
+    const [readOnlyMode, setReadOnlyMode] = useState(() => readTableUrlFlags().carteView);
+    const [staffMode, setStaffMode] = useState(() => readTableUrlFlags().staff);
     const [deviceId, setDeviceId] = useState("");
     const [masterStatus, setMasterStatus] = useState({
         hasMaster: false,
@@ -130,7 +144,7 @@ export default function TablePage() {
     const enterOrderMode = useCallback(
         (options?: { readOnly?: boolean; silent?: boolean }) => {
             setOrderMode(true);
-            setReadOnlyMode(options?.readOnly === true);
+            setReadOnlyMode(staffMode ? false : options?.readOnly === true);
             if (!options?.silent) {
                 const query = staffMode
                     ? "?staff=1&order=1"
@@ -144,7 +158,10 @@ export default function TablePage() {
         [router, staffMode, syncModeFromUrl, tableId]
     );
 
-    const activeDeviceId = staffMode ? getStaffTableDeviceId(tableId) : deviceId;
+    const activeDeviceId = staffMode
+        ? getStaffTableDeviceId(tableId)
+        : deviceId;
+    const staffDeviceId = getStaffTableDeviceId(tableId);
 
     const refreshMasterStatus = useCallback(async () => {
         if (!activeDeviceId) return;
@@ -391,17 +408,14 @@ export default function TablePage() {
         }
     }, [tableId]);
 
-    const staffDraftLoading = staffMode && masterStatus.isMaster && !draftReady;
     const staffInitializing =
         staffMode &&
-        ((!masterStatus.isMaster && (masterStatus.loading || claimingMaster)) || staffDraftLoading);
+        !masterStatus.isMaster &&
+        (masterStatus.loading || claimingMaster);
     const canModifyCart = staffMode
-        ? masterStatus.isMaster && draftReady
+        ? masterStatus.isMaster
         : masterStatus.isMaster && !readOnlyMode;
-    const canSyncDraft =
-        Boolean(activeDeviceId) &&
-        masterStatus.isMaster &&
-        (staffMode ? draftReady : true);
+    const canSyncDraft = Boolean(activeDeviceId) && masterStatus.isMaster;
 
     const releaseMaster = useCallback(async () => {
         if (!activeDeviceId) return;
@@ -464,7 +478,7 @@ export default function TablePage() {
     }, [releaseMasterSilent, router, staffMode, staffQuery, tableId]);
 
     useEffect(() => {
-        if (!masterStatus.isMaster) return;
+        if (staffMode || !masterStatus.isMaster) return;
 
         const onLeave = () => {
             void releaseMasterSilent();
@@ -474,7 +488,7 @@ export default function TablePage() {
         return () => {
             window.removeEventListener("pagehide", onLeave);
         };
-    }, [masterStatus.isMaster, releaseMasterSilent]);
+    }, [masterStatus.isMaster, releaseMasterSilent, staffMode]);
 
     const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
         if (!activeDeviceId) {
@@ -515,27 +529,20 @@ export default function TablePage() {
                 void refreshMasterStatus();
                 return;
             }
-            if (data.draft) {
-                applyDraftFromPayload(data.draft, { toast: staffMode });
-            }
             if (staffMode) {
-                draftLoadKeyRef.current = "";
-                setDraftReady(false);
-                await fetchDraftFromServer({ toast: true });
-                draftLoadKeyRef.current = `${tableId}:${activeDeviceId}`;
-                setDraftReady(true);
-            } else if (data.draft) {
-                const draftItems = Array.isArray(data.draft.items) ? data.draft.items : [];
-                if (draftItems.length > 0) {
-                    draftLoadKeyRef.current = `${tableId}:${activeDeviceId}`;
-                    setDraftReady(true);
-                } else {
-                    draftLoadKeyRef.current = "";
-                    setDraftReady(false);
+                if (data.draft) {
+                    applyDraftFromPayload(data.draft, { toast: true });
                 }
+                draftLoadKeyRef.current = `${tableId}:${staffDeviceId}`;
+                setDraftReady(true);
+                void fetchDraftFromServer({ toast: true });
+            } else if (data.draft) {
+                applyDraftFromPayload(data.draft, { toast: false });
+                draftLoadKeyRef.current = activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
+                setDraftReady(true);
             } else {
-                draftLoadKeyRef.current = "";
-                setDraftReady(false);
+                draftLoadKeyRef.current = activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
+                setDraftReady(true);
             }
             setMasterStatus({
                 hasMaster: true,
@@ -571,6 +578,7 @@ export default function TablePage() {
         fetchDraftFromServer,
         refreshMasterStatus,
         staffMode,
+        staffDeviceId,
         tableId,
     ]);
 
@@ -582,6 +590,14 @@ export default function TablePage() {
             staffClaimInFlightRef.current = false;
         });
     }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
+
+    useEffect(() => {
+        if (!staffMode || masterStatus.isMaster || masterStatus.loading || claimingMaster) return;
+        const id = window.setInterval(() => {
+            void takeCharge({ force: true, silent: true });
+        }, 2000);
+        return () => window.clearInterval(id);
+    }, [claimingMaster, masterStatus.isMaster, masterStatus.loading, staffMode, takeCharge]);
 
     const prevIsMasterRef = useRef(false);
     const prevMasterTypeRef = useRef<"staff" | "client" | null>(null);
@@ -758,7 +774,7 @@ export default function TablePage() {
 
     useEffect(() => {
         if (!masterStatus.isMaster) {
-            if (staffMode) {
+            if (!staffMode) {
                 draftLoadKeyRef.current = "";
                 setDraftReady(false);
             }
@@ -866,14 +882,14 @@ export default function TablePage() {
     }, [canSyncDraft, pushDraftCartNow]);
 
     useEffect(() => {
-        if (!staffMode || !masterStatus.isMaster || !draftReady) return;
+        if (!staffMode || !masterStatus.isMaster) return;
 
         let ticks = 0;
         const id = window.setInterval(() => {
             ticks += 1;
             const hasContent =
                 cartRef.current.length > 0 || previousPeopleCountRef.current > 1;
-            if (ticks > 15 || hasContent) {
+            if (ticks > 20 || hasContent) {
                 window.clearInterval(id);
                 return;
             }
@@ -881,7 +897,7 @@ export default function TablePage() {
         }, 1000);
 
         return () => window.clearInterval(id);
-    }, [draftReady, fetchDraftFromServer, masterStatus.isMaster, staffMode]);
+    }, [fetchDraftFromServer, masterStatus.isMaster, staffMode]);
 
     useEffect(() => {
         const previous = previousPeopleCountRef.current;
@@ -1588,6 +1604,12 @@ export default function TablePage() {
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
 
+                {staffMode && !canModifyCart && !staffInitializing && (
+                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+                        ⏳ <strong>Prise en charge serveur</strong> — connexion à la table en cours…
+                    </div>
+                )}
+
                 {staffMode && canModifyCart && (
                     <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900 flex flex-wrap items-center justify-between gap-3">
                         <span>
@@ -1832,7 +1854,9 @@ export default function TablePage() {
                                                     <button className="btn-primary" onClick={() => composeMenu(m)} disabled={!canModifyCart}>
                                                         {canModifyCart
                                                             ? `Composer pour ${getGuestNameForPersonId(activePerson)}`
-                                                            : "Consultation seule"}
+                                                            : staffMode
+                                                              ? "Prise en charge…"
+                                                              : "Consultation seule"}
                                                     </button>
                                                 </div>
                                             </div>
