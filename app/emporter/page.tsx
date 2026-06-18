@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
 import CategorySlider from "@/app/components/CategorySlider";
+import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
 import {
   ComposableMenu,
   MenuComposerModal,
 } from "@/app/components/MenuComposerModal";
+import { isColdMenuItem } from "@/lib/cold-menus";
 
 type MenuItem = {
   id: string;
@@ -43,6 +45,7 @@ export default function EmporterPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [composedMenus, setComposedMenus] = useState<ComposableMenu[]>([]);
   const [composingMenu, setComposingMenu] = useState<ComposableMenu | null>(null);
+  const [coldMenuPick, setColdMenuPick] = useState<MenuItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [comment, setComment] = useState("");
@@ -464,6 +467,13 @@ export default function EmporterPage() {
                               <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
                                 Indisponible
                               </span>
+                            ) : isColdMenuItem(it) ? (
+                              <button
+                                className="btn-soft text-xs px-2 py-1 shrink-0"
+                                onClick={() => setColdMenuPick(it)}
+                              >
+                                Choisir boisson
+                              </button>
                             ) : (
                               <button
                                 className="btn-soft text-xs px-2 py-1 shrink-0"
@@ -507,6 +517,19 @@ export default function EmporterPage() {
           onConfirm={(label, priceCents) => {
             addToCart(label, priceCents);
             setComposingMenu(null);
+          }}
+        />
+      )}
+
+      {coldMenuPick && (
+        <ColdMenuDrinkModal
+          menu={coldMenuPick}
+          menuItems={menu}
+          formatPrice={euro}
+          onClose={() => setColdMenuPick(null)}
+          onConfirm={(label, priceCents) => {
+            addToCart(label, priceCents);
+            setColdMenuPick(null);
           }}
         />
       )}

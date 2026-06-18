@@ -22,6 +22,8 @@ import {
     resetGuestNames as resetGuestNamesForTable,
 } from "@/lib/guest-names-store";
 import CategorySlider from "@/app/components/CategorySlider";
+import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
+import { isColdMenuItem } from "@/lib/cold-menus";
 
 type MenuItem = {
     id: string;
@@ -261,6 +263,7 @@ export default function TablePage() {
     const [cart, setCart] = useState<CartLine[]>([]);
     const [peopleCount, setPeopleCount] = useState<number>(1);
     const [composeState, setComposeState] = useState<ComposeState | null>(null);
+    const [coldMenuPick, setColdMenuPick] = useState<MenuItem | null>(null);
     const [composeErrors, setComposeErrors] = useState<Record<string, string>>({});
     const [activePerson, setActivePerson] = useState<string>("P1");
     const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
@@ -1400,16 +1403,25 @@ export default function TablePage() {
                                                                     Indisponible
                                                                 </span>
                                                             ) : canModifyCart ? (
-                                                                <button
-                                                                    className="btn-soft text-xs px-2 py-1 shrink-0"
-                                                                    onClick={() =>
-                                                                        addToCartLine(it.name, it.priceCents, undefined, {
-                                                                            scrollToTop: true,
-                                                                        })
-                                                                    }
-                                                                >
-                                                                    + {getGuestNameForPersonId(activePerson)}
-                                                                </button>
+                                                                isColdMenuItem(it) ? (
+                                                                    <button
+                                                                        className="btn-soft text-xs px-2 py-1 shrink-0"
+                                                                        onClick={() => setColdMenuPick(it)}
+                                                                    >
+                                                                        Choisir boisson
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        className="btn-soft text-xs px-2 py-1 shrink-0"
+                                                                        onClick={() =>
+                                                                            addToCartLine(it.name, it.priceCents, undefined, {
+                                                                                scrollToTop: true,
+                                                                            })
+                                                                        }
+                                                                    >
+                                                                        + {getGuestNameForPersonId(activePerson)}
+                                                                    </button>
+                                                                )
                                                             ) : null}
                                                         </div>
                                                     </div>
@@ -1576,6 +1588,20 @@ export default function TablePage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {coldMenuPick && (
+                <ColdMenuDrinkModal
+                    menu={coldMenuPick}
+                    menuItems={menuItems}
+                    formatPrice={euro}
+                    confirmLabel={`Ajouter pour ${getGuestNameForPersonId(activePerson)} (${euro(coldMenuPick.priceCents)})`}
+                    onClose={() => setColdMenuPick(null)}
+                    onConfirm={(label, priceCents) => {
+                        addToCartLine(label, priceCents, undefined, { scrollToTop: true });
+                        setColdMenuPick(null);
+                    }}
+                />
             )}
 
             {cartDrawerOpen && canModifyCart && (
