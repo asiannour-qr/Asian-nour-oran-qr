@@ -1,7 +1,7 @@
 // app/table/[id]/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
@@ -115,8 +115,13 @@ export default function TablePage() {
         loading: true,
     });
     const [claimingMaster, setClaimingMaster] = useState(false);
-    const [staffTableReady, setStaffTableReady] = useState(false);
+    const [staffClaimError, setStaffClaimError] = useState<string | null>(null);
     const staffClaimInFlightRef = useRef(false);
+    const staffClaimAttemptsRef = useRef(0);
+    const staffAutoClaimStartedRef = useRef(false);
+    const takeChargeRef = useRef<(options?: { force?: boolean; silent?: boolean }) => Promise<void>>(
+        async () => {}
+    );
     const idleTableResetDoneRef = useRef(false);
     const sessionCleanupRef = useRef({
         reset: () => {},
@@ -141,6 +146,20 @@ export default function TablePage() {
             if (!isStaff && urlParams.get("view") === "carte") setReadOnlyMode(true);
         }
     }, []);
+
+    useLayoutEffect(() => {
+        staffAutoClaimStartedRef.current = false;
+        staffClaimAttemptsRef.current = 0;
+        setStaffClaimError(null);
+        const flags = readTableUrlFlags();
+        setStaffMode(flags.staff);
+        setOrderMode(flags.order);
+        if (flags.staff) {
+            setReadOnlyMode(false);
+        } else if (flags.carteView) {
+            setReadOnlyMode(true);
+        }
+    }, [tableId]);
 
     useEffect(() => {
         syncModeFromUrl();
@@ -398,6 +417,8 @@ export default function TablePage() {
         [applyDraftFromPayload, tableId]
     );
 
+    const showOrderUi = staffMode || orderMode;
+
     const pushDraftCartNow = useCallback(async () => {
         const payload = draftPayloadRef.current;
         if (!payload?.deviceId) return;
@@ -413,22 +434,12 @@ export default function TablePage() {
         }
     }, [tableId]);
 
-    const staffInitializing =
-        staffMode && !staffTableReady && (masterStatus.loading || claimingMaster);
-
-    useEffect(() => {
-        setStaffTableReady(false);
-    }, [tableId]);
-
-    useEffect(() => {
-        if (staffMode && masterStatus.isMaster) {
-            setStaffTableReady(true);
-        }
-    }, [staffMode, masterStatus.isMaster]);
     const canModifyCart = staffMode
         ? masterStatus.isMaster
         : masterStatus.isMaster && !readOnlyMode;
     const canSyncDraft = Boolean(activeDeviceId) && masterStatus.isMaster;
+    const staffConnecting =
+        staffMode && !masterStatus.isMaster && (masterStatus.loading || claimingMaster);
 
     const releaseMaster = useCallback(async () => {
         if (!activeDeviceId) return;
@@ -531,6 +542,9 @@ export default function TablePage() {
         }
 
         setClaimingMaster(true);
+        if (staffMode) {
+            setStaffClaimError(null);
+        }
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), 15000);
         try {
@@ -545,13 +559,24 @@ export default function TablePage() {
             });
             const data = await res.json();
             if (!res.ok) {
+                const message =
+                    staffMode && res.status === 401
+                        ? "Session serveur expirée — reconnectez-vous depuis l'écran serveur."
+                        : data?.message || "Un autre téléphone gère déjà la commande.";
+                if (staffMode) {
+                    setStaffClaimError(message);
+                }
                 if (staffMode && res.status === 401) {
-                    toast.error("Session serveur expirée — reconnectez-vous depuis l'écran serveur.");
+                    toast.error(message);
                 } else if (!options?.silent) {
-                    toast.error(data?.message || "Un autre téléphone gère déjà la commande.");
+                    toast.error(message);
                 }
                 void refreshMasterStatus();
                 return;
+            }
+            if (staffMode) {
+                setStaffClaimError(null);
+                staffClaimAttemptsRef.current = 0;
             }
             if (staffMode) {
                 if (data.draft) {
@@ -583,13 +608,15 @@ export default function TablePage() {
                 );
             }
         } catch (err: unknown) {
+            const aborted = err instanceof DOMException && err.name === "AbortError";
+            const message = aborted
+                ? "Délai dépassé — vérifiez la connexion et réessayez."
+                : "Impossible de prendre la commande.";
+            if (staffMode) {
+                setStaffClaimError(message);
+            }
             if (!options?.silent) {
-                const aborted = err instanceof DOMException && err.name === "AbortError";
-                toast.error(
-                    aborted
-                        ? "Délai dépassé — vérifiez la connexion et réessayez."
-                        : "Impossible de prendre la commande."
-                );
+                toast.error(message);
             }
         } finally {
             window.clearTimeout(timeoutId);
@@ -606,14 +633,51 @@ export default function TablePage() {
         tableId,
     ]);
 
+    takeChargeRef.current = takeCharge;
+
     useEffect(() => {
-        if (!staffMode || !activeDeviceId || masterStatus.loading || masterStatus.isMaster) return;
-        if (staffClaimInFlightRef.current) return;
-        staffClaimInFlightRef.current = true;
-        void takeCharge({ force: true, silent: true }).finally(() => {
-            staffClaimInFlightRef.current = false;
-        });
-    }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, takeCharge]);
+        if (!staffMode || !activeDeviceId) {
+            staffAutoClaimStartedRef.current = false;
+            return;
+        }
+        if (masterStatus.isMaster) {
+            staffClaimAttemptsRef.current = 0;
+            setStaffClaimError(null);
+            return;
+        }
+        if (masterStatus.loading || staffClaimInFlightRef.current || staffAutoClaimStartedRef.current) return;
+
+        staffAutoClaimStartedRef.current = true;
+
+        let cancelled = false;
+        let retryTimer: number | undefined;
+
+        const runClaim = async () => {
+            if (cancelled || masterStatusRef.current.isMaster || staffClaimInFlightRef.current) return;
+            staffClaimInFlightRef.current = true;
+            staffClaimAttemptsRef.current += 1;
+            try {
+                await takeChargeRef.current({ force: true, silent: true });
+            } finally {
+                staffClaimInFlightRef.current = false;
+            }
+            if (cancelled || masterStatusRef.current.isMaster) return;
+            if (staffClaimAttemptsRef.current < 4) {
+                retryTimer = window.setTimeout(runClaim, 1200);
+            } else if (!masterStatusRef.current.isMaster) {
+                setStaffClaimError("Impossible de prendre la table — réessayez.");
+            }
+        };
+
+        void runClaim();
+
+        return () => {
+            cancelled = true;
+            if (retryTimer !== undefined) {
+                window.clearTimeout(retryTimer);
+            }
+        };
+    }, [staffMode, activeDeviceId, masterStatus.isMaster, masterStatus.loading, tableId]);
 
     const prevIsMasterRef = useRef(false);
     const prevMasterTypeRef = useRef<"staff" | "client" | null>(null);
@@ -1587,7 +1651,7 @@ export default function TablePage() {
                 tableId={tableId}
                 onClose={() => setOrderConfirmedOpen(false)}
             />
-            {!orderMode ? (
+            {!showOrderUi ? (
                 <TableLandingView
                     tableId={tableId}
                     hasMaster={masterStatus.hasMaster}
@@ -1597,11 +1661,6 @@ export default function TablePage() {
                     onBrowseMenu={browseMenu}
                     onTakeCharge={() => void takeCharge()}
                 />
-            ) : staffInitializing ? (
-                <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg,#f5efe6)] px-6 text-center">
-                    <p className="text-lg font-semibold text-[var(--color-heading)]">Mode serveur</p>
-                    <p className="text-sm surface-muted-text">Prise en charge de la table {tableId}…</p>
-                </div>
             ) : (
             <>
             <header className="sticky top-0 z-40 border-b border-[rgba(190,127,57,0.22)] bg-[rgba(245,239,230,0.85)] backdrop-blur-md">
@@ -1659,6 +1718,29 @@ export default function TablePage() {
             </header>
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
+
+                {staffMode && staffConnecting && (
+                    <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+                        ⏳ <strong>Prise en charge de la table {tableId}…</strong>
+                    </div>
+                )}
+
+                {staffMode && !canModifyCart && staffClaimError && !staffConnecting && (
+                    <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 space-y-3">
+                        <p>{staffClaimError}</p>
+                        <button
+                            type="button"
+                            disabled={claimingMaster}
+                            onClick={() => {
+                                staffClaimAttemptsRef.current = 0;
+                                void takeCharge({ force: true });
+                            }}
+                            className="inline-flex justify-center px-5 py-2.5 rounded-xl bg-[#7a5640] text-white font-semibold shadow-elevated hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {claimingMaster ? "Prise en charge…" : "Réessayer la prise en charge"}
+                        </button>
+                    </div>
+                )}
 
                 {staffMode && canModifyCart && (
                     <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900 flex flex-wrap items-center justify-between gap-3">
