@@ -179,11 +179,20 @@ export default function TablePage() {
 
     useEffect(() => {
         if (orderMode || staffMode || !activeDeviceId) return;
+        const waitingForMaster = masterStatus.hasMaster && !masterStatus.isMaster;
+        const intervalMs = waitingForMaster ? 3000 : 5000;
         const id = setInterval(() => {
             void refreshMasterStatus();
-        }, 5000);
+        }, intervalMs);
         return () => clearInterval(id);
-    }, [orderMode, staffMode, activeDeviceId, refreshMasterStatus]);
+    }, [
+        orderMode,
+        staffMode,
+        activeDeviceId,
+        masterStatus.hasMaster,
+        masterStatus.isMaster,
+        refreshMasterStatus,
+    ]);
 
     useEffect(() => {
         if (!orderMode) return;
@@ -411,7 +420,7 @@ export default function TablePage() {
     }, [releaseMasterSilent, router, staffMode, staffQuery, tableId]);
 
     useEffect(() => {
-        if (!staffMode || !masterStatus.isMaster) return;
+        if (!masterStatus.isMaster) return;
 
         const onLeave = () => {
             void releaseMasterSilent();
@@ -421,7 +430,7 @@ export default function TablePage() {
         return () => {
             window.removeEventListener("pagehide", onLeave);
         };
-    }, [masterStatus.isMaster, releaseMasterSilent, staffMode]);
+    }, [masterStatus.isMaster, releaseMasterSilent]);
 
     const takeCharge = useCallback(async (options?: { force?: boolean; silent?: boolean }) => {
         if (!activeDeviceId) {

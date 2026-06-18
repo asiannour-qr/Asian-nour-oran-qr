@@ -4,6 +4,8 @@ import { isStaffDeviceId } from "@/lib/staff-session";
 export const TABLE_MASTER_TTL_MS = 4 * 60 * 60 * 1000;
 /** Sans activité serveur sur la table, le verrou staff est considéré abandonné. */
 export const STAFF_MASTER_IDLE_MS = 45 * 1000;
+/** Sans signal du téléphone maître convive (page fermée / appli en arrière-plan), libération auto. */
+export const CLIENT_MASTER_IDLE_MS = 3 * 60 * 1000;
 
 export type TableMasterRecord = {
   tableId: string;
@@ -30,6 +32,14 @@ export function isStaffMasterIdle(record: TableMasterRecord, now = Date.now()): 
   return now - record.claimedAt.getTime() > STAFF_MASTER_IDLE_MS;
 }
 
+export function isClientMasterRecord(record: TableMasterRecord | null): boolean {
+  return Boolean(record && !isStaffDeviceId(record.deviceId));
+}
+
+export function isClientMasterIdle(record: TableMasterRecord, now = Date.now()): boolean {
+  return now - record.claimedAt.getTime() > CLIENT_MASTER_IDLE_MS;
+}
+
 /** Supprime un verrou serveur laissé ouvert après départ de la tablette. */
 export async function clearStaleStaffMaster(tableId: string): Promise<boolean> {
   const existing = await getTableMaster(tableId);
@@ -40,14 +50,31 @@ export async function clearStaleStaffMaster(tableId: string): Promise<boolean> {
   return true;
 }
 
+/** Supprime un verrou convive sans activité (téléphone fermé, onglet quitté). */
+export async function clearStaleClientMaster(tableId: string): Promise<boolean> {
+  const existing = await getTableMaster(tableId);
+  if (!existing || !isClientMasterRecord(existing) || !isClientMasterIdle(existing)) {
+    return false;
+  }
+  await prisma.tableOrderMaster.delete({ where: { tableId } }).catch(() => {});
+  return true;
+}
+
+export async function clearStaleMasters(tableId: string): Promise<void> {
+  await clearStaleStaffMaster(tableId);
+  await clearStaleClientMaster(tableId);
+}
+
 export async function claimTableMaster(
   tableId: string,
   deviceId: string
 ): Promise<{ ok: true; record: TableMasterRecord } | { ok: false; code: "TAKEN" }> {
-  await clearStaleStaffMaster(tableId);
+  await clearStaleMasters(tableId);
   const existing = await getTableMaster(tableId);
   if (existing && existing.deviceId !== deviceId) {
-    if (isStaffMasterRecord(existing) && isStaffMasterIdle(existing)) {
+    const staleStaff = isStaffMasterRecord(existing) && isStaffMasterIdle(existing);
+    const staleClient = isClientMasterRecord(existing) && isClientMasterIdle(existing);
+    if (staleStaff || staleClient) {
       await prisma.tableOrderMaster.delete({ where: { tableId } });
     } else {
       return { ok: false, code: "TAKEN" };

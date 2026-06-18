@@ -80,7 +80,7 @@ export default function TableLandingView({
             {masterTakenByStaff
               ? "Le serveur gère la commande pour le moment. S'il n'est plus à votre table, la main sera rendue automatiquement dans quelques instants — réessayez « Je gère la commande »."
               : masterTakenByOtherClient
-                ? "Un autre convive gère déjà le panier sur son téléphone. Vous pouvez consulter la carte ci-dessous."
+                ? "Un autre convive gère le panier sur son téléphone. S'il a quitté la page, la main sera libérée automatiquement (quelques minutes max)."
                 : hasMaster && isMaster
                 ? "Vous gérez la commande pour cette table. Vous pouvez reprendre le panier ou consulter la carte."
                 : "Personne ne gère la commande pour le moment — appuyez sur le bouton ci-dessous pour devenir le téléphone maître. Les autres convives pourront consulter la carte sans modifier le panier."}

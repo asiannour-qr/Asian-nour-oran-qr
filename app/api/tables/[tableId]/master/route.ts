@@ -8,6 +8,8 @@ import {
   releaseTableMaster,
   touchTableMaster,
   clearStaleStaffMaster,
+  clearStaleClientMaster,
+  clearStaleMasters,
 } from "@/lib/table-master";
 import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
 import { getTableDraftCart } from "@/lib/table-draft-cart";
@@ -40,12 +42,10 @@ export async function GET(req: Request, { params }: { params: { tableId: string 
     }
 
     const deviceId = readDeviceId(req);
-    if (deviceId && !isStaffDeviceId(deviceId)) {
-      await clearStaleStaffMaster(tableId);
-    }
+    await clearStaleMasters(tableId);
     let master = await getTableMaster(tableId);
 
-    if (master && deviceId && isMasterDevice(master, deviceId) && isStaffDeviceId(deviceId)) {
+    if (master && deviceId && isMasterDevice(master, deviceId)) {
       await touchTableMaster(tableId, deviceId);
       master = await getTableMaster(tableId);
     }
