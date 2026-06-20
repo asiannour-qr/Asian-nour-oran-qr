@@ -1,5 +1,5 @@
 import { prisma } from "../../../../lib/prisma";
-import { getGuestNames } from "@/lib/guest-names-store";
+import { resolveOrderGuestNames } from "@/lib/guest-names-db";
 import { guestNameFromMap } from "@/lib/guest-name-utils";
 import { formatMoney } from "@/lib/currency";
 
@@ -12,7 +12,7 @@ export default async function OrderPage({
     where: { id: params.orderId },
     include: { items: true },
   });
-  const guestNames = order ? getGuestNames(order.id) : null;
+  const guestNames = order ? resolveOrderGuestNames(order) : null;
 
   if (!order) {
     return <div className="p-6">Commande introuvable.</div>;

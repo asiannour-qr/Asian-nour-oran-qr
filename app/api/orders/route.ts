@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sanitizeGuestNamesRecord } from "@/lib/guest-name-utils";
-import { getGuestNames, storeGuestNames } from "@/lib/guest-names-store";
+import { guestNamesToJson, parseOrderGuestNames, resolveOrderGuestNames } from "@/lib/guest-names-db";
+import { validateAndResolveOrderItems } from "@/lib/order-items-validation";
 import { expireStalePendingTakeaway } from "@/lib/takeaway-codes";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function GET() {
         });
         const withGuestNames = orders.map((order) => ({
             ...order,
-            guestNames: getGuestNames(order.id),
+            guestNames: resolveOrderGuestNames(order),
         }));
         const res = NextResponse.json({ orders: withGuestNames });
         res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
@@ -79,37 +80,22 @@ export async function POST(req: Request) {
         const inItems: IncomingItem[] = Array.isArray(body?.items) ? body.items : [];
         if (inItems.length === 0) return NextResponse.json({ status: "error", message: "items requis" }, { status: 400 });
 
-        // Résout prix si manquant
-        const resolved: { name: string; qty: number; price: number; personId: string | null }[] = [];
-        for (const it of inItems) {
-            const name = String(it?.name || "").trim();
-            const qty = Number(it?.qty ?? 0);
-            if (!name || !Number.isInteger(qty) || qty <= 0) {
-                return NextResponse.json({ status: "error", message: "item invalide (name/qty)" }, { status: 400 });
-            }
-            const personId = typeof it?.personId === "string" && it.personId.trim().length > 0 ? it.personId.trim() : null;
-
-            let price = 0;
-            if (it?.priceCents != null && Number.isFinite(Number(it.priceCents))) {
-                price = Math.max(0, Math.round(Number(it.priceCents)));
-            } else {
-                try {
-                    const ref = await prisma.menuItem.findFirst({ where: { name } });
-                    price = ref?.priceCents ?? 0;
-                } catch (prismaErr: any) {
-                    console.warn(`[orders/POST] Prisma findFirst error for "${name}":`, prismaErr?.message);
-                    price = 0;
-                }
-            }
-
-            resolved.push({ name, qty, price, personId });
+        const validated = await validateAndResolveOrderItems(
+            inItems.map((it) => ({
+                name: String(it?.name || "").trim(),
+                qty: Number(it?.qty ?? 0),
+                personId: it?.personId ?? null,
+            }))
+        );
+        if (validated.ok === false) {
+            return NextResponse.json({ status: "error", message: validated.message }, { status: 400 });
         }
-
-        const computedTotal = resolved.reduce((s, r) => s + r.price * r.qty, 0);
-        const total = Number.isFinite(Number(body?.total)) ? Math.max(computedTotal, Number(body.total)) : computedTotal;
+        const resolved = validated.items;
 
         const maxGuestIndex = Math.max(
-            maxGuestIndexFromItems(resolved),
+            maxGuestIndexFromItems(
+                resolved.map((r) => ({ personId: r.personId ?? null }))
+            ),
             Number.isFinite(Number(body?.peopleCount)) ? Math.max(0, Number(body.peopleCount)) : 0
         );
         const sanitizedGuestNames = sanitizeGuestNamesRecord(body?.guestNames, {
@@ -119,26 +105,25 @@ export async function POST(req: Request) {
         const created = await prisma.order.create({
             data: {
                 tableId,
-                total,
+                total: validated.total,
                 comment: body?.comment ? String(body.comment) : null,
                 status: "NEW",
                 peopleCount: body?.peopleCount != null ? Number(body.peopleCount) : null,
+                guestNames: guestNamesToJson(sanitizedGuestNames),
                 items: {
-                    create: resolved.map(r => ({
+                    create: resolved.map((r) => ({
                         name: r.name,
                         qty: r.qty,
-                        price: r.price, // Int? dans le schéma → OK même à 0
-                        personId: r.personId,
+                        price: r.price,
+                        personId: r.personId ?? null,
                     })),
                 },
             },
             include: { items: true },
         });
 
-        storeGuestNames(created.id, sanitizedGuestNames);
-
         const res = NextResponse.json(
-            { status: "ok", order: { ...created, guestNames: sanitizedGuestNames } },
+            { status: "ok", order: { ...created, guestNames: parseOrderGuestNames(created.guestNames) ?? sanitizedGuestNames } },
             { status: 201 }
         );
         res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
@@ -180,7 +165,7 @@ export async function PATCH(req: Request) {
             include: { items: true },
         });
 
-        return NextResponse.json({ status: "ok", order: { ...updated, guestNames: getGuestNames(updated.id) } });
+        return NextResponse.json({ status: "ok", order: { ...updated, guestNames: resolveOrderGuestNames(updated) } });
     } catch (e: any) {
         const errorMessage = e?.message ?? String(e);
         const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");

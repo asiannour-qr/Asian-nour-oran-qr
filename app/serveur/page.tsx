@@ -18,6 +18,7 @@ import { formatMoney } from "@/lib/currency";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 import { ServeurMenuPanel } from "./ServeurMenuPanel";
 import { TableQrPanel } from "@/app/components/TableQrPanel";
+import { ConfirmActionModal } from "@/app/components/ConfirmActionModal";
 import { resolveTableCount } from "@/lib/table-count";
 
 type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
@@ -59,6 +60,7 @@ export default function ServeurPage() {
   const [error, setError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [serveurTab, setServeurTab] = useState<ServeurTab>("tables");
+  const [confirmReleaseTable, setConfirmReleaseTable] = useState<string | null>(null);
   const knownPendingIdsRef = useRef<Set<string>>(new Set());
   const pendingBootstrappedRef = useRef(false);
 
@@ -767,7 +769,7 @@ export default function ServeurPage() {
                     <button
                       type="button"
                       className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
-                      onClick={() => void releaseTableOccupancy(selectedTable)}
+                      onClick={() => setConfirmReleaseTable(selectedTable)}
                       disabled={releasing}
                     >
                       {releasing ? "Libération…" : "Libérer la table (clients partis)"}
@@ -779,6 +781,19 @@ export default function ServeurPage() {
           </div>
         </div>
       )}
+      <ConfirmActionModal
+        open={confirmReleaseTable !== null}
+        tone="danger"
+        title={`Libérer la table ${confirmReleaseTable ?? ""} ?`}
+        message="Confirmez que les clients sont partis. La table sera réinitialisée pour le prochain service."
+        confirmLabel="Libérer la table"
+        loading={releasingTable !== null}
+        onCancel={() => setConfirmReleaseTable(null)}
+        onConfirm={() => {
+          if (confirmReleaseTable) void releaseTableOccupancy(confirmReleaseTable);
+          setConfirmReleaseTable(null);
+        }}
+      />
     </>
   );
 }

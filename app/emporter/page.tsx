@@ -5,6 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
 import CategorySlider from "@/app/components/CategorySlider";
 import CompactCartBar from "@/app/components/CompactCartBar";
+import { ConfirmActionModal } from "@/app/components/ConfirmActionModal";
 import FormulaMenuCard, { FormulaMenuGrid } from "@/app/components/FormulaMenuCard";
 import FormulaSectionHeading from "@/app/components/FormulaSectionHeading";
 import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
@@ -35,6 +36,8 @@ type MenuItem = {
 
 type CartLine = { id: string; name: string; priceCents: number; qty: number };
 
+const EMPORTER_TRACKING_KEY = "emporter:confirmation";
+
 // Catégories réservées à la composition des menus (non vendues à l'unité)
 const HIDDEN_MENU_CATEGORIES = new Set(["Boissons Kid", "Desserts Kid"]);
 
@@ -58,11 +61,26 @@ export default function EmporterPage() {
   const [comment, setComment] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ code: string; id: string } | null>(null);
   const [trackedStatus, setTrackedStatus] = useState<string>("NEW");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
   const cartScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(EMPORTER_TRACKING_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { code?: string; id?: string };
+      if (parsed?.id && parsed?.code) {
+        setConfirmation({ id: parsed.id, code: parsed.code });
+        setTrackedStatus("PENDING_PAYMENT");
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -285,6 +303,14 @@ export default function EmporterPage() {
         throw new Error(data?.message || `Commande refusée (${res.status})`);
       }
       setConfirmation({ code: data.code, id: data.id });
+      try {
+        sessionStorage.setItem(
+          EMPORTER_TRACKING_KEY,
+          JSON.stringify({ code: data.code, id: data.id })
+        );
+      } catch {
+        // ignore
+      }
       setTrackedStatus("PENDING_PAYMENT");
       setCart([]);
       setComment("");
@@ -696,7 +722,7 @@ export default function EmporterPage() {
               </div>
               <button
                 className="btn-primary w-full py-3.5"
-                onClick={submitOrder}
+                onClick={() => setConfirmSubmitOpen(true)}
                 disabled={cart.length === 0 || submitting}
               >
                 {submitting ? "Envoi…" : "Valider la commande"}
@@ -705,6 +731,18 @@ export default function EmporterPage() {
           </aside>
         </div>
       )}
+      <ConfirmActionModal
+        open={confirmSubmitOpen}
+        title="Confirmer la commande à emporter ?"
+        message={`Total ${formatMoney(totalCents)}. Rendez-vous en caisse pour payer avant préparation.`}
+        confirmLabel="Confirmer la commande"
+        loading={submitting}
+        onCancel={() => setConfirmSubmitOpen(false)}
+        onConfirm={() => {
+          setConfirmSubmitOpen(false);
+          void submitOrder();
+        }}
+      />
     </>
   );
 }

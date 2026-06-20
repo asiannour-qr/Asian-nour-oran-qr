@@ -5,7 +5,7 @@ import {
   buildEscPosTestTicket,
   type EscPosOrderTicketInput,
 } from "@/lib/escpos";
-import { getGuestNames } from "@/lib/guest-names-store";
+import { resolveOrderGuestNames } from "@/lib/guest-names-db";
 import {
   CUSTOMER_PRINTER_ID,
   KITCHEN_PRINTER_ID,
@@ -151,7 +151,7 @@ export async function printOrderTicketToConfiguredPrinter(
       price: item.price,
       personId: item.personId,
     })),
-    guestNames: getGuestNames(order.id),
+    guestNames: resolveOrderGuestNames(order),
   };
 
   let payload: Buffer;

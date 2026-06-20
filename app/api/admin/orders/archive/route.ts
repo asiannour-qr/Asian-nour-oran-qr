@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { assertAdminSession } from "@/lib/admin-session";
-import { getGuestNames } from "@/lib/guest-names-store";
+import { resolveOrderGuestNames } from "@/lib/guest-names-db";
 import {
   dateKey,
   formatDateLabel,
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
         total: order.total,
         comment: order.comment,
         createdAt: order.createdAt.toISOString(),
-        guestNames: getGuestNames(order.id),
+        guestNames: resolveOrderGuestNames(order),
         items: order.items.map((it) => ({
           id: it.id,
           name: it.name,

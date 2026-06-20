@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "../../../../lib/prisma";
+import { assertStaffSession } from "@/lib/staff-session";
+import { resolveOrderGuestNames } from "@/lib/guest-names-db";
 
 const ALLOWED = new Set(["NEW", "IN_PROGRESS", "READY", "SERVED", "CANCELED"]);
 
@@ -8,6 +10,9 @@ export async function PATCH(
     req: Request,
     ctx: { params: { id?: string; orderId?: string } }
 ) {
+    const unauthorized = assertStaffSession();
+    if (unauthorized) return unauthorized;
+
     try {
         const data = await req.json().catch(() => ({}));
         const status = String(data?.status ?? "").trim();
@@ -38,7 +43,10 @@ export async function PATCH(
             include: { items: true },
         });
 
-        return NextResponse.json({ status: "ok", order: updated });
+        return NextResponse.json({
+            status: "ok",
+            order: { ...updated, guestNames: resolveOrderGuestNames(updated) },
+        });
     } catch (err: any) {
         const errorMessage = err?.message ?? String(err);
         const isLocked = errorMessage.includes("database is locked") || errorMessage.includes("SQLITE_BUSY");

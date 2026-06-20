@@ -27,6 +27,7 @@ import {
 } from "@/lib/guest-names-store";
 import CategorySlider from "@/app/components/CategorySlider";
 import CompactCartBar from "@/app/components/CompactCartBar";
+import { ConfirmActionModal } from "@/app/components/ConfirmActionModal";
 import FormulaMenuCard, { FormulaMenuGrid } from "@/app/components/FormulaMenuCard";
 import FormulaSectionHeading from "@/app/components/FormulaSectionHeading";
 import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
@@ -331,6 +332,7 @@ export default function TablePage() {
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
     const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
     const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
+    const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
     const [draftReady, setDraftReady] = useState(false);
     const draftLoadKeyRef = useRef("");
     const cartRef = useRef(cart);
@@ -1756,7 +1758,7 @@ export default function TablePage() {
     const hasCartItems = cartItemCount > 0;
 
     // --- ENVOI COMMANDE : version avec logs détaillés si 400
-    async function submitOrder() {
+    async function executeSubmitOrder() {
         if (!canModifyCart) {
             toast.error("Seul le téléphone maître peut envoyer la commande.");
             return;
@@ -2567,13 +2569,28 @@ export default function TablePage() {
                                 <span>Total</span>
                                 <span>{formatMoney(totalCents)}</span>
                             </div>
-                            <button className="btn-primary w-full py-3.5" onClick={submitOrder} disabled={!hasCartItems}>
+                            <button
+                                className="btn-primary w-full py-3.5"
+                                onClick={() => setConfirmSubmitOpen(true)}
+                                disabled={!hasCartItems}
+                            >
                                 Envoyer la commande
                             </button>
                         </footer>
                     </aside>
                 </div>
             )}
+            <ConfirmActionModal
+                open={confirmSubmitOpen}
+                title="Confirmer l'envoi en cuisine ?"
+                message={`${cartItemCount} article${cartItemCount > 1 ? "s" : ""} — total ${formatMoney(totalCents)}. La commande sera transmise immédiatement.`}
+                confirmLabel="Envoyer en cuisine"
+                onCancel={() => setConfirmSubmitOpen(false)}
+                onConfirm={() => {
+                    setConfirmSubmitOpen(false);
+                    void executeSubmitOrder();
+                }}
+            />
             </>
             )}
         </>

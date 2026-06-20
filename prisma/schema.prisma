@@ -24,6 +24,7 @@ model Order {
   type        String      @default("DINE_IN")
   code        String?
   peopleCount Int?
+  guestNames  Json?
   createdAt   DateTime    @default(now())
   items       OrderItem[]
 }

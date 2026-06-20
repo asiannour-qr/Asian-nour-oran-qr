@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { expireStalePendingTakeaway, pickAvailableTakeawayCode } from "@/lib/takeaway-codes";
+import { validateAndResolveOrderItems } from "@/lib/order-items-validation";
+import { getSettings } from "@/lib/settings";
+import { closedMessage, isRestaurantOpen } from "@/lib/restaurant-open";
+import { checkPublicActionAllowed, getClientIp, recordPublicAction } from "@/lib/public-rate-limit";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +16,6 @@ const BodySchema = z.object({
     .array(
       z.object({
         name: z.string().min(1),
-        price: z.number().int().nonnegative().optional(),
         qty: z.number().int().min(1),
       })
     )
@@ -20,28 +23,53 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const retryAfter = checkPublicActionAllowed("order-submit", ip);
+  if (retryAfter > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: `Trop de tentatives. Réessayez dans ${Math.ceil(retryAfter / 60)} min.`,
+      },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    );
+  }
+
   let raw: unknown;
   try {
     raw = await req.json();
   } catch {
+    recordPublicAction("order-submit", ip);
     return NextResponse.json({ ok: false, message: "Corps JSON invalide" }, { status: 400 });
   }
 
   const parsed = BodySchema.safeParse(raw);
   if (!parsed.success) {
+    recordPublicAction("order-submit", ip);
     const firstIssue = parsed.error.issues?.[0]?.message ?? "Requête invalide";
     return NextResponse.json({ ok: false, message: firstIssue }, { status: 400 });
   }
 
-  const { items, comment } = parsed.data;
-  const total = items.reduce((sum, it) => sum + (it.price ?? 0) * it.qty, 0);
+  const settings = await getSettings();
+  if (!isRestaurantOpen(settings.openingHours)) {
+    return NextResponse.json({ ok: false, message: closedMessage() }, { status: 403 });
+  }
+
+  const { items: rawItems, comment } = parsed.data;
+  const resolved = await validateAndResolveOrderItems(
+    rawItems.map((it) => ({
+      name: String(it.name),
+      qty: it.qty,
+    }))
+  );
+  if (resolved.ok === false) {
+    recordPublicAction("order-submit", ip);
+    return NextResponse.json({ ok: false, message: resolved.message }, { status: 400 });
+  }
 
   try {
-    // Verrou consultatif Postgres : sérialise l'attribution du code à emporter
-    // pour éviter que deux validations simultanées reçoivent le même personnage.
     const order = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(728193)`;
-      // Libère les codes des commandes jamais validées en caisse (> 1 h)
       await expireStalePendingTakeaway(tx);
       const code = await pickAvailableTakeawayCode(tx);
       return tx.order.create({
@@ -49,15 +77,13 @@ export async function POST(req: Request) {
           tableId: "EMPORTER",
           type: "TAKEAWAY",
           code,
-          // En attente de validation par l'hôte de caisse (paiement) avant
-          // d'être transmise en cuisine.
           status: "PENDING_PAYMENT",
           comment: comment?.trim() ? comment.trim() : null,
-          total,
+          total: resolved.total,
           items: {
-            create: items.map((it) => ({
+            create: resolved.items.map((it) => ({
               name: it.name,
-              price: it.price ?? null,
+              price: it.price,
               qty: it.qty,
               personId: null,
             })),
@@ -67,8 +93,9 @@ export async function POST(req: Request) {
       });
     });
 
-    return NextResponse.json({ ok: true, id: order.id, code: order.code });
+    return NextResponse.json({ ok: true, id: order.id, code: order.code, total: resolved.total });
   } catch (err: unknown) {
+    recordPublicAction("order-submit", ip);
     const message = err instanceof Error ? err.message : String(err);
     console.error("[emporter/submit]", message);
     return NextResponse.json(
