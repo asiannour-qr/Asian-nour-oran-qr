@@ -1,8 +1,10 @@
 // app/page.tsx
 import Image from "next/image";
 import MenuCardGallery from "@/app/components/MenuCardGallery";
+import { HomeTableAccess } from "@/app/components/HomeTableAccess";
 import { formatDayHoursLabel } from "@/lib/opening-hours";
 import { getSettings } from "@/lib/settings";
+import { resolveTableCount } from "@/lib/table-count";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export default async function Home() {
   }
 
   const name = settings?.restaurantName || "Asian Nour";
+  const tableCount = resolveTableCount(settings?.tableCount);
   const hours = settings?.openingHours ?? {};
   const hasHours = JOURS_ORDRE.some((j) => hours[j]);
 
@@ -46,8 +49,8 @@ export default async function Home() {
           Bienvenue chez {name}
         </h1>
         <p className="text-base leading-relaxed surface-muted-text">
-          Scannez le QR code de votre table pour consulter la carte et commander directement
-          depuis votre téléphone. À emporter&nbsp;? Scannez le QR code en façade.
+          Deux parcours&nbsp;: commande à table (QR sur la table) ou commande à emporter (QR
+          façade / bouton ci-dessous).
         </p>
         {(settings?.address || settings?.phone) && (
           <div className="text-sm surface-muted-text space-y-1">
@@ -55,13 +58,15 @@ export default async function Home() {
             {settings?.phone && <p>📞 {settings.phone}</p>}
           </div>
         )}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+        <HomeTableAccess tableCount={tableCount} />
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-1">
           <a href="/emporter" className="btn-primary text-center">
             Commander à emporter
           </a>
         </div>
         <p className="text-xs surface-muted-text pt-1">
-          Sur place&nbsp;: scannez le QR code de votre table pour commander.
+          Sur place&nbsp;: scannez le QR de votre table ou saisissez le numéro ci-dessus.
+          À emporter&nbsp;: bouton ci-dessus ou QR en façade.
         </p>
       </div>
 
