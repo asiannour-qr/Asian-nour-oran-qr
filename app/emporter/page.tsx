@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { toastAddedToCart } from "@/lib/cart-toast";
 import CategorySlider from "@/app/components/CategorySlider";
+import CompactCartBar from "@/app/components/CompactCartBar";
+import FormulaMenuCard, { FormulaMenuGrid } from "@/app/components/FormulaMenuCard";
+import FormulaSectionHeading from "@/app/components/FormulaSectionHeading";
 import ColdMenuDrinkModal from "@/app/components/ColdMenuDrinkModal";
 import {
   ComposableMenu,
@@ -399,33 +402,27 @@ export default function EmporterPage() {
         </div>
       </header>
 
-      <main className="page-shell space-y-8">
+      <main className="page-shell space-y-5 sm:space-y-8">
         <Toaster position="top-right" />
 
-        <header className="surface-card-strong px-6 py-6 space-y-2">
+        <header className="surface-card-strong px-4 py-4 sm:px-6 sm:py-6 space-y-1.5 sm:space-y-2">
           <span className="chip">Commande à emporter</span>
-          <h1 className="text-3xl font-semibold">Asian Nour — À emporter</h1>
-          <p className="surface-muted-text text-sm">
+          <h1 className="text-2xl sm:text-3xl font-semibold">Asian Nour — À emporter</h1>
+          <p className="surface-muted-text text-xs sm:text-sm hidden sm:block">
             Composez votre commande à la carte. Un code personnage vous sera attribué
             à la validation pour récupérer votre commande.
           </p>
         </header>
 
         {/* Mini cart bar + navigation catégories */}
-        <div className="sticky top-[56px] sm:top-[64px] z-30 space-y-3">
-          <div className="surface-card-strong border border-[var(--color-border)] shadow-sm px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm sm:text-base font-semibold">
-              Panier — {itemCount} article(s) — {formatMoney(totalCents)}
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="btn-ghost" onClick={clearEntireCart} disabled={!hasCartItems}>
-                Vider
-              </button>
-              <button className="btn-primary" onClick={() => setDrawerOpen(true)} disabled={!hasCartItems}>
-                Ouvrir
-              </button>
-            </div>
-          </div>
+        <div className="sticky top-[56px] sm:top-[64px] z-30 space-y-2 sm:space-y-2.5">
+          <CompactCartBar
+            itemCount={itemCount}
+            totalCents={totalCents}
+            onClear={clearEntireCart}
+            onOpen={() => setDrawerOpen(true)}
+            openLabel="Panier"
+          />
 
           {!loading && formulaSliderCategories.length > 0 && (
             <CategorySlider
@@ -437,7 +434,7 @@ export default function EmporterPage() {
 
           {!loading && sliderCategories.length > 0 && (
             <>
-              <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] surface-muted-text">
+              <p className="px-1 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.14em] surface-muted-text">
                 À la carte
               </p>
               <CategorySlider
@@ -449,7 +446,7 @@ export default function EmporterPage() {
           )}
         </div>
 
-        <section className="space-y-5">
+        <section className="space-y-4 sm:space-y-5">
           {loading ? (
             <div className="surface-muted-text">Chargement…</div>
           ) : (
@@ -457,108 +454,44 @@ export default function EmporterPage() {
               {composedMenus.length > 0 && (
                 <article
                   id={HOT_MENUS_SECTION_ID}
-                  className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                  className="space-y-2.5 sm:space-y-3 scroll-mt-24 sm:scroll-mt-32"
                 >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-sharp">Menus chauds à composer</h2>
-                    <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
-                      Formules guidées
-                    </span>
-                  </div>
-                  <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <FormulaSectionHeading title="Menus chauds à composer" />
+                  <FormulaMenuGrid>
                     {composedMenus.map((m) => (
-                      <div key={m.id} className="surface-card overflow-hidden rounded-2xl flex flex-col">
-                        {m.imageUrl ? (
-                          <div className="relative w-full aspect-[4/3] bg-[var(--color-background-secondary)]">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={m.imageUrl}
-                              alt={m.name}
-                              className="absolute inset-0 w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                        ) : null}
-                        <div className="px-5 py-5 flex flex-col gap-3 flex-1">
-                          <div className="flex-1">
-                            <div className="text-lg font-semibold text-sharp">{m.name}</div>
-                            <div className="surface-muted-text text-sm">{formatMoney(m.priceCents)}</div>
-                          </div>
-                          <button className="btn-primary" onClick={() => setComposingMenu(m)}>
-                            Composer ce menu
-                          </button>
-                        </div>
-                      </div>
+                      <FormulaMenuCard
+                        key={m.id}
+                        name={m.name}
+                        priceCents={m.priceCents}
+                        imageUrl={m.imageUrl}
+                        actionLabel="Composer"
+                        onAction={() => setComposingMenu(m)}
+                      />
                     ))}
-                  </div>
+                  </FormulaMenuGrid>
                 </article>
               )}
 
               {coldMenuItems.length > 0 && (
                 <article
                   id={COLD_MENUS_SECTION_ID}
-                  className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                  className="space-y-2.5 sm:space-y-3 scroll-mt-24 sm:scroll-mt-32"
                 >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-sharp">Menus froids à composer</h2>
-                    <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
-                      Formules guidées
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {coldMenuItems.map((it) => {
-                      const unavailable = it.available === false;
-                      return (
-                        <div
-                          key={it.id}
-                          className={`surface-card overflow-hidden flex flex-col rounded-2xl border border-[var(--color-border)] relative ${
-                            unavailable ? "opacity-50 pointer-events-none" : ""
-                          }`}
-                        >
-                          {it.imageUrl ? (
-                            <div className="relative w-full aspect-[4/3] bg-[var(--color-background-secondary)]">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={it.imageUrl}
-                                alt={it.name}
-                                className="absolute inset-0 w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-full aspect-[4/3] bg-[var(--color-background-secondary)] flex items-center justify-center text-3xl select-none">
-                              🍱
-                            </div>
-                          )}
-                          <div className="flex flex-col flex-1 px-3 pt-2 pb-3 gap-2">
-                            <div className="flex-1">
-                              <div className="font-medium text-sm leading-snug line-clamp-2">{it.name}</div>
-                              {it.description ? (
-                                <p className="text-xs surface-muted-text mt-0.5 line-clamp-2">{it.description}</p>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="text-sm font-semibold text-[var(--color-accent-strong)]">
-                                {formatMoney(it.priceCents)}
-                              </span>
-                              {unavailable ? (
-                                <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
-                                  Indisponible
-                                </span>
-                              ) : (
-                                <button
-                                  className="btn-soft text-xs px-2 py-1 shrink-0"
-                                  onClick={() => setColdMenuPick(it)}
-                                >
-                                  Choisir boisson
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <FormulaSectionHeading title="Menus froids à composer" />
+                  <FormulaMenuGrid>
+                    {coldMenuItems.map((it) => (
+                      <FormulaMenuCard
+                        key={it.id}
+                        name={it.name}
+                        priceCents={it.priceCents}
+                        imageUrl={it.imageUrl}
+                        description={it.description}
+                        unavailable={it.available === false}
+                        actionLabel="Boisson"
+                        onAction={() => setColdMenuPick(it)}
+                      />
+                    ))}
+                  </FormulaMenuGrid>
                 </article>
               )}
 
@@ -567,10 +500,10 @@ export default function EmporterPage() {
                 key={section.anchorId}
                 id={section.anchorId}
                 data-category-index={section.index}
-                className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                className="space-y-2.5 sm:space-y-3 scroll-mt-24 sm:scroll-mt-32"
               >
-                <h3 className="text-xl font-semibold text-sharp">{section.label}</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <h3 className="text-base sm:text-xl font-semibold text-sharp">{section.label}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
                   {section.items.map((it) => {
                     const unavailable = it.available === false;
                     return (

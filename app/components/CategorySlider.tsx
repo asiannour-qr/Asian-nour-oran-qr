@@ -31,10 +31,10 @@ export default function CategorySlider({ categories, activeId, className = "", o
 
     return (
         <nav
-            className={`rounded-3xl border border-[var(--color-border)] bg-[rgba(255,252,247,0.95)] px-4 py-2 shadow-[0_12px_30px_rgba(61,47,33,0.08)] ${className}`}
+            className={`rounded-2xl sm:rounded-3xl border border-[var(--color-border)] bg-[rgba(255,252,247,0.95)] px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-[0_12px_30px_rgba(61,47,33,0.08)] ${className}`}
             aria-label="Catégories de la carte"
         >
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 sm:pb-1">
                 {categories.map((category) => {
                     const isActive = category.id === activeId;
                     return (
@@ -42,7 +42,7 @@ export default function CategorySlider({ categories, activeId, className = "", o
                             key={category.id}
                             type="button"
                             onClick={(event) => handleClick(event, category.id)}
-                            className={`whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ${
+                            className={`whitespace-nowrap rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-xs sm:text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ${
                                 isActive
                                     ? "bg-[var(--color-accent-strong)] text-white shadow-[0_10px_20px_rgba(190,127,57,0.25)]"
                                     : "bg-[rgba(255,255,255,0.85)] text-[var(--color-heading)] border border-[var(--color-border)] hover:bg-[rgba(217,168,108,0.12)]"
