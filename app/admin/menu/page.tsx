@@ -18,6 +18,24 @@ type Item = {
     position: number;
 };
 
+function parsePriceInput(raw: string): number {
+    const normalized = raw.replace(/\s|\u00a0/g, "").replace(",", ".");
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+}
+
+async function readJsonResponse(res: Response): Promise<Record<string, unknown>> {
+    const text = await res.text();
+    if (!text) return {};
+    try {
+        return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        throw new Error(
+            res.ok ? "Réponse serveur invalide." : `Erreur serveur (${res.status}).`
+        );
+    }
+}
+
 function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     const [uploading, setUploading] = useState(false);
     const [urlInput, setUrlInput] = useState(item.imageUrl ?? "");
@@ -33,8 +51,8 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
                 method: "POST",
                 body: fd,
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || "Upload échoué");
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(String(data?.error || "Upload échoué"));
             toast.success("Image enregistrée");
             onUpdated();
         } catch (e: any) {
@@ -47,18 +65,18 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     async function handleUrlSave() {
         const url = urlInput.trim();
         try {
-            const res = await fetch(`/api/admin/menu/${item.id}`, {
+            const res = await fetch(`/api/menu/${item.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ imageUrl: url || null }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Mise à jour échouée");
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(String(data?.message || "Mise à jour échouée"));
             toast.success("URL sauvegardée");
             setShowUrlInput(false);
             onUpdated();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur");
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur");
         }
     }
 
@@ -75,37 +93,39 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     }
 
     return (
-        <div className="group relative w-[4.5rem] shrink-0">
-            {item.imageUrl ? (
-                <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="h-10 w-[4.5rem] rounded-lg border border-[var(--color-border)] object-cover"
-                    />
-                    <button
-                        type="button"
-                        onClick={() => void handleDelete()}
-                        className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow group-hover:flex"
-                        title="Supprimer l'image"
-                        aria-label="Supprimer l'image"
-                    >
-                        ×
-                    </button>
-                </>
-            ) : (
-                <div className="flex h-10 w-[4.5rem] items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
-                    —
-                </div>
-            )}
+        <div className="relative w-[4.5rem] shrink-0 space-y-1">
+            <div className="group relative">
+                {item.imageUrl ? (
+                    <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-10 w-[4.5rem] rounded-lg border border-[var(--color-border)] object-cover"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => void handleDelete()}
+                            className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow group-hover:flex"
+                            title="Supprimer l'image"
+                            aria-label="Supprimer l'image"
+                        >
+                            ×
+                        </button>
+                    </>
+                ) : (
+                    <div className="flex h-10 w-[4.5rem] items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
+                        —
+                    </div>
+                )}
+            </div>
 
-            <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+            <div className="flex justify-center gap-1.5">
                 <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[11px] leading-none shadow-sm"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-xs leading-none shadow-sm"
                     title="Uploader une photo"
                     aria-label="Uploader une photo"
                 >
@@ -114,7 +134,7 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
                 <button
                     type="button"
                     onClick={() => setShowUrlInput((v) => !v)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[11px] leading-none shadow-sm"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-xs leading-none shadow-sm"
                     title="Coller une URL"
                     aria-label="Coller une URL"
                 >
@@ -123,8 +143,11 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
             </div>
 
             {showUrlInput && (
-                <div className="absolute left-0 top-full z-30 mt-2 flex min-w-[11rem] gap-1 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg">
+                <div className="absolute left-0 top-full z-30 mt-1 flex min-w-[11rem] gap-1 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg">
                     <input
+                        type="text"
+                        inputMode="url"
+                        autoComplete="off"
                         className="text-xs"
                         value={urlInput}
                         onChange={(e) => setUrlInput(e.target.value)}
@@ -148,7 +171,7 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
             <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 className="hidden"
                 onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -190,10 +213,11 @@ export default function AdminMenuPage() {
         setLoading(true);
         try {
             const res = await fetch("/api/menu?all=1", { cache: "no-store" });
-            const data = await res.json();
-            setItems(data.items ?? []);
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur chargement");
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(String(data?.error || "Erreur chargement"));
+            setItems((data.items as Item[]) ?? []);
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur chargement");
         } finally {
             setLoading(false);
         }
@@ -214,42 +238,62 @@ export default function AdminMenuPage() {
     const withImage = items.filter((it) => it.imageUrl).length;
 
     async function createItem() {
+        const trimmedName = name.trim();
+        const trimmedCategory = category.trim() || "Divers";
+        if (!trimmedName) {
+            toast.error("Indiquez un nom pour le plat.");
+            return;
+        }
         try {
             const res = await fetch("/api/menu", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    name: name.trim(),
-                    price: Number(price.replace(",", ".")),
-                    category: category.trim() || "Divers",
+                    name: trimmedName,
+                    price: parsePriceInput(price),
+                    category: trimmedCategory,
                     available,
                 }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Création échouée");
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(String(data?.message || "Création échouée"));
             toast.success("Plat ajouté");
-            setName(""); setPrice("0"); setAvailable(true);
+            setName("");
+            setPrice("0");
+            setAvailable(true);
             await load();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur création");
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur création");
         }
     }
 
     async function updateField(id: string, patch: Partial<Item> & { price?: number }) {
+        const current = items.find((it) => it.id === id);
+        if (!current) return;
+
+        if (patch.name != null && patch.name.trim() === current.name) return;
+        if (patch.category != null && patch.category.trim() === current.category) return;
+        if (patch.price != null) {
+            const nextCents = Math.round(parsePriceInput(String(patch.price)) * 100);
+            if (nextCents === current.priceCents) return;
+        }
+        if (patch.position != null && patch.position === current.position) return;
+
         try {
             const body: Record<string, unknown> = { ...patch };
-            if (body.price != null) body.price = Number(body.price);
+            if (body.price != null) body.price = parsePriceInput(String(body.price));
             const res = await fetch(`/api/menu/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Mise à jour échouée");
-            toast.success("Modifié");
-            await load();
-        } catch (e: any) {
-            toast.error(e?.message || "Erreur modification");
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(String(data?.message || "Mise à jour échouée"));
+            setItems((prev) =>
+                prev.map((it) => (it.id === id ? { ...it, ...(data.item as Item) } : it))
+            );
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur modification");
         }
     }
 
@@ -358,7 +402,7 @@ export default function AdminMenuPage() {
                         <table className="table-theme admin-menu-table">
                             <thead>
                                 <tr>
-                                    <th className="w-16">Image</th>
+                                    <th className="w-[5.5rem]">Image</th>
                                     <th className="min-w-[9rem]">Nom</th>
                                     <th className="min-w-[7rem]">Catégorie</th>
                                     <th className="min-w-[5rem]">Prix</th>
@@ -371,7 +415,7 @@ export default function AdminMenuPage() {
                             <tbody>
                                 {filtered.map((it) => (
                                     <tr key={it.id}>
-                                        <td className="w-16 align-top">
+                                        <td className="w-[5.5rem] align-top">
                                             <ImageCell item={it} onUpdated={load} />
                                         </td>
                                         <td className="min-w-[9rem]">
@@ -393,7 +437,12 @@ export default function AdminMenuPage() {
                                             <div className="flex min-w-[5rem] items-center gap-1">
                                             <input
                                                 defaultValue={formatMoneyInputValue(it.priceCents)}
-                                                onBlur={(e) => updateField(it.id, { price: Number(e.target.value.replace(",", ".")) })}
+                                                inputMode="decimal"
+                                                onBlur={(e) =>
+                                                    updateField(it.id, {
+                                                        price: parsePriceInput(e.target.value),
+                                                    })
+                                                }
                                                 className="w-20"
                                             />
                                             <span className="surface-muted-text text-sm">{currencySuffix()}</span>

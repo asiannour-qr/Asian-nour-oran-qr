@@ -478,8 +478,9 @@ body::after {
     .admin-menu-table td:first-child,
     .admin-menu-table th:first-child {
         @apply pr-2;
-        width: 4.75rem;
-        max-width: 4.75rem;
+        width: 5.5rem;
+        min-width: 5.5rem;
+        max-width: 5.5rem;
     }
 
     .admin-menu-table tbody tr {
