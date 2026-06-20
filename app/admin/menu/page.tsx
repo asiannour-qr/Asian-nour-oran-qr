@@ -38,8 +38,6 @@ async function readJsonResponse(res: Response): Promise<Record<string, unknown>>
 
 function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     const [uploading, setUploading] = useState(false);
-    const [urlInput, setUrlInput] = useState(item.imageUrl ?? "");
-    const [showUrlInput, setShowUrlInput] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
     async function handleFileUpload(file: File) {
@@ -62,29 +60,10 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
         }
     }
 
-    async function handleUrlSave() {
-        const url = urlInput.trim();
-        try {
-            const res = await fetch(`/api/menu/${item.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ imageUrl: url || null }),
-            });
-            const data = await readJsonResponse(res);
-            if (!res.ok) throw new Error(String(data?.message || "Mise à jour échouée"));
-            toast.success("URL sauvegardée");
-            setShowUrlInput(false);
-            onUpdated();
-        } catch (e: unknown) {
-            toast.error(e instanceof Error ? e.message : "Erreur");
-        }
-    }
-
     async function handleDelete() {
         try {
             const res = await fetch(`/api/admin/menu/${item.id}/image`, { method: "DELETE" });
             if (!res.ok) throw new Error("Suppression échouée");
-            setUrlInput("");
             toast.success("Image supprimée");
             onUpdated();
         } catch (e: any) {
@@ -120,53 +99,18 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
                 )}
             </div>
 
-            <div className="flex justify-center gap-1.5">
+            <div className="flex justify-center">
                 <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
                     className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-xs leading-none shadow-sm"
-                    title="Uploader une photo"
-                    aria-label="Uploader une photo"
+                    title="Changer la photo"
+                    aria-label="Changer la photo"
                 >
                     {uploading ? "…" : "📷"}
                 </button>
-                <button
-                    type="button"
-                    onClick={() => setShowUrlInput((v) => !v)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-xs leading-none shadow-sm"
-                    title="Coller une URL"
-                    aria-label="Coller une URL"
-                >
-                    🔗
-                </button>
             </div>
-
-            {showUrlInput && (
-                <div className="absolute left-0 top-full z-30 mt-1 flex min-w-[11rem] gap-1 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg">
-                    <input
-                        type="text"
-                        inputMode="url"
-                        autoComplete="off"
-                        className="text-xs"
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                        placeholder="https://..."
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") void handleUrlSave();
-                            if (e.key === "Escape") setShowUrlInput(false);
-                        }}
-                        autoFocus
-                    />
-                    <button
-                        type="button"
-                        onClick={() => void handleUrlSave()}
-                        className="btn-soft shrink-0 px-2 py-1 text-xs"
-                    >
-                        ✓
-                    </button>
-                </div>
-            )}
 
             <input
                 ref={fileRef}
@@ -321,8 +265,8 @@ export default function AdminMenuPage() {
                 <span className="chip">Administration</span>
                 <h1 className="section-heading__title">Gestion de la carte</h1>
                 <p className="section-heading__subtitle">
-                    Ajoutez, modifiez et organisez vos plats. Ajoutez des photos via
-                    📷 (upload) ou 🔗 (URL) sur chaque ligne.
+                    Ajoutez, modifiez et organisez vos plats. Touchez 📷 sous la photo pour
+                    en changer (téléphone ou ordinateur).
                 </p>
                 {!loading && (
                     <p className="text-sm text-[var(--color-accent-strong)] font-medium">
