@@ -15,7 +15,6 @@ import {
 } from "@/lib/table-count";
 
 type Props = {
-  variant?: "admin" | "serveur";
   onTableCountSaved?: (count: number) => void;
   showBadgesLink?: boolean;
   title?: string;
@@ -23,9 +22,8 @@ type Props = {
 };
 
 export function TableQrPanel({
-  variant = "admin",
   onTableCountSaved,
-  showBadgesLink = variant === "admin",
+  showBadgesLink = true,
   title = "QR codes tables",
   subtitle = "Un QR code par table. Augmentez le nombre pour en ajouter à l'impression.",
 }: Props) {
@@ -87,18 +85,11 @@ export function TableQrPanel({
     const next = clampTableCount(count);
     setSaving(true);
     try {
-      const res =
-        variant === "admin"
-          ? await fetch("/api/admin/settings", {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tableCount: next }),
-            })
-          : await fetch("/api/kitchen/settings", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tableCount: next }),
-            });
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableCount: next }),
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || data?.message || "Sauvegarde échouée");

@@ -475,6 +475,17 @@ body::after {
         border-bottom: 1px solid rgba(120, 110, 98, 0.14);
     }
 
+    .admin-menu-table td:first-child,
+    .admin-menu-table th:first-child {
+        @apply pr-2;
+        width: 4.75rem;
+        max-width: 4.75rem;
+    }
+
+    .admin-menu-table tbody tr {
+        vertical-align: top;
+    }
+
     .surface-muted-text {
         color: var(--color-text-muted);
     }

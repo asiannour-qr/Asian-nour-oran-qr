@@ -75,64 +75,75 @@ function ImageCell({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
     }
 
     return (
-        <div className="flex items-center gap-3">
+        <div className="group relative w-[4.5rem] shrink-0">
             {item.imageUrl ? (
-                <div className="relative group shrink-0">
+                <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={item.imageUrl}
                         alt={item.name}
-                        className="w-14 h-10 object-cover rounded-lg border border-[var(--color-border)]"
+                        className="h-10 w-[4.5rem] rounded-lg border border-[var(--color-border)] object-cover"
                     />
                     <button
-                        onClick={handleDelete}
-                        className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] shadow"
+                        type="button"
+                        onClick={() => void handleDelete()}
+                        className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow group-hover:flex"
                         title="Supprimer l'image"
+                        aria-label="Supprimer l'image"
                     >
                         ×
                     </button>
-                </div>
+                </>
             ) : (
-                <div className="w-14 h-10 rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-xs shrink-0">
+                <div className="flex h-10 w-[4.5rem] items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
                     —
                 </div>
             )}
 
-            <div className="flex flex-col gap-1">
-                <div className="flex gap-1">
+            <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+                <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[11px] leading-none shadow-sm"
+                    title="Uploader une photo"
+                    aria-label="Uploader une photo"
+                >
+                    {uploading ? "…" : "📷"}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setShowUrlInput((v) => !v)}
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[11px] leading-none shadow-sm"
+                    title="Coller une URL"
+                    aria-label="Coller une URL"
+                >
+                    🔗
+                </button>
+            </div>
+
+            {showUrlInput && (
+                <div className="absolute left-0 top-full z-30 mt-2 flex min-w-[11rem] gap-1 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg">
+                    <input
+                        className="text-xs"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        placeholder="https://..."
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") void handleUrlSave();
+                            if (e.key === "Escape") setShowUrlInput(false);
+                        }}
+                        autoFocus
+                    />
                     <button
-                        onClick={() => fileRef.current?.click()}
-                        disabled={uploading}
-                        className="btn-ghost text-xs px-2 py-1"
-                        title="Uploader une photo"
+                        type="button"
+                        onClick={() => void handleUrlSave()}
+                        className="btn-soft shrink-0 px-2 py-1 text-xs"
                     >
-                        {uploading ? "…" : "📷"}
-                    </button>
-                    <button
-                        onClick={() => setShowUrlInput((v) => !v)}
-                        className="btn-ghost text-xs px-2 py-1"
-                        title="Coller une URL"
-                    >
-                        🔗
+                        ✓
                     </button>
                 </div>
-                {showUrlInput && (
-                    <div className="flex gap-1">
-                        <input
-                            className="text-xs w-40"
-                            value={urlInput}
-                            onChange={(e) => setUrlInput(e.target.value)}
-                            placeholder="https://..."
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") void handleUrlSave();
-                                if (e.key === "Escape") setShowUrlInput(false);
-                            }}
-                            autoFocus
-                        />
-                        <button onClick={() => void handleUrlSave()} className="btn-soft text-xs px-2 py-1">✓</button>
-                    </div>
-                )}
-            </div>
+            )}
 
             <input
                 ref={fileRef}
@@ -344,44 +355,51 @@ export default function AdminMenuPage() {
                     <div className="surface-muted-text">Aucun résultat.</div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="table-theme">
+                        <table className="table-theme admin-menu-table">
                             <thead>
                                 <tr>
-                                    <th>Image</th>
-                                    <th>Nom</th>
-                                    <th>Catégorie</th>
-                                    <th>Prix</th>
-                                    <th>Pos.</th>
+                                    <th className="w-16">Image</th>
+                                    <th className="min-w-[9rem]">Nom</th>
+                                    <th className="min-w-[7rem]">Catégorie</th>
+                                    <th className="min-w-[5rem]">Prix</th>
+                                    <th className="hidden sm:table-cell">Pos.</th>
                                     <th>Dispo</th>
-                                    <th>Masquer</th>
+                                    <th className="hidden md:table-cell">Masquer</th>
                                     <th className="text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map((it) => (
                                     <tr key={it.id}>
-                                        <td>
+                                        <td className="w-16 align-top">
                                             <ImageCell item={it} onUpdated={load} />
                                         </td>
-                                        <td>
-                                            <input defaultValue={it.name} onBlur={(e) => updateField(it.id, { name: e.target.value })} />
+                                        <td className="min-w-[9rem]">
+                                            <input
+                                                defaultValue={it.name}
+                                                className="min-w-[8rem]"
+                                                onBlur={(e) => updateField(it.id, { name: e.target.value })}
+                                            />
                                         </td>
-                                        <td>
+                                        <td className="min-w-[7rem]">
                                             <input
                                                 list="category-list"
                                                 defaultValue={it.category}
+                                                className="min-w-[6.5rem]"
                                                 onBlur={(e) => updateField(it.id, { category: e.target.value })}
                                             />
                                         </td>
-                                        <td className="flex items-center gap-1">
+                                        <td>
+                                            <div className="flex min-w-[5rem] items-center gap-1">
                                             <input
                                                 defaultValue={formatMoneyInputValue(it.priceCents)}
                                                 onBlur={(e) => updateField(it.id, { price: Number(e.target.value.replace(",", ".")) })}
                                                 className="w-20"
                                             />
                                             <span className="surface-muted-text text-sm">{currencySuffix()}</span>
+                                            </div>
                                         </td>
-                                        <td>
+                                        <td className="hidden sm:table-cell">
                                             <input
                                                 defaultValue={it.position}
                                                 type="number"
@@ -416,7 +434,7 @@ export default function AdminMenuPage() {
                                                 />
                                             </button>
                                         </td>
-                                        <td className="text-center">
+                                        <td className="hidden md:table-cell text-center">
                                             <button
                                                 type="button"
                                                 role="switch"

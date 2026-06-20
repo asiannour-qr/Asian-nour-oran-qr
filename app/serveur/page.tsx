@@ -17,12 +17,11 @@ import {
 import { formatMoney } from "@/lib/currency";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 import { ServeurMenuPanel } from "./ServeurMenuPanel";
-import { TableQrPanel } from "@/app/components/TableQrPanel";
 import { ConfirmActionModal } from "@/app/components/ConfirmActionModal";
 import { resolveTableCount } from "@/lib/table-count";
 
 type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
-type ServeurTab = "tables" | "menu" | "qrcodes";
+type ServeurTab = "tables" | "menu";
 
 type OrderLite = ServeurOrderLite & {
   code?: string | null;
@@ -354,17 +353,6 @@ export default function ServeurPage() {
           >
             Carte
           </button>
-          <button
-            type="button"
-            onClick={() => setServeurTab("qrcodes")}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              serveurTab === "qrcodes"
-                ? "bg-[var(--color-heading)] text-white shadow-sm"
-                : "bg-[rgba(255,252,247,0.88)] text-[var(--color-heading)] border border-[var(--color-border)] hover:bg-white"
-            }`}
-          >
-            QR codes
-          </button>
         </div>
       </header>
 
@@ -373,13 +361,6 @@ export default function ServeurPage() {
 
         {serveurTab === "menu" ? (
           <ServeurMenuPanel />
-        ) : serveurTab === "qrcodes" ? (
-          <TableQrPanel
-            variant="serveur"
-            title="QR codes des tables"
-            subtitle="Imprimez ou ajoutez des QR codes. Chaque table correspond à une URL /table/N."
-            onTableCountSaved={setTableCount}
-          />
         ) : (
           <>
         <header className="surface-card-strong px-6 py-6 space-y-2">
