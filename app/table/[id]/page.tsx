@@ -8,6 +8,11 @@ import { toastAddedToCart } from "@/lib/cart-toast";
 import TableLandingView from "@/app/components/TableLandingView";
 import OrderConfirmedModal from "@/app/components/OrderConfirmedModal";
 import { getOrCreateTableDeviceId } from "@/lib/table-device-id";
+import {
+    clearOrderingSessionActive,
+    isOrderingSessionActive,
+    markOrderingSessionActive,
+} from "@/lib/table-ordering-session";
 import { getStaffTableDeviceId } from "@/lib/staff-table-device";
 import {
     guestNameFallback,
@@ -133,6 +138,7 @@ export default function TablePage() {
         async () => {}
     );
     const idleTableResetDoneRef = useRef(false);
+    const clientBootstrapDoneRef = useRef(false);
     const sessionCleanupRef = useRef({
         reset: () => {},
         clearDraft: async () => {},
@@ -158,6 +164,7 @@ export default function TablePage() {
     }, []);
 
     useLayoutEffect(() => {
+        clientBootstrapDoneRef.current = false;
         staffAutoClaimStartedRef.current = false;
         staffClaimAttemptsRef.current = 0;
         setStaffClaimError(null);
@@ -225,8 +232,15 @@ export default function TablePage() {
 
     useEffect(() => {
         if (!activeDeviceId) return;
+        if (
+            !staffMode &&
+            !clientBootstrapDoneRef.current &&
+            !isOrderingSessionActive(tableId)
+        ) {
+            return;
+        }
         void refreshMasterStatus();
-    }, [activeDeviceId, refreshMasterStatus]);
+    }, [activeDeviceId, refreshMasterStatus, staffMode, tableId]);
 
     useEffect(() => {
         if (orderMode || staffMode || !activeDeviceId) return;
@@ -490,6 +504,10 @@ export default function TablePage() {
         try {
             if (staffMode) {
                 await pushDraftCartNow();
+            } else {
+                clearOrderingSessionActive(tableId);
+                await sessionCleanupRef.current.clearDraft();
+                sessionCleanupRef.current.reset();
             }
             await fetch(`/api/tables/${tableId}/master`, {
                 method: "DELETE",
@@ -497,10 +515,6 @@ export default function TablePage() {
                 body: JSON.stringify({ deviceId: activeDeviceId }),
                 keepalive: true,
             });
-            if (!staffMode) {
-                await sessionCleanupRef.current.clearDraft();
-                sessionCleanupRef.current.reset();
-            }
         } catch {
             // best effort
         }
@@ -521,7 +535,8 @@ export default function TablePage() {
     useEffect(() => {
         if (staffMode || !masterStatus.isMaster) return;
 
-        const onLeave = () => {
+        const onLeave = (event: PageTransitionEvent) => {
+            if (event.persisted) return;
             void releaseMasterSilent();
         };
 
@@ -610,6 +625,9 @@ export default function TablePage() {
                 masterType: staffMode ? "staff" : "client",
                 loading: false,
             });
+            if (!staffMode) {
+                markOrderingSessionActive(tableId);
+            }
             enterOrderMode({ silent: options?.silent });
             if (!options?.silent) {
                 toast.success(
@@ -860,6 +878,66 @@ export default function TablePage() {
     }, [clearServerDraft, resetClientTableSession]);
 
     useEffect(() => {
+        if (staffMode || !activeDeviceId) return;
+
+        if (isOrderingSessionActive(tableId)) {
+            clientBootstrapDoneRef.current = true;
+            void refreshMasterStatus();
+            return;
+        }
+
+        if (clientBootstrapDoneRef.current) return;
+        clientBootstrapDoneRef.current = true;
+
+        let cancelled = false;
+
+        void (async () => {
+            resetClientTableSession();
+
+            let isMaster = false;
+            let hasMaster = false;
+            try {
+                const res = await fetch(
+                    `/api/tables/${tableId}/master?deviceId=${encodeURIComponent(activeDeviceId)}`,
+                    { cache: "no-store" }
+                );
+                const data = await res.json();
+                if (data.ok) {
+                    isMaster = Boolean(data.isMaster);
+                    hasMaster = Boolean(data.hasMaster);
+                }
+            } catch {
+                // ignore
+            }
+
+            if (cancelled) return;
+
+            if (isMaster) {
+                await clearServerDraft();
+                try {
+                    await fetch(`/api/tables/${tableId}/master`, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ deviceId: activeDeviceId }),
+                    });
+                } catch {
+                    // ignore
+                }
+            } else if (!hasMaster) {
+                await clearServerDraft();
+            }
+
+            if (!cancelled) {
+                void refreshMasterStatus();
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeDeviceId, clearServerDraft, refreshMasterStatus, resetClientTableSession, staffMode, tableId]);
+
+    useEffect(() => {
         if (staffMode || orderMode || masterStatus.loading) return;
         if (masterStatus.hasMaster) {
             idleTableResetDoneRef.current = false;
@@ -925,6 +1003,11 @@ export default function TablePage() {
                 draftLoadKeyRef.current = "";
                 setDraftReady(false);
             }
+            return;
+        }
+        if (!staffMode && !isOrderingSessionActive(tableId)) {
+            draftLoadKeyRef.current = "";
+            setDraftReady(false);
             return;
         }
         const draftSessionKey = activeDeviceId ? `${tableId}:${activeDeviceId}` : "";
@@ -1010,7 +1093,7 @@ export default function TablePage() {
     }, [canSyncDraft, cart.length, pushDraftCartNow]);
 
     useEffect(() => {
-        if (!canSyncDraft) return;
+        if (!canSyncDraft || !staffMode) return;
 
         const flushDraftCart = () => {
             void pushDraftCartNow();
@@ -1026,7 +1109,7 @@ export default function TablePage() {
             document.removeEventListener("visibilitychange", onHide);
             window.removeEventListener("pagehide", flushDraftCart);
         };
-    }, [canSyncDraft, pushDraftCartNow]);
+    }, [canSyncDraft, pushDraftCartNow, staffMode]);
 
     useEffect(() => {
         if (!staffMode || !masterStatus.isMaster) return;
@@ -1722,6 +1805,7 @@ export default function TablePage() {
             if (staffMode) {
                 await takeCharge({ force: true, silent: true });
             } else {
+                clearOrderingSessionActive(tableId);
                 setMasterStatus({ hasMaster: false, isMaster: false, masterType: null, loading: false });
                 showLanding();
             }

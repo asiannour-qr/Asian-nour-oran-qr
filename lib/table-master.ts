@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { clearTableDraftCart } from "@/lib/table-draft-cart";
 import { isStaffDeviceId } from "@/lib/staff-session";
 
 export const TABLE_MASTER_TTL_MS = 4 * 60 * 60 * 1000;
@@ -57,6 +58,7 @@ export async function clearStaleClientMaster(tableId: string): Promise<boolean> 
     return false;
   }
   await prisma.tableOrderMaster.delete({ where: { tableId } }).catch(() => {});
+  await clearTableDraftCart(tableId);
   return true;
 }
 

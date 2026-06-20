@@ -43,7 +43,8 @@ Source unique : `lib/table-contract.ts` → `getStaffTableDeviceId()`.
 
 1. Scan QR → `/table/{id}` (accueil, pas de `order=1`).
 2. « Je gère la commande » → `POST /master` → `PUT /draft-cart` (sync auto).
-3. Fermeture page maître → `DELETE /master` + reset local + clear draft si plus de maître.
+3. Fermeture page maître convive → `DELETE /master` + clear draft + fin de session (`sessionStorage`).
+4. Nouvelle ouverture QR (nouvel onglet / app fermée) → pas de session active : reset local + clear draft si table libre ou si ce téléphone était maître abandonné.
 
 ## Flux serveur
 
@@ -77,6 +78,7 @@ Table de test : `99` (`TEST_HANDOFF_TABLE_ID`). **Ne jamais tester sur la table 
 | `lib/table-contract.ts` | Constantes + IDs staff |
 | `lib/table-master.ts` | Verrous Prisma |
 | `lib/table-draft-cart.ts` | Brouillon Prisma |
+| `lib/table-ordering-session.ts` | Session convive par onglet (`sessionStorage`) |
 | `app/table/[id]/page.tsx` | UI convive + serveur |
 | `app/api/tables/[tableId]/master/route.ts` | API verrous |
 | `app/api/tables/[tableId]/draft-cart/route.ts` | API brouillon |
