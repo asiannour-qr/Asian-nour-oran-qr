@@ -1,4 +1,4 @@
-export const DEFAULT_TABLE_COUNT = 20;
+export const DEFAULT_TABLE_COUNT = 25;
 export const MIN_TABLE_COUNT = 1;
 export const MAX_TABLE_COUNT = 500;
 

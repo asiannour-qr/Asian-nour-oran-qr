@@ -6,7 +6,7 @@ const { PrismaClient } = require("@prisma/client");
 const HOT_MENU_DEFS = [
   {
     name: "Asian Classic",
-    priceCents: 250000,
+    priceCents: 1690,
     position: 10,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -16,7 +16,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Classic +",
-    priceCents: 275000,
+    priceCents: 1890,
     position: 20,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -26,46 +26,49 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Royal",
-    priceCents: 235000,
+    priceCents: 1890,
     position: 30,
     groups: [
-      { name: "Entrée", categoryFilter: "Entrées::xor=royal-main", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=royal-main", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée ou Yakitori", categoryFilter: "Entrée ou Yakitoris", minChoices: 1, maxChoices: 1 },
       { name: "Plat Gold", categoryFilter: "Plats Gold", minChoices: 1, maxChoices: 1 },
       { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
   {
     name: "Asian Classe B",
-    priceCents: 210000,
+    priceCents: 1590,
     position: 40,
     groups: [
-      { name: "Entrée", categoryFilter: "Entrées::xor=classeb-main", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=classeb-main", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée ou Yakitori", categoryFilter: "Entrée ou Yakitoris", minChoices: 1, maxChoices: 1 },
       { name: "Plat Silver", categoryFilter: "Plats Silver", minChoices: 1, maxChoices: 1 },
       { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
   {
     name: "Asian Express",
-    priceCents: 185000,
+    priceCents: 1390,
     position: 50,
     groups: [
-      { name: "Entrée", categoryFilter: "Entrées::xor=express-main", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=express-main", minChoices: 1, maxChoices: 1 },
-      { name: "Plat Starter", categoryFilter: "Plats Starter", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
+      { name: "Plat Silver", categoryFilter: "Plats Silver", minChoices: 1, maxChoices: 1 },
       { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
   {
     name: "Asian Kid’s",
-    priceCents: 120000,
+    priceCents: 890,
     position: 60,
     groups: [
-      { name: "Entrée (2 pièces)", categoryFilter: "Entrées::xor=kids-main", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)::xor=kids-main", minChoices: 1, maxChoices: 1 },
-      { name: "Plat Starter", categoryFilter: "Plats Starter", minChoices: 1, maxChoices: 1 },
-      { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée (2 pièces)", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
+      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)", minChoices: 1, maxChoices: 1 },
+      {
+        name: "Accompagnement Kid’s",
+        categoryFilter: "Accompagnements|Plats Starter",
+        minChoices: 1,
+        maxChoices: 1,
+      },
+      { name: "Dessert enfant", categoryFilter: "Desserts Kid", minChoices: 1, maxChoices: 1 },
+      { name: "Boisson enfant", categoryFilter: "Boissons Kid", minChoices: 1, maxChoices: 1 },
     ],
   },
 ];
@@ -90,7 +93,8 @@ const COLD_MENU_DESCRIPTIONS = [
   },
   {
     name: "Asian Avocado",
-    description: "6 Crunch thon cuit avocat + 6 Avocat roll’s burrata + 6 Frits avocat cheese miel + 1 Boisson",
+    description:
+      "6 Avocat roll’s burrata + 6 Avocat roll’s saumon fumé cheese + 6 Frits avocat cheese miel + 1 Boisson",
   },
   {
     name: "Asian Mix",

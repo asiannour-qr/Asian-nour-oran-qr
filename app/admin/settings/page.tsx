@@ -5,7 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_MENU_CARD_IMAGE } from "@/lib/settings";
 import { SITE_CONFIG } from "@/lib/site";
 
-type DayHours = { ouvert: boolean; debut: string; fin: string };
+type DayHours = {
+  ouvert: boolean;
+  debut: string;
+  fin: string;
+  debut2?: string;
+  fin2?: string;
+  continu?: boolean;
+};
 type OpeningHours = Record<string, DayHours>;
 
 const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"] as const;
@@ -395,7 +402,7 @@ export default function AdminSettingsPage() {
                 </button>
                 <span className="w-24 text-sm font-medium">{JOURS_LABELS[jour]}</span>
                 {h.ouvert ? (
-                  <>
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="time"
                       value={h.debut}
@@ -431,7 +438,71 @@ export default function AdminSettingsPage() {
                       }
                       className="input w-28 text-sm"
                     />
-                  </>
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                      <input
+                        type="checkbox"
+                        checked={h.continu === true}
+                        onChange={(e) =>
+                          setSettings((s) => {
+                            if (!s) return s;
+                            return {
+                              ...s,
+                              openingHours: {
+                                ...s.openingHours,
+                                [jour]: {
+                                  ...h,
+                                  continu: e.target.checked,
+                                  debut2: e.target.checked ? undefined : h.debut2,
+                                  fin2: e.target.checked ? undefined : h.fin2,
+                                },
+                              },
+                            };
+                          })
+                        }
+                      />
+                      Continu
+                    </label>
+                    {!h.continu && (
+                      <>
+                        <span className="text-xs text-[var(--color-text-muted)]">· soir</span>
+                        <input
+                          type="time"
+                          value={h.debut2 ?? ""}
+                          onChange={(e) =>
+                            setSettings((s) => {
+                              if (!s) return s;
+                              return {
+                                ...s,
+                                openingHours: {
+                                  ...s.openingHours,
+                                  [jour]: { ...h, debut2: e.target.value || undefined },
+                                },
+                              };
+                            })
+                          }
+                          className="input w-28 text-sm"
+                        />
+                        <span className="text-sm text-[var(--color-text-muted)]">→</span>
+                        <input
+                          type="time"
+                          value={h.fin2 ?? ""}
+                          onChange={(e) =>
+                            setSettings((s) => {
+                              if (!s) return s;
+                              return {
+                                ...s,
+                                openingHours: {
+                                  ...s.openingHours,
+                                  [jour]: { ...h, fin2: e.target.value || undefined },
+                                },
+                              };
+                            })
+                          }
+                          className="input w-28 text-sm"
+                        />
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-sm text-[var(--color-text-muted)] italic">Fermé</span>
                 )}

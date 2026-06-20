@@ -1,6 +1,9 @@
+import { isDayOpenAt, normalizeDayHours } from "@/lib/opening-hours";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 import type { OpeningHours } from "@/lib/settings";
 import { JOURS } from "@/lib/settings";
+
+export { formatDayHoursLabel } from "@/lib/opening-hours";
 
 const DAY_INDEX: Record<number, (typeof JOURS)[number]> = {
   0: "dimanche",
@@ -12,22 +15,20 @@ const DAY_INDEX: Record<number, (typeof JOURS)[number]> = {
   6: "samedi",
 };
 
-function parseHm(value: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) {
-    return null;
-  }
-  return h * 60 + min;
+function weekdayKey(parts: Intl.DateTimeFormatPart[]): (typeof JOURS)[number] {
+  const weekday = parts.find((p) => p.type === "weekday")?.value?.toLowerCase() ?? "";
+  if (weekday.startsWith("mon")) return "lundi";
+  if (weekday.startsWith("tue")) return "mardi";
+  if (weekday.startsWith("wed")) return "mercredi";
+  if (weekday.startsWith("thu")) return "jeudi";
+  if (weekday.startsWith("fri")) return "vendredi";
+  if (weekday.startsWith("sat")) return "samedi";
+  if (weekday.startsWith("sun")) return "dimanche";
+  return "lundi";
 }
 
 /** Indique si le restaurant accepte des commandes à l'instant `when` (fuseau site). */
-export function isRestaurantOpen(
-  openingHours: OpeningHours,
-  when: Date = new Date()
-): boolean {
+export function isRestaurantOpen(openingHours: OpeningHours, when: Date = new Date()): boolean {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: RESTAURANT_TZ,
     weekday: "short",
@@ -36,37 +37,13 @@ export function isRestaurantOpen(
     hour12: false,
   }).formatToParts(when);
 
-  const weekday = parts.find((p) => p.type === "weekday")?.value?.toLowerCase() ?? "";
   const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return true;
 
-  const dayKey =
-    weekday.startsWith("mon")
-      ? "lundi"
-      : weekday.startsWith("tue")
-        ? "mardi"
-        : weekday.startsWith("wed")
-          ? "mercredi"
-          : weekday.startsWith("thu")
-            ? "jeudi"
-            : weekday.startsWith("fri")
-              ? "vendredi"
-              : weekday.startsWith("sat")
-                ? "samedi"
-                : weekday.startsWith("sun")
-                  ? "dimanche"
-                  : DAY_INDEX[when.getDay()] ?? "lundi";
-
-  const slot = openingHours[dayKey];
-  if (!slot?.ouvert) return false;
-
-  const start = parseHm(slot.debut);
-  const end = parseHm(slot.fin);
-  const nowMin = hour * 60 + minute;
-  if (start == null || end == null) return true;
-  if (end <= start) return nowMin >= start || nowMin <= end;
-  return nowMin >= start && nowMin <= end;
+  const dayKey = weekdayKey(parts) ?? DAY_INDEX[when.getDay()] ?? "lundi";
+  const slot = normalizeDayHours(openingHours[dayKey]);
+  return isDayOpenAt(slot, hour * 60 + minute);
 }
 
 export function closedMessage(): string {

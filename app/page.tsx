@@ -1,11 +1,10 @@
 // app/page.tsx
 import Image from "next/image";
 import MenuCardGallery from "@/app/components/MenuCardGallery";
+import { formatDayHoursLabel } from "@/lib/opening-hours";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
-
-type DayHours = { ouvert: boolean; debut: string; fin: string };
 
 const JOURS_ORDRE = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"] as const;
 const JOURS_LABELS: Record<string, string> = {
@@ -27,7 +26,7 @@ export default async function Home() {
   }
 
   const name = settings?.restaurantName || "Asian Nour";
-  const hours = (settings?.openingHours ?? {}) as Record<string, DayHours>;
+  const hours = settings?.openingHours ?? {};
   const hasHours = JOURS_ORDRE.some((j) => hours[j]);
 
   return (
@@ -85,7 +84,7 @@ export default async function Home() {
                 <li key={j} className="flex items-center justify-between py-1.5">
                   <span className="font-medium">{JOURS_LABELS[j]}</span>
                   <span className="surface-muted-text">
-                    {h.ouvert ? `${h.debut} – ${h.fin}` : "Fermé"}
+                    {h.ouvert ? formatDayHoursLabel(h) : "Fermé"}
                   </span>
                 </li>
               );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import MenuCardGallery from "@/app/components/MenuCardGallery";
+import { formatDayHoursLabel } from "@/lib/opening-hours";
 import { type OpeningHours } from "@/lib/settings";
 
 const JOURS_ORDRE = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"] as const;
@@ -103,7 +104,7 @@ export default function TableLandingView({
                   <li key={j} className="flex items-center justify-between py-1.5">
                     <span className="font-medium">{JOURS_LABELS[j]}</span>
                     <span className="surface-muted-text">
-                      {h.ouvert ? `${h.debut} – ${h.fin}` : "Fermé"}
+                      {h.ouvert ? formatDayHoursLabel(h) : "Fermé"}
                     </span>
                   </li>
                 );

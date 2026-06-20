@@ -18,3 +18,11 @@ export function assertStaffSession() {
 export function isStaffDeviceId(deviceId: string | null | undefined): boolean {
   return Boolean(deviceId && deviceId.startsWith(STAFF_DEVICE_PREFIX));
 }
+
+/** Session cuisine/admin ou tablette serveur — bypass horaires d'ouverture. */
+export function canBypassOpeningHours(deviceId?: string | null): boolean {
+  if (isStaffDeviceId(deviceId)) return true;
+  const kitchen = cookies().get("kitchen")?.value;
+  const admin = cookies().get("admin")?.value;
+  return verifySessionToken(kitchen, "KITCHEN") || verifySessionToken(admin, "ADMIN");
+}

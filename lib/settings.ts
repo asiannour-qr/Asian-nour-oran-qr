@@ -17,6 +17,11 @@ export type DayHours = {
   ouvert: boolean;
   debut: string;
   fin: string;
+  /** Service du soir (coupure entre fin et debut2). */
+  debut2?: string;
+  fin2?: string;
+  /** Service continu (ex. 11h–00h). */
+  continu?: boolean;
 };
 
 export type OpeningHours = Record<string, DayHours>;

@@ -8,6 +8,7 @@ import { occupyTable } from "@/lib/table-occupancy";
 import { validateAndResolveOrderItems } from "@/lib/order-items-validation";
 import { getSettings } from "@/lib/settings";
 import { closedMessage, isRestaurantOpen } from "@/lib/restaurant-open";
+import { canBypassOpeningHours } from "@/lib/staff-session";
 import { checkPublicActionAllowed, getClientIp, recordPublicAction } from "@/lib/public-rate-limit";
 import { assertValidDineInTableId } from "@/lib/table-id-validation";
 import { z } from "zod";
@@ -65,12 +66,6 @@ export async function POST(req: Request, { params }: { params: { tableId: string
     }
 
     const settings = await getSettings();
-    if (!isRestaurantOpen(settings.openingHours)) {
-      return NextResponse.json(
-        { ok: false, code: "CLOSED", message: closedMessage() },
-        { status: 403 }
-      );
-    }
 
     const raw = await req.json().catch(() => undefined);
     const parsed = BodySchema.safeParse(raw);
@@ -83,6 +78,16 @@ export async function POST(req: Request, { params }: { params: { tableId: string
       return NextResponse.json(
         { ok: false, code: "INVALID_JSON_BODY", message: firstIssue },
         { status: 400 }
+      );
+    }
+
+    if (
+      !isRestaurantOpen(settings.openingHours) &&
+      !canBypassOpeningHours(parsed.data.deviceId)
+    ) {
+      return NextResponse.json(
+        { ok: false, code: "CLOSED", message: closedMessage() },
+        { status: 403 }
       );
     }
 
