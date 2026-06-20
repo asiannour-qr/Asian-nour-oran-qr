@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-/** Met à jour imageUrl des menus composés générés (Classic+ et Classe B). */
+/** Met à jour imageUrl des menus composés depuis menu-image-map.json */
 import "dotenv/config";
+import { readFile } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prisma = new PrismaClient();
 
-const UPDATES = {
-  "Asian Classic +": "/uploads/generated/asian-classic-plus.png",
-  "Asian Classe B": "/uploads/generated/asian-classe-b.png",
-};
-
 async function main() {
-  for (const [name, imageUrl] of Object.entries(UPDATES)) {
+  const mapPath = path.join(__dirname, "menu-image-map.json");
+  const map = JSON.parse(await readFile(mapPath, "utf8"));
+  const composed = map.composedMenus || {};
+
+  for (const [name, file] of Object.entries(composed)) {
+    const imageUrl = `/uploads/${file}`;
     const result = await prisma.menu.updateMany({ where: { name }, data: { imageUrl } });
     console.log(`${name}: ${result.count} -> ${imageUrl}`);
   }
