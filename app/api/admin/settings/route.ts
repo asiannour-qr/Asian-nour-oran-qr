@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertAdminSession } from "@/lib/admin-session";
 import { getSettings, upsertSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings";
+import { clampTableCount } from "@/lib/table-count";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,8 +39,7 @@ export async function PUT(req: Request) {
   if ("address" in body) patch.address = body.address ? String(body.address).trim() : null;
   if ("phone" in body) patch.phone = body.phone ? String(body.phone).trim() : null;
   if (typeof body.tableCount === "number") {
-    const n = Math.max(1, Math.min(500, Math.round(body.tableCount)));
-    patch.tableCount = n;
+    patch.tableCount = clampTableCount(body.tableCount);
   }
   if (typeof body.kitchenSoundEnabled === "boolean") patch.kitchenSoundEnabled = body.kitchenSoundEnabled;
   if (typeof body.autoPrintEnabled === "boolean") patch.autoPrintEnabled = body.autoPrintEnabled;

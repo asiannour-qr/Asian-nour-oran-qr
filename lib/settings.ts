@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { SITE_CONFIG } from "@/lib/site";
+import { DEFAULT_TABLE_COUNT } from "@/lib/table-count";
 
 export const SETTINGS_ID = "default";
 
@@ -54,7 +55,7 @@ export async function getSettings(): Promise<Settings> {
     restaurantName: row?.restaurantName ?? "Asian Nour",
     address: row?.address ?? null,
     phone: row?.phone ?? null,
-    tableCount: row?.tableCount ?? 15,
+    tableCount: row?.tableCount ?? DEFAULT_TABLE_COUNT,
     kitchenSoundEnabled: row?.kitchenSoundEnabled ?? true,
     autoPrintEnabled: row?.autoPrintEnabled ?? false,
     openingHours:

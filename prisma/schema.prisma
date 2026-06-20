@@ -46,7 +46,7 @@ model MenuItem {
   priceCents  Int
   available             Boolean  @default(true)
   hideWhenUnavailable   Boolean  @default(false)
-  position    Int      @default(0)
+  position              Int      @default(0)
   description String?
   imageUrl    String?
   spicyLevel  Int?
@@ -105,7 +105,7 @@ model RestaurantSettings {
   restaurantName      String   @default("Asian Nour")
   address             String?
   phone               String?
-  tableCount          Int      @default(15)
+  tableCount          Int      @default(20)
   kitchenSoundEnabled Boolean  @default(true)
   autoPrintEnabled    Boolean  @default(false)
   openingHours        Json?

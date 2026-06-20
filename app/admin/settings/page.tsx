@@ -333,7 +333,7 @@ export default function AdminSettingsPage() {
           </button>
         </form>
         <p className="text-xs text-[var(--color-text-muted)] mt-2">
-          Détermine le nombre de QR codes générables depuis l&apos;onglet QRs.
+          Détermine le nombre de tables affichées en serveur et de QR codes générables (défaut&nbsp;: 20).
         </p>
       </section>
 

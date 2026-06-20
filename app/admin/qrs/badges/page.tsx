@@ -3,13 +3,22 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import { getPublicBaseUrl } from "@/lib/public-base-url";
+import { generateTableQrCodes } from "@/lib/generate-table-qrs";
+import {
+  DEFAULT_TABLE_COUNT,
+  MAX_TABLE_COUNT,
+  MIN_TABLE_COUNT,
+  clampTableCount,
+  resolveTableCount,
+} from "@/lib/table-count";
 
 type QR = { table: number; dataUrl: string };
 
 export default function BadgeQRCodesPage() {
-    const [count, setCount] = useState(20);
+    const [count, setCount] = useState(DEFAULT_TABLE_COUNT);
+    const [draftCount, setDraftCount] = useState(String(DEFAULT_TABLE_COUNT));
+    const [saving, setSaving] = useState(false);
     const [busy, setBusy] = useState(false);
     const [codes, setCodes] = useState<QR[]>([]);
     const [restaurantName, setRestaurantName] = useState("Asian Nour");
@@ -23,22 +32,45 @@ export default function BadgeQRCodesPage() {
         if (!baseUrl) return;
         setBusy(true);
         try {
-            const arr: QR[] = [];
-            for (let i = 1; i <= count; i++) {
-                const url = `${baseUrl}/table/${i}`;
-                const dataUrl = await QRCode.toDataURL(url, {
-                    errorCorrectionLevel: "M",
-                    // marge ≥ 2 : zone de silence indispensable au scan
-                    margin: 3,
-                    scale: 6,
-                });
-                arr.push({ table: i, dataUrl });
-            }
+            const arr = await generateTableQrCodes(baseUrl, count, { scale: 6 });
             setCodes(arr);
         } finally {
             setBusy(false);
         }
     }, [baseUrl, count]);
+
+    useEffect(() => {
+        fetch("/api/settings", { cache: "no-store" })
+            .then((r) => r.json())
+            .then((data) => {
+                const n = resolveTableCount(data?.tableCount);
+                setCount(n);
+                setDraftCount(String(n));
+            })
+            .catch(() => {
+                setCount(DEFAULT_TABLE_COUNT);
+                setDraftCount(String(DEFAULT_TABLE_COUNT));
+            });
+    }, []);
+
+    async function saveTableCount(next: number) {
+        const applied = clampTableCount(next);
+        setSaving(true);
+        try {
+            const res = await fetch("/api/admin/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tableCount: applied }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || "Sauvegarde échouée");
+            const saved = resolveTableCount(data?.tableCount ?? applied);
+            setCount(saved);
+            setDraftCount(String(saved));
+        } finally {
+            setSaving(false);
+        }
+    }
 
     useEffect(() => {
         void generate();
@@ -83,11 +115,30 @@ export default function BadgeQRCodesPage() {
                 <label className="text-sm font-medium surface-muted-text">
                     Tables:
                     <input
-                        type="number" min={1} max={200} value={count}
-                        onChange={(e) => setCount(parseInt(e.target.value || "1", 10))}
+                        type="number"
+                        min={MIN_TABLE_COUNT}
+                        max={MAX_TABLE_COUNT}
+                        value={draftCount}
+                        onChange={(e) => setDraftCount(e.target.value)}
                         className="w-20"
                     />
                 </label>
+                <button
+                    type="button"
+                    className="btn-ghost"
+                    disabled={saving}
+                    onClick={() => void saveTableCount(Number(draftCount))}
+                >
+                    {saving ? "…" : "Appliquer"}
+                </button>
+                <button
+                    type="button"
+                    className="btn-soft"
+                    disabled={saving || count >= MAX_TABLE_COUNT}
+                    onClick={() => void saveTableCount(count + 1)}
+                >
+                    + 1 table
+                </button>
 
                 <label className="text-sm font-medium surface-muted-text">
                     Largeur (mm):
