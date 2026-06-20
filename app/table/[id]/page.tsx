@@ -27,6 +27,7 @@ import {
 } from "@/lib/guest-names-store";
 import CategorySlider from "@/app/components/CategorySlider";
 import CompactCartBar from "@/app/components/CompactCartBar";
+import { MenuCardFullscreenOverlay } from "@/app/components/MenuCardFullscreenOverlay";
 import { ConfirmActionModal } from "@/app/components/ConfirmActionModal";
 import FormulaMenuCard, { FormulaMenuGrid } from "@/app/components/FormulaMenuCard";
 import FormulaSectionHeading from "@/app/components/FormulaSectionHeading";
@@ -333,6 +334,7 @@ export default function TablePage() {
     const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
     const [orderConfirmedOpen, setOrderConfirmedOpen] = useState(false);
     const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+    const [menuCardOpen, setMenuCardOpen] = useState(false);
     const [draftReady, setDraftReady] = useState(false);
     const draftLoadKeyRef = useRef("");
     const cartRef = useRef(cart);
@@ -1852,6 +1854,28 @@ export default function TablePage() {
                             Table {tableId}
                         </span>
                     </div>
+                    <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setMenuCardOpen(true)}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[rgba(190,127,57,0.35)] bg-[rgba(255,252,247,0.92)] px-3 text-[var(--color-heading)] shadow-[0_10px_28px_rgba(61,47,33,0.15)] transition focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(190,127,57,0.55)] hover:bg-[rgba(217,168,108,0.18)] active:translate-y-[1px] sm:h-11 sm:px-4"
+                        aria-label="Voir la carte du restaurant"
+                    >
+                        <svg
+                            className="h-5 w-5 shrink-0"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16.5A2.5 2.5 0 0 0 17.5 17H6.5A2.5 2.5 0 0 1 4 14.5V5.5Z" />
+                            <path d="M6.5 3v14" />
+                        </svg>
+                        <span className="text-sm font-semibold">Carte</span>
+                    </button>
                     {canModifyCart && (
                     <button
                         type="button"
@@ -1888,8 +1912,15 @@ export default function TablePage() {
                         )}
                     </button>
                     )}
+                    </div>
                 </div>
             </header>
+            <MenuCardFullscreenOverlay
+                open={menuCardOpen}
+                onClose={() => setMenuCardOpen(false)}
+                alt="Carte Asian Nour"
+                closeLabel="Retour à ma commande"
+            />
             <main className="page-shell space-y-8">
                 <Toaster position="top-right" />
 
