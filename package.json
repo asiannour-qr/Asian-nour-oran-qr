@@ -25,7 +25,9 @@
     "prisma:deploy": "./node_modules/.bin/prisma migrate deploy",
     "postinstall": "./node_modules/.bin/prisma generate",
     "setup": "npm ci --ignore-scripts && ./node_modules/.bin/prisma generate",
-    "seed:hot": "node scripts/seed-hot-menus.mjs"
+    "seed:hot": "node scripts/seed-hot-menus.mjs",
+    "sync:menu-images": "node scripts/sync-menu-images.mjs",
+    "apply:generated-menu-images": "node scripts/apply-generated-composed-images.mjs"
   },
   "dependencies": {
     "@prisma/client": "5.18.0",
