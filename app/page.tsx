@@ -1,6 +1,6 @@
 // app/page.tsx
 import Image from "next/image";
-import MenuCardGallery from "@/app/components/MenuCardGallery";
+import { HomeMenuCardSection } from "@/app/components/HomeMenuCardSection";
 import { HomeTableAccess } from "@/app/components/HomeTableAccess";
 import { formatDayHoursLabel } from "@/lib/opening-hours";
 import { getSettings } from "@/lib/settings";
@@ -70,13 +70,7 @@ export default async function Home() {
         </p>
       </div>
 
-      <div className="surface-card w-full max-w-2xl px-4 sm:px-8 py-6 space-y-4">
-        <h2 className="text-lg font-semibold text-center">Notre carte</h2>
-        <p className="text-sm surface-muted-text text-center">
-          Consultez la carte complète du restaurant avant de commander.
-        </p>
-        <MenuCardGallery alt={`Carte ${name}`} />
-      </div>
+      <HomeMenuCardSection alt={`Carte ${name}`} />
 
       {hasHours && (
         <div className="surface-card w-full max-w-2xl px-8 py-6 space-y-3">
