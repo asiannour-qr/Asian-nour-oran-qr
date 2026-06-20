@@ -14,6 +14,7 @@ type Item = {
     imageUrl?: string | null;
     spicyLevel?: number | null;
     available: boolean;
+    hideWhenUnavailable?: boolean;
     position: number;
 };
 
@@ -352,6 +353,7 @@ export default function AdminMenuPage() {
                                     <th>Prix</th>
                                     <th>Pos.</th>
                                     <th>Dispo</th>
+                                    <th>Masquer</th>
                                     <th className="text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -392,7 +394,14 @@ export default function AdminMenuPage() {
                                                 type="button"
                                                 role="switch"
                                                 aria-checked={it.available}
-                                                onClick={() => updateField(it.id, { available: !it.available })}
+                                                onClick={() =>
+                                                    updateField(
+                                                        it.id,
+                                                        it.available
+                                                            ? { available: false }
+                                                            : { available: true, hideWhenUnavailable: false }
+                                                    )
+                                                }
                                                 title={it.available ? "Disponible — cliquer pour désactiver" : "Indisponible — cliquer pour activer"}
                                                 className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${
                                                     it.available
@@ -403,6 +412,37 @@ export default function AdminMenuPage() {
                                                 <span
                                                     className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
                                                         it.available ? "translate-x-6" : "translate-x-1"
+                                                    }`}
+                                                />
+                                            </button>
+                                        </td>
+                                        <td className="text-center">
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={it.hideWhenUnavailable === true}
+                                                disabled={it.available}
+                                                onClick={() =>
+                                                    updateField(it.id, {
+                                                        hideWhenUnavailable: !it.hideWhenUnavailable,
+                                                    })
+                                                }
+                                                title={
+                                                    it.available
+                                                        ? "Actif seulement si l'article est indisponible"
+                                                        : it.hideWhenUnavailable
+                                                            ? "Masqué sur la carte — cliquer pour afficher grisé"
+                                                            : "Affiché grisé — cliquer pour masquer sur la carte"
+                                                }
+                                                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                    it.hideWhenUnavailable
+                                                        ? "bg-indigo-500"
+                                                        : "bg-[var(--color-surface-muted,#4a4a4a)]"
+                                                }`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                                                        it.hideWhenUnavailable ? "translate-x-6" : "translate-x-1"
                                                     }`}
                                                 />
                                             </button>

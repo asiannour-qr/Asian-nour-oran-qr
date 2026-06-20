@@ -16,8 +16,10 @@ import {
 } from "@/lib/serveur-table-orders";
 import { formatMoney } from "@/lib/currency";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
+import { ServeurMenuPanel } from "./ServeurMenuPanel";
 
 type TableState = "FREE" | "ACTIVE" | "READY" | "OCCUPIED";
+type ServeurTab = "tables" | "menu";
 
 type OrderLite = ServeurOrderLite & {
   code?: string | null;
@@ -54,6 +56,7 @@ export default function ServeurPage() {
   const [refusingId, setRefusingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [serveurTab, setServeurTab] = useState<ServeurTab>("tables");
   const knownPendingIdsRef = useRef<Set<string>>(new Set());
   const pendingBootstrappedRef = useRef(false);
 
@@ -324,11 +327,39 @@ export default function ServeurPage() {
             Écran cuisine
           </Link>
         </div>
+        <div className="mx-auto flex gap-1 px-4 pb-3 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setServeurTab("tables")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              serveurTab === "tables"
+                ? "bg-[var(--color-heading)] text-white shadow-sm"
+                : "bg-[rgba(255,252,247,0.88)] text-[var(--color-heading)] border border-[var(--color-border)] hover:bg-white"
+            }`}
+          >
+            Tables
+          </button>
+          <button
+            type="button"
+            onClick={() => setServeurTab("menu")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              serveurTab === "menu"
+                ? "bg-[var(--color-heading)] text-white shadow-sm"
+                : "bg-[rgba(255,252,247,0.88)] text-[var(--color-heading)] border border-[var(--color-border)] hover:bg-white"
+            }`}
+          >
+            Carte
+          </button>
+        </div>
       </header>
 
       <main className="page-shell space-y-8">
         <Toaster position="top-right" />
 
+        {serveurTab === "menu" ? (
+          <ServeurMenuPanel />
+        ) : (
+          <>
         <header className="surface-card-strong px-6 py-6 space-y-2">
           <span className="chip">Prise de commande</span>
           <h1 className="text-3xl font-semibold">Choisissez une table</h1>
@@ -588,6 +619,8 @@ export default function ServeurPage() {
                 🥡 Prendre une commande à emporter
               </Link>
             </section>
+          </>
+        )}
           </>
         )}
       </main>

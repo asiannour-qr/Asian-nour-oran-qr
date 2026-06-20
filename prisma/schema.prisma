@@ -44,7 +44,8 @@ model MenuItem {
   name        String
   category    String
   priceCents  Int
-  available   Boolean  @default(true)
+  available             Boolean  @default(true)
+  hideWhenUnavailable   Boolean  @default(false)
   position    Int      @default(0)
   description String?
   imageUrl    String?

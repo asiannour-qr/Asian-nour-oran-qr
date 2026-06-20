@@ -19,7 +19,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         if (body.category != null) data.category = String(body.category).trim();
         if (body.description != null) data.description = body.description ? String(body.description) : null;
         if (body.imageUrl != null) data.imageUrl = body.imageUrl ? String(body.imageUrl) : null;
-        if (body.available != null) data.available = Boolean(body.available);
+        if (body.available != null) {
+            data.available = Boolean(body.available);
+            if (data.available === true) {
+                data.hideWhenUnavailable = false;
+            }
+        }
+        if (body.hideWhenUnavailable != null) {
+            data.hideWhenUnavailable = Boolean(body.hideWhenUnavailable);
+        }
         if (body.position != null && Number.isFinite(Number(body.position))) {
             data.position = Number(body.position);
         }

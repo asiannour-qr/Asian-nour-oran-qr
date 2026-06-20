@@ -2,13 +2,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { assertAdminSession } from "@/lib/admin-session";
+import { filterCustomerMenuItems } from "@/lib/menu-item-visibility";
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const includeAll = new URL(req.url).searchParams.get("all") === "1";
         const items = await prisma.menuItem.findMany({
             orderBy: [{ position: "asc" }, { category: "asc" }, { name: "asc" }],
         });
-        return NextResponse.json({ items });
+        const visibleItems = includeAll ? items : filterCustomerMenuItems(items);
+        return NextResponse.json({ items: visibleItems });
     } catch (e: any) {
         console.error("[menu/GET] Prisma error:", e);
         return NextResponse.json(
