@@ -10,6 +10,13 @@ import {
   MenuComposerModal,
 } from "@/app/components/MenuComposerModal";
 import { isColdMenuItem } from "@/lib/cold-menus";
+import {
+  COLD_MENUS_SECTION_ID,
+  HOT_MENUS_SECTION_ID,
+  HOT_MENUS_SLIDER_LABEL,
+  COLD_MENUS_SLIDER_LABEL,
+  isFormulaMenuCategory,
+} from "@/lib/menu-formula-nav";
 import { formatMoney } from "@/lib/currency";
 
 type MenuItem = {
@@ -51,6 +58,7 @@ export default function EmporterPage() {
   const [confirmation, setConfirmation] = useState<{ code: string; id: string } | null>(null);
   const [trackedStatus, setTrackedStatus] = useState<string>("NEW");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
   const cartScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,6 +82,7 @@ export default function EmporterPage() {
     for (const it of menu) {
       const cat = (it.category || "Divers").trim();
       if (HIDDEN_MENU_CATEGORIES.has(cat)) continue;
+      if (isFormulaMenuCategory(cat)) continue;
       if (!map.has(cat)) {
         map.set(cat, []);
         order.push(cat);
@@ -106,10 +115,44 @@ export default function EmporterPage() {
     });
   }, [menu]);
 
+  const coldMenuItems = useMemo(
+    () =>
+      menu
+        .filter((it) => isColdMenuItem(it))
+        .sort((a, b) => {
+          if (a.position !== b.position) return a.position - b.position;
+          return a.name.localeCompare(b.name, "fr");
+        }),
+    [menu]
+  );
+
+  const formulaSliderCategories = useMemo(() => {
+    const items: { id: string; label: string }[] = [];
+    if (composedMenus.length > 0) {
+      items.push({ id: HOT_MENUS_SECTION_ID, label: HOT_MENUS_SLIDER_LABEL });
+    }
+    if (coldMenuItems.length > 0) {
+      items.push({ id: COLD_MENUS_SECTION_ID, label: COLD_MENUS_SLIDER_LABEL });
+    }
+    return items;
+  }, [composedMenus.length, coldMenuItems.length]);
+
   const sliderCategories = useMemo(
     () => sections.map((s) => ({ id: s.anchorId, label: s.label })),
     [sections]
   );
+
+  useEffect(() => {
+    if (!formulaSliderCategories.length) {
+      setActiveFormulaId(null);
+      return;
+    }
+    setActiveFormulaId((prev) => {
+      if (prev && formulaSliderCategories.some((item) => item.id === prev)) return prev;
+      const preferred = formulaSliderCategories.find((item) => item.id === HOT_MENUS_SECTION_ID);
+      return preferred?.id ?? formulaSliderCategories[0].id;
+    });
+  }, [formulaSliderCategories]);
 
   useEffect(() => {
     if (!sections.length) {
@@ -119,7 +162,38 @@ export default function EmporterPage() {
     setActiveCategoryId((prev) => prev ?? sections[0].anchorId);
   }, [sections]);
 
-  // Scroll-spy : surligne la catégorie active dans le slider
+  // Scroll-spy formules (menus chauds / froids)
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
+    if (!formulaSliderCategories.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const intersecting = entries.filter((e) => e.isIntersecting);
+        if (!intersecting.length) return;
+        intersecting.sort((a, b) => {
+          const aIndex = Number((a.target as HTMLElement).dataset.formulaIndex ?? 0);
+          const bIndex = Number((b.target as HTMLElement).dataset.formulaIndex ?? 0);
+          return aIndex - bIndex;
+        });
+        const top = intersecting[0];
+        if (top?.target?.id) setActiveFormulaId(top.target.id);
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.1, 0.25] }
+    );
+
+    formulaSliderCategories.forEach(({ id }, index) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.dataset.formulaIndex = String(index);
+        observer.observe(el);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [formulaSliderCategories]);
+
+  // Scroll-spy : surligne la catégorie active dans le slider à la carte
   useEffect(() => {
     if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
     if (!sections.length) return;
@@ -353,32 +427,40 @@ export default function EmporterPage() {
             </div>
           </div>
 
-          {!loading && sliderCategories.length > 0 && (
+          {!loading && formulaSliderCategories.length > 0 && (
             <CategorySlider
-              categories={sliderCategories}
-              activeId={activeCategoryId}
-              onCategorySelect={(id) => setActiveCategoryId(id)}
+              categories={formulaSliderCategories}
+              activeId={activeFormulaId}
+              onCategorySelect={(id) => setActiveFormulaId(id)}
             />
+          )}
+
+          {!loading && sliderCategories.length > 0 && (
+            <>
+              <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] surface-muted-text">
+                À la carte
+              </p>
+              <CategorySlider
+                categories={sliderCategories}
+                activeId={activeCategoryId}
+                onCategorySelect={(id) => setActiveCategoryId(id)}
+              />
+            </>
           )}
         </div>
 
-        {/* À la carte */}
         <section className="space-y-5">
-          <div className="section-heading mb-0">
-            <h2 className="section-heading__title text-2xl">À la carte</h2>
-            <p className="section-heading__subtitle">
-              Parcourez la carte et ajoutez librement vos envies à votre commande.
-            </p>
-          </div>
-
           {loading ? (
             <div className="surface-muted-text">Chargement…</div>
           ) : (
             <>
               {composedMenus.length > 0 && (
-                <article className="space-y-3">
+                <article
+                  id={HOT_MENUS_SECTION_ID}
+                  className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                >
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-semibold text-sharp">Menus chauds à composer</h3>
+                    <h2 className="text-xl font-semibold text-sharp">Menus chauds à composer</h2>
                     <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
                       Formules guidées
                     </span>
@@ -408,6 +490,74 @@ export default function EmporterPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </article>
+              )}
+
+              {coldMenuItems.length > 0 && (
+                <article
+                  id={COLD_MENUS_SECTION_ID}
+                  className="space-y-3 scroll-mt-32 sm:scroll-mt-40"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-sharp">Menus froids à composer</h2>
+                    <span className="text-xs uppercase tracking-[0.18em] surface-muted-text">
+                      Formules guidées
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {coldMenuItems.map((it) => {
+                      const unavailable = it.available === false;
+                      return (
+                        <div
+                          key={it.id}
+                          className={`surface-card overflow-hidden flex flex-col rounded-2xl border border-[var(--color-border)] relative ${
+                            unavailable ? "opacity-50 pointer-events-none" : ""
+                          }`}
+                        >
+                          {it.imageUrl ? (
+                            <div className="relative w-full aspect-[4/3] bg-[var(--color-background-secondary)]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={it.imageUrl}
+                                alt={it.name}
+                                className="absolute inset-0 w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-full aspect-[4/3] bg-[var(--color-background-secondary)] flex items-center justify-center text-3xl select-none">
+                              🍱
+                            </div>
+                          )}
+                          <div className="flex flex-col flex-1 px-3 pt-2 pb-3 gap-2">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm leading-snug line-clamp-2">{it.name}</div>
+                              {it.description ? (
+                                <p className="text-xs surface-muted-text mt-0.5 line-clamp-2">{it.description}</p>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <span className="text-sm font-semibold text-[var(--color-accent-strong)]">
+                                {formatMoney(it.priceCents)}
+                              </span>
+                              {unavailable ? (
+                                <span className="text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-muted,#333)] rounded px-2 py-0.5">
+                                  Indisponible
+                                </span>
+                              ) : (
+                                <button
+                                  className="btn-soft text-xs px-2 py-1 shrink-0"
+                                  onClick={() => setColdMenuPick(it)}
+                                >
+                                  Choisir boisson
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </article>
               )}
