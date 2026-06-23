@@ -83,6 +83,12 @@ export default function KitchenPage() {
   const bootstrappedRef = useRef(false);
   const pendingPrintsRef = useRef<Order[]>([]);
 
+  const redirectToLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.assign(`/kitchen/login?next=${next}`);
+  }, []);
+
   const { audioReady, playAlert } = useOrderAlertAudio(soundEnabled);
 
   const playBeep = useCallback(
@@ -347,6 +353,7 @@ const escapeHtml = useCallback((value: string) => {
     try {
       const res = await fetch("/api/kitchen/print", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId: order.id, variant, force }),
       });
@@ -417,7 +424,11 @@ const escapeHtml = useCallback((value: string) => {
 
   const fetchPrinterStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/kitchen/printer", { cache: "no-store" });
+      const res = await fetch("/api/kitchen/printer", { cache: "no-store", credentials: "same-origin" });
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       const configured = Boolean(data?.configured);
       printerConfiguredRef.current = configured;
@@ -433,16 +444,22 @@ const escapeHtml = useCallback((value: string) => {
       printerConfiguredRef.current = false;
       setPrinterConfigured(false);
     }
-  }, []);
+  }, [redirectToLogin]);
 
   const fetchOrders = useCallback(async () => {
-    setLoading(true);
+    const initialLoad = !bootstrappedRef.current;
+    if (initialLoad) setLoading(true);
     try {
       await fetchPrinterStatus();
       const res = await fetch("/api/orders", {
         cache: "no-store",
+        credentials: "same-origin",
         headers: { "cache-control": "no-store" },
       });
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         const message = errorData?.error || errorData?.message || `Erreur HTTP ${res.status}`;
@@ -493,9 +510,9 @@ const escapeHtml = useCallback((value: string) => {
     } catch (e: any) {
       toast.error(e?.message || "Erreur de rafraîchissement");
     } finally {
-      setLoading(false);
+      if (initialLoad) setLoading(false);
     }
-  }, [fetchPrinterStatus, playBeep, queueAutoPrint]);
+  }, [fetchPrinterStatus, playBeep, queueAutoPrint, redirectToLogin]);
 
   useEffect(() => {
     fetchOrders();

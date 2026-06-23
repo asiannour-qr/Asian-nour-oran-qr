@@ -8,6 +8,7 @@ import {
 import { resolveOrderGuestNames } from "@/lib/guest-names-db";
 import {
   CUSTOMER_PRINTER_ID,
+  EXTRA_PRINTER_ID,
   KITCHEN_PRINTER_ID,
   LEGACY_PRINTER_ID,
   printerIdForTarget,
@@ -38,15 +39,16 @@ async function loadPrinterConfig(target: PrinterTarget) {
   return config;
 }
 
-async function getPrinterConnection(variant: TicketVariant = "kitchen") {
-  const target = targetForVariant(variant);
+function printerNotConfiguredMessage(target: PrinterTarget): string {
+  if (target === "customer") return "Imprimante caisse non configurée";
+  if (target === "extra") return "Imprimante supplémentaire non configurée";
+  return "Imprimante cuisine non configurée";
+}
+
+async function getPrinterConnection(target: PrinterTarget) {
   const config = await loadPrinterConfig(target);
   if (!config) {
-    throw new Error(
-      variant === "customer"
-        ? "Imprimante caisse non configurée"
-        : "Imprimante cuisine non configurée"
-    );
+    throw new Error(printerNotConfiguredMessage(target));
   }
   return config;
 }
@@ -67,10 +69,9 @@ async function hasRecentPrintJob(orderId: string, target: PrinterTarget): Promis
 async function deliverPayload(
   payload: Buffer,
   label: string,
-  variant: TicketVariant,
+  target: PrinterTarget,
   options?: { orderId?: string; force?: boolean }
 ): Promise<void> {
-  const target = targetForVariant(variant);
 
   if (options?.orderId && !options.force) {
     if (await hasRecentPrintJob(options.orderId, target)) {
@@ -89,7 +90,7 @@ async function deliverPayload(
     });
     return;
   }
-  const config = await getPrinterConnection(variant);
+  const config = await getPrinterConnection(target);
   await sendEscPosToPrinter(config.ip, config.port, payload);
 }
 
@@ -101,23 +102,33 @@ export async function isPrinterConfigured(variant: TicketVariant = "kitchen"): P
 export async function getPrintersStatus(): Promise<{
   kitchen: boolean;
   customer: boolean;
+  extra: boolean;
 }> {
-  const [kitchen, customer] = await Promise.all([
+  const [kitchen, customer, extra] = await Promise.all([
     loadPrinterConfig("kitchen"),
     loadPrinterConfig("customer"),
+    loadPrinterConfig("extra"),
   ]);
-  return { kitchen: Boolean(kitchen), customer: Boolean(customer) };
+  return {
+    kitchen: Boolean(kitchen),
+    customer: Boolean(customer),
+    extra: Boolean(extra),
+  };
 }
 
 export async function printTestTicketToConfiguredPrinter(
-  variant: TicketVariant = "kitchen"
-): Promise<{ ip: string; port: number; variant: TicketVariant }> {
-  const config = await getPrinterConnection(variant);
+  target: PrinterTarget = "kitchen"
+): Promise<{ ip: string; port: number; target: PrinterTarget }> {
+  const config = await getPrinterConnection(target);
   const payload = buildEscPosTestTicket();
   const label =
-    variant === "customer" ? "Test imprimante caisse" : "Test imprimante cuisine";
-  await deliverPayload(payload, label, variant);
-  return { ip: config.ip, port: config.port, variant };
+    target === "customer"
+      ? "Test imprimante caisse"
+      : target === "extra"
+        ? "Test imprimante supplementaire"
+        : "Test imprimante cuisine";
+  await deliverPayload(payload, label, target);
+  return { ip: config.ip, port: config.port, target };
 }
 
 export async function printOrderTicketToConfiguredPrinter(
@@ -125,7 +136,7 @@ export async function printOrderTicketToConfiguredPrinter(
   variant: TicketVariant = "kitchen",
   options?: { force?: boolean }
 ): Promise<void> {
-  await getPrinterConnection(variant);
+  await getPrinterConnection(targetForVariant(variant));
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -169,8 +180,16 @@ export async function printOrderTicketToConfiguredPrinter(
   const where =
     order.type === "TAKEAWAY" ? `Emporter ${order.code ?? ""}` : `Table ${order.tableId}`;
   const label = `${variant === "customer" ? "Ticket client" : "Cuisine"} — ${where.trim()}`;
-  await deliverPayload(payload, label, variant, { orderId, force: options?.force });
+  await deliverPayload(payload, label, targetForVariant(variant), {
+    orderId,
+    force: options?.force,
+  });
 }
 
 /** IDs utilisés par l'admin et l'agent d'impression */
-export { KITCHEN_PRINTER_ID, CUSTOMER_PRINTER_ID, LEGACY_PRINTER_ID };
+export {
+  KITCHEN_PRINTER_ID,
+  CUSTOMER_PRINTER_ID,
+  EXTRA_PRINTER_ID,
+  LEGACY_PRINTER_ID,
+};

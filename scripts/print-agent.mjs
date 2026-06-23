@@ -101,8 +101,10 @@ async function tick() {
     loggedPrintersOnce = true;
     const k = printers?.kitchen ?? printer;
     const c = printers?.customer;
+    const x = printers?.extra;
     log("Imprimante cuisine :", k?.ip ? `${k.ip}:${k.port || 9100}` : "NON CONFIGURÉE");
     log("Imprimante caisse   :", c?.ip ? `${c.ip}:${c.port || 9100}` : "NON CONFIGURÉE");
+    log("Imprimante extra    :", x?.ip ? `${x.ip}:${x.port || 9100}` : "NON CONFIGURÉE");
     if (k?.ip && c?.ip && k.ip === c.ip) {
       log("⚠ ATTENTION : les deux imprimantes ont la MÊME IP — tous les tickets sortiront au même endroit !");
     }
@@ -111,15 +113,15 @@ async function tick() {
   if (!jobs?.length) return;
 
   for (const job of jobs) {
-    const target = job.target === "customer" ? "customer" : "kitchen";
+    const target =
+      job.target === "customer" ? "customer" : job.target === "extra" ? "extra" : "kitchen";
     const resolved =
       (printers && printers[target]) || (target === "kitchen" ? printer : null);
 
     if (!resolved?.ip) {
-      log(
-        `⚠ Imprimante ${target === "customer" ? "caisse" : "cuisine"} non configurée ; job en attente :`,
-        job.label
-      );
+      const label =
+        target === "customer" ? "caisse" : target === "extra" ? "supplementaire" : "cuisine";
+      log(`⚠ Imprimante ${label} non configurée ; job en attente :`, job.label);
       await reportJob(job.id, false, `Imprimante ${target} non configurée`);
       continue;
     }

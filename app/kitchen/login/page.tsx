@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function KitchenLoginForm() {
-  const router = useRouter();
   const sp = useSearchParams();
   const next = sp.get("next") || "/kitchen";
 
@@ -22,6 +21,7 @@ function KitchenLoginForm() {
     try {
       const res = await fetch("/api/kitchen/login", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user: username.trim(), pass: password }),
       });
@@ -31,8 +31,10 @@ function KitchenLoginForm() {
       } else {
         const { primeOrderAlertAudio } = await import("@/lib/order-audio-context");
         await primeOrderAlertAudio();
-        router.replace(next);
-        router.refresh();
+        // Safari iOS : navigation complète pour que le cookie de session soit appliqué
+        // avant le chargement de /serveur ou /kitchen (router.replace peut échouer).
+        const target = next.startsWith("/") ? next : "/kitchen";
+        window.location.assign(target);
       }
     } catch {
       setError("Erreur réseau");
@@ -74,6 +76,8 @@ function KitchenLoginForm() {
             <div className={inputShell}>
               <input
                 id="kitchen-username"
+                name="username"
+                type="text"
                 className={inputField}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -93,6 +97,7 @@ function KitchenLoginForm() {
             <div className={inputShell}>
               <input
                 id="kitchen-password"
+                name="password"
                 className={inputField}
                 type={showPassword ? "text" : "password"}
                 value={password}

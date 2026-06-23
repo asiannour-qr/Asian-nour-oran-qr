@@ -4,12 +4,16 @@ import { assertAdminSession } from "@/lib/admin-session";
 import {
   CUSTOMER_PRINTER_ID,
   DEFAULT_PRINTER_PORT,
+  EXTRA_PRINTER_ID,
   KITCHEN_PRINTER_ID,
   LEGACY_PRINTER_ID,
   normalizePrinterIp,
   parsePrinterPort,
+  parsePrinterRole,
+  printerIdForTarget,
   type PrinterTarget,
 } from "@/lib/printer-config";
+import { getSitePrinterProfile } from "@/lib/printer-profile";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,16 +28,20 @@ export async function GET() {
   if (unauthorized) return unauthorized;
 
   try {
-    const [kitchen, customer, legacy] = await Promise.all([
+    const [kitchen, customer, extra, legacy] = await Promise.all([
       prisma.printerConfig.findUnique({ where: { id: KITCHEN_PRINTER_ID } }),
       prisma.printerConfig.findUnique({ where: { id: CUSTOMER_PRINTER_ID } }),
+      prisma.printerConfig.findUnique({ where: { id: EXTRA_PRINTER_ID } }),
       prisma.printerConfig.findUnique({ where: { id: LEGACY_PRINTER_ID } }),
     ]);
 
+    const profile = getSitePrinterProfile();
     return NextResponse.json({
       kitchen: serializeConfig(kitchen ?? legacy),
       customer: serializeConfig(customer),
-      defaults: { port: DEFAULT_PRINTER_PORT },
+      extra: serializeConfig(extra),
+      defaults: { port: profile.defaultPort ?? DEFAULT_PRINTER_PORT },
+      profile,
     });
   } catch (error: unknown) {
     console.error("[admin/printers/GET]", error);
@@ -52,11 +60,22 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Corps JSON invalide" }, { status: 400 });
   }
 
-  const role = body.role === "customer" ? "customer" : "kitchen";
-  const target: PrinterTarget = role;
-  const configId = target === "customer" ? CUSTOMER_PRINTER_ID : KITCHEN_PRINTER_ID;
+  const target: PrinterTarget = parsePrinterRole(body.role) ?? "kitchen";
+  const configId = printerIdForTarget(target);
 
-  const ip = normalizePrinterIp(body.ip);
+  const ipRaw = typeof body.ip === "string" ? body.ip.trim() : "";
+
+  if (target === "extra" && !ipRaw) {
+    try {
+      await prisma.printerConfig.deleteMany({ where: { id: EXTRA_PRINTER_ID } });
+      return NextResponse.json({ role: target, config: null });
+    } catch (error: unknown) {
+      console.error("[admin/printers/PUT]", error);
+      return NextResponse.json({ error: "Impossible de supprimer la configuration" }, { status: 500 });
+    }
+  }
+
+  const ip = normalizePrinterIp(ipRaw);
   if (!ip) {
     return NextResponse.json({ error: "Adresse IP invalide (format IPv4 attendu)" }, { status: 400 });
   }

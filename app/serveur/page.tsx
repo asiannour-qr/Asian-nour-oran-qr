@@ -110,9 +110,14 @@ export default function ServeurPage() {
   const fetchOccupancy = useCallback(async () => {
     try {
       const [ordersRes, occupancyRes] = await Promise.all([
-        fetch("/api/orders", { cache: "no-store" }),
-        fetch("/api/kitchen/table-occupancy", { cache: "no-store" }),
+        fetch("/api/orders", { cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/kitchen/table-occupancy", { cache: "no-store", credentials: "same-origin" }),
       ]);
+      if (ordersRes.status === 401 || occupancyRes.status === 401) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.assign(`/kitchen/login?next=${next}`);
+        return;
+      }
       if (!ordersRes.ok) return;
       const data = (await ordersRes.json()) as { orders?: OrderLite[] };
       const kitchenStates: Record<string, "ACTIVE" | "READY"> = {};
@@ -219,9 +224,15 @@ export default function ServeurPage() {
     try {
       const res = await fetch("/api/kitchen/print", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, variant: "customer", force: true }),
       });
+      if (res.status === 401) {
+        const next = encodeURIComponent(window.location.pathname);
+        window.location.assign(`/kitchen/login?next=${next}`);
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Impression impossible");
       toast.success("Ticket client envoyé à la caisse");

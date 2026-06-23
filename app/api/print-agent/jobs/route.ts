@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { assertAgentToken } from "@/lib/print-agent-auth";
 import {
   CUSTOMER_PRINTER_ID,
+  EXTRA_PRINTER_ID,
   KITCHEN_PRINTER_ID,
   LEGACY_PRINTER_ID,
 } from "@/lib/printer-config";
@@ -38,13 +39,17 @@ export async function GET(req: Request) {
     data: { status: "PENDING" },
   });
 
-  const [kitchenRow, customerRow, legacyRow, pendingJobs] = await Promise.all([
+  const [kitchenRow, customerRow, extraRow, legacyRow, pendingJobs] = await Promise.all([
     prisma.printerConfig.findUnique({
       where: { id: KITCHEN_PRINTER_ID },
       select: { ip: true, port: true },
     }),
     prisma.printerConfig.findUnique({
       where: { id: CUSTOMER_PRINTER_ID },
+      select: { ip: true, port: true },
+    }),
+    prisma.printerConfig.findUnique({
+      where: { id: EXTRA_PRINTER_ID },
       select: { ip: true, port: true },
     }),
     prisma.printerConfig.findUnique({
@@ -72,6 +77,7 @@ export async function GET(req: Request) {
   const printers = {
     kitchen: pickPrinter(kitchenRow ?? legacyRow),
     customer: pickPrinter(customerRow),
+    extra: pickPrinter(extraRow),
   };
 
   // Compatibilité anciens agents : une seule imprimante « cuisine »

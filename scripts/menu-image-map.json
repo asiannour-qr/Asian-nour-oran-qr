@@ -2,10 +2,10 @@
   "sourceBaseUrl": "https://asiannourqr.vercel.app",
   "composedMenus": {
     "Asian Classic": "composed-asian-classic.png",
-    "Asian Classic +": "generated/asian-classic-plus.png",
-    "Asian Royal": "generated/asian-royal.png",
-    "Asian Classe B": "generated/asian-classe-b.png",
-    "Asian Express": "composed-asian-express-silver.png",
+    "Asian Classic +": "asian-classic-plus.png",
+    "Asian Royal": "asian-royal.png",
+    "Asian Classe B": "asian-classe-b.png",
+    "Asian Express": "asian-express.png",
     "Asian Kid’s": "composed-asian-kids.png"
   },
   "overrides": {

@@ -11,7 +11,15 @@ type PrinterConfig = {
   updatedAt: string;
 };
 
-type PrinterRole = "kitchen" | "customer";
+type PrinterProfile = {
+  model: string;
+  paperWidthMm: number;
+  lineWidth: number;
+  defaultPort: number;
+  protocol: string;
+};
+
+type PrinterRole = "kitchen" | "customer" | "extra";
 
 const DEFAULT_PORT = 9100;
 
@@ -149,18 +157,23 @@ function PrinterSection({
   title,
   description,
   config,
+  profile,
   loading,
   onSaved,
+  optionalIp = false,
 }: {
   role: PrinterRole;
   title: string;
   description: string;
   config: PrinterConfig | null;
+  profile: PrinterProfile | null;
   loading: boolean;
   onSaved: () => void;
+  optionalIp?: boolean;
 }) {
   const [ip, setIp] = useState("");
-  const [port, setPort] = useState(String(DEFAULT_PORT));
+  const [port, setPort] = useState("");
+  const defaultPort = profile?.defaultPort ?? DEFAULT_PORT;
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -170,9 +183,9 @@ function PrinterSection({
       setPort(String(config.port));
     } else if (!loading) {
       setIp("");
-      setPort(String(DEFAULT_PORT));
+      setPort(String(defaultPort));
     }
-  }, [config, loading]);
+  }, [config, defaultPort, loading]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -181,7 +194,11 @@ function PrinterSection({
       const res = await fetch("/api/admin/printers", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, ip: ip.trim(), port: Number(port) }),
+        body: JSON.stringify({
+          role,
+          ip: ip.trim(),
+          port: Number(port) || defaultPort,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Sauvegarde échouée");
@@ -217,6 +234,12 @@ function PrinterSection({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="text-sm surface-muted-text">{description}</p>
+        {profile && (
+          <p className="text-xs surface-muted-text">
+            Modèle attendu : <strong>{profile.model}</strong> · {profile.paperWidthMm} mm ·{" "}
+            {profile.protocol} · port {profile.defaultPort}
+          </p>
+        )}
       </div>
 
       {loading ? (
@@ -228,12 +251,20 @@ function PrinterSection({
             <input
               type="text"
               inputMode="decimal"
-              placeholder="192.168.1.50"
+              placeholder={
+                optionalIp
+                  ? "Optionnel — laisser vide si non utilisée"
+                  : "IP locale Epson (ex. 192.168.0.201)"
+              }
               value={ip}
               onChange={(e) => setIp(e.target.value)}
               className="w-full"
-              required
+              required={!optionalIp}
             />
+            <p className="text-xs surface-muted-text">
+              Imprimante sur le même Wi‑Fi que la tablette. IP via bouton « Info réseau » sur
+              l&apos;Epson ou ticket de configuration.
+            </p>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Port TCP</label>
@@ -246,7 +277,9 @@ function PrinterSection({
               className="w-full"
               required
             />
-            <p className="text-xs surface-muted-text">Défaut ESC/POS : 9100</p>
+            <p className="text-xs surface-muted-text">
+              Défaut Epson TM-m30 : {defaultPort} (RAW / ESC/POS)
+            </p>
           </div>
           {config?.updatedAt && (
             <p className="text-xs surface-muted-text">
@@ -281,6 +314,8 @@ export default function AdminPrintersPage() {
   const [loading, setLoading] = useState(true);
   const [kitchen, setKitchen] = useState<PrinterConfig | null>(null);
   const [customer, setCustomer] = useState<PrinterConfig | null>(null);
+  const [extra, setExtra] = useState<PrinterConfig | null>(null);
+  const [profile, setProfile] = useState<PrinterProfile | null>(null);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -290,6 +325,8 @@ export default function AdminPrintersPage() {
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
       setKitchen((data.kitchen as PrinterConfig | null) ?? null);
       setCustomer((data.customer as PrinterConfig | null) ?? null);
+      setExtra((data.extra as PrinterConfig | null) ?? null);
+      setProfile((data.profile as PrinterProfile | null) ?? null);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Erreur de chargement");
     } finally {
@@ -309,27 +346,44 @@ export default function AdminPrintersPage() {
         <span className="chip">Administration</span>
         <h1 className="section-heading__title">Imprimantes réseau</h1>
         <p className="section-heading__subtitle">
-          Deux imprimantes Xprinter (ESC/POS, port 9100) : une en cuisine pour les tickets
-          de préparation, une en caisse pour les tickets clients.
+          Imprimantes <strong>{profile?.model ?? "Xprinter XP-260M"}</strong> ({profile?.protocol ?? "ESC/POS"},{" "}
+          {profile?.paperWidthMm ?? 80} mm, port {profile?.defaultPort ?? DEFAULT_PORT}) : cuisine,
+          caisse, et une imprimante supplémentaire optionnelle.
+        </p>
+        <p className="text-sm surface-muted-text max-w-3xl">
+          Saisissez l&apos;adresse IP locale de chaque imprimante sur le réseau du restaurant, puis
+          testez l&apos;impression.
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
+      <div className="grid gap-6 lg:grid-cols-3 max-w-6xl">
         <PrinterSection
           role="kitchen"
           title="🍜 Imprimante cuisine"
-          description="Tickets de préparation (sans prix). Bouton sur l'écran cuisine et admin."
+          description="Tickets de préparation (sans prix). Écran cuisine et admin."
           config={kitchen}
+          profile={profile}
           loading={loading}
           onSaved={loadConfig}
         />
         <PrinterSection
           role="customer"
           title="🧾 Imprimante caisse"
-          description="Tickets clients (reçu avec prix). Bouton sur l'écran serveur et admin."
+          description="Tickets clients (reçu avec prix). Écran serveur et admin."
           config={customer}
+          profile={profile}
           loading={loading}
           onSaved={loadConfig}
+        />
+        <PrinterSection
+          role="extra"
+          title="➕ Imprimante supplémentaire"
+          description="Réserve pour une 3e imprimante (bar, backup…). Laisser vide tant qu'elle n'est pas installée."
+          config={extra}
+          profile={profile}
+          loading={loading}
+          onSaved={loadConfig}
+          optionalIp
         />
       </div>
 
