@@ -26,7 +26,7 @@ export const SITE_CONFIG = {
   printerProfile: {
     model: "Xprinter XP-260M",
     paperWidthMm: 80,
-    lineWidth: 32,
+    lineWidth: 48,
     defaultPort: 9100,
     protocol: "ESC/POS",
   } satisfies SitePrinterProfile,

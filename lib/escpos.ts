@@ -1,9 +1,10 @@
 import { formatMoney } from "@/lib/currency";
+import { getEscPosLineWidth } from "@/lib/printer-profile";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 const ESC = 0x1b;
 const GS = 0x1d;
-const LINE_WIDTH = 32; // Xprinter XP-260M 80 mm
+const LINE_WIDTH = getEscPosLineWidth();
 
 export type EscPosOrderItem = {
   name: string;
@@ -37,13 +38,21 @@ export type EscPosRestaurantInfo = {
 };
 
 /** ASCII imprimable — tirets / puces unicode convertis avant filtrage. */
-function stripForEscPos(value: string): string {
+function sanitizeForPrinter(value: string): string {
   return value
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
-    .replace(/[\u2013\u2014\u2015]/g, "-")
-    .replace(/\u2022/g, "*")
-    .replace(/[^\x20-\x7E]/g, "?");
+    .replace(/[""«»]/g, '"')
+    .replace(/['']/g, "'")
+    .replace(/[•·▪►→]/g, " ")
+    .replace(/[—–]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[^\x20-\x7E]/g, "");
+}
+
+function stripForEscPos(value: string): string {
+  return sanitizeForPrinter(value);
 }
 
 function wrapText(text: string, maxWidth: number): string[] {
@@ -77,44 +86,59 @@ function wrapText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-/** Menus composés : « California — Plat: Poulet mayo • … » */
-function parseComposedKitchenName(rawName: string): { title: string; details: string[] } {
-  const normalized = stripForEscPos(rawName);
-  const dashIdx = normalized.indexOf(" - ");
-  if (dashIdx <= 0) {
-    return { title: normalized.trim(), details: [] };
+function appendLines(chunks: Buffer[], lines: string[]): void {
+  for (const line of lines) {
+    chunks.push(textLine(line));
   }
-  const title = normalized.slice(0, dashIdx).trim();
-  const rest = normalized.slice(dashIdx + 3).trim();
-  const details = rest
-    .split("*")
-    .map((part) => part.trim())
+}
+
+/** Menus composés : « California — Plat: Poulet mayo • … » */
+function parseComposedItemName(rawName: string): { title: string; details: string[] } {
+  const trimmed = rawName.trim();
+  const dashParts = trimmed.split(/\s+[—–]\s+/);
+  if (dashParts.length < 2) {
+    return { title: sanitizeForPrinter(trimmed), details: [] };
+  }
+
+  const title = sanitizeForPrinter(dashParts[0].trim());
+  const detailsBlob = dashParts.slice(1).join(" - ");
+  const details = detailsBlob
+    .split(/\s*[•·]\s*/)
+    .map((part) => sanitizeForPrinter(part.trim()))
     .filter(Boolean);
+
   return { title, details };
 }
 
-function pushKitchenItemLines(chunks: Buffer[], qty: number, rawName: string): void {
-  const { title, details } = parseComposedKitchenName(rawName);
-  const qtyLabel = `${qty} x `;
+/**
+ * Article cuisine — Xprinter XP-260M : pas de gras ESC E sur les lignes articles
+ * (saute le 2e caractère). Texte normal, majuscules, détails sur lignes séparées.
+ */
+function appendKitchenItem(chunks: Buffer[], item: EscPosOrderItem): void {
+  const { title, details: composedDetails } = parseComposedItemName(item.name);
+  const modifiers = Array.isArray(item.modifiers)
+    ? item.modifiers.map((m) => sanitizeForPrinter(String(m))).filter(Boolean)
+    : [];
+  const details = [...composedDetails, ...modifiers];
 
-  chunks.push(setBold(true));
-  if (details.length === 0) {
-    for (const line of wrapText(`${qtyLabel}${title}`, LINE_WIDTH)) {
-      chunks.push(textLine(line));
-    }
-  } else {
-    for (const line of wrapText(`${qtyLabel}${title}`, LINE_WIDTH)) {
-      chunks.push(textLine(line));
-    }
-    chunks.push(setBold(false));
-    for (const detail of details) {
-      for (const line of wrapText(detail, LINE_WIDTH - 3)) {
-        chunks.push(textLine(`   ${line}`));
-      }
-    }
-    return;
+  const qty = Number.isFinite(item.qty) ? Math.max(1, item.qty) : 1;
+  const headline = `${qty} x ${title.toUpperCase()}`;
+
+  appendStyledBlock(chunks, wrapText(headline, LINE_WIDTH), {
+    bold: false,
+    width: 1,
+    height: 1,
+  });
+
+  for (const detail of details) {
+    const detailLines = wrapText(detail, LINE_WIDTH - 2);
+    detailLines.forEach((line, index) => {
+      const text = index === 0 ? `> ${line}` : `  ${line}`;
+      appendStyledBlock(chunks, [text], { bold: false, width: 1, height: 1 });
+    });
   }
-  chunks.push(setBold(false));
+
+  chunks.push(feed(1));
 }
 
 function textLine(value: string): Buffer {
@@ -123,10 +147,14 @@ function textLine(value: string): Buffer {
 
 /** Ligne avec libellé à gauche et valeur à droite, alignée sur LINE_WIDTH. */
 function lineLR(left: string, right: string): Buffer {
+  return Buffer.from(`${lineLRText(left, right)}\n`, "ascii");
+}
+
+function lineLRText(left: string, right: string, maxWidth = LINE_WIDTH): string {
   const l = stripForEscPos(left);
   const r = stripForEscPos(right);
-  const space = Math.max(1, LINE_WIDTH - l.length - r.length);
-  return Buffer.from(`${l}${" ".repeat(space)}${r}\n`, "ascii");
+  const space = Math.max(1, maxWidth - l.length - r.length);
+  return `${l}${" ".repeat(space)}${r}`;
 }
 
 function formatDate(value: Date | string): string {
@@ -167,6 +195,33 @@ function setSize(width: number, height: number): Buffer {
 
 function resetSize(): Buffer {
   return Buffer.from([GS, 0x21, 0x00]);
+}
+
+/** Réinitialise taille, gras et attributs ESC ! (fiabilité Xprinter). */
+function resetStyle(): Buffer {
+  return Buffer.concat([
+    Buffer.from([GS, 0x21, 0x00]),
+    Buffer.from([ESC, 0x45, 0x00]),
+    Buffer.from([ESC, 0x21, 0x00]),
+  ]);
+}
+
+function effectiveWidth(sizeMultiplier: number): number {
+  return Math.max(12, Math.floor(LINE_WIDTH / Math.max(1, sizeMultiplier)));
+}
+
+function appendStyledBlock(
+  chunks: Buffer[],
+  lines: string[],
+  options: { bold?: boolean; width?: number; height?: number; align?: "left" | "center" }
+): void {
+  if (!lines.length) return;
+  if (options.align === "center") chunks.push(setAlign("center"));
+  chunks.push(setBold(options.bold === true));
+  chunks.push(setSize(options.width ?? 1, options.height ?? 1));
+  appendLines(chunks, lines);
+  chunks.push(resetStyle());
+  if (options.align === "center") chunks.push(setAlign("left"));
 }
 
 function separator(): Buffer {
@@ -233,35 +288,48 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
   const groups = groupByPerson(order.items);
 
   chunks.push(Buffer.from([ESC, 0x40])); // Init
+  chunks.push(resetStyle());
 
   // En-tête
   const takeaway = isTakeawayOrder(order);
 
-  chunks.push(setAlign("center"));
-  chunks.push(setBold(true));
-  chunks.push(setSize(2, 2));
-  chunks.push(textLine("CUISINE"));
-  chunks.push(resetSize());
-  chunks.push(setBold(false));
-  chunks.push(setAlign("left"));
+  appendStyledBlock(chunks, ["CUISINE"], {
+    bold: true,
+    width: 2,
+    height: 2,
+    align: "center",
+  });
   chunks.push(feed(1));
 
-  // Infos essentielles, grandes
+  // Infos essentielles
   if (takeaway) {
-    chunks.push(setAlign("center"));
-    chunks.push(setBold(true));
-    chunks.push(setSize(2, 2));
-    chunks.push(textLine("A EMPORTER"));
-    chunks.push(textLine(order.code ?? "-"));
-    chunks.push(resetSize());
-    chunks.push(setBold(false));
-    chunks.push(setAlign("left"));
-    chunks.push(textLine(formatTime(order.createdAt)));
+    appendStyledBlock(chunks, ["A EMPORTER"], {
+      bold: true,
+      width: 2,
+      height: 2,
+      align: "center",
+    });
+    appendStyledBlock(chunks, [order.code ?? "-"], {
+      bold: true,
+      width: 2,
+      height: 2,
+      align: "center",
+    });
+    appendStyledBlock(chunks, [formatTime(order.createdAt)], {
+      bold: true,
+      width: 1,
+      height: 2,
+    });
   } else {
+    chunks.push(resetStyle());
     chunks.push(setBold(true));
     chunks.push(lineLR(`TABLE ${order.tableId}`, formatTime(order.createdAt)));
-    chunks.push(setBold(false));
-    chunks.push(textLine(`Cmd ${order.id.slice(0, 8).toUpperCase()}`));
+    chunks.push(resetStyle());
+    appendStyledBlock(chunks, [`CMD ${order.id.slice(0, 8).toUpperCase()}`], {
+      bold: true,
+      width: 1,
+      height: 2,
+    });
   }
 
   // Articles groupés par convive
@@ -269,41 +337,34 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
     const displayGuest = kitchenGuestLabel(order.guestNames, personId);
 
     chunks.push(separator());
-    chunks.push(setAlign("center"));
-    chunks.push(setBold(true));
-    chunks.push(textLine(displayGuest.toUpperCase()));
-    chunks.push(setBold(false));
-    chunks.push(setAlign("left"));
+    appendStyledBlock(chunks, [displayGuest.toUpperCase()], {
+      bold: true,
+      width: 1,
+      height: 2,
+      align: "center",
+    });
     chunks.push(feed(1));
 
     for (const item of items) {
-      // Pas de double hauteur sur les lignes longues — Xprinter XP-260M saute des caractères.
-      pushKitchenItemLines(chunks, item.qty, item.name);
-
-      const modifiers = Array.isArray(item.modifiers)
-        ? item.modifiers.filter((m): m is string => Boolean(m && m.trim()))
-        : [];
-      for (const mod of modifiers) {
-        for (const line of wrapText(mod, LINE_WIDTH - 6)) {
-          chunks.push(textLine(`   - ${line}`));
-        }
-      }
+      appendKitchenItem(chunks, item);
     }
   }
 
   // Commentaire mis en avant
   if (order.comment?.trim()) {
     chunks.push(separator());
-    chunks.push(setAlign("center"));
-    chunks.push(setBold(true));
-    chunks.push(textLine("*** NOTE ***"));
-    chunks.push(setBold(false));
-    chunks.push(setAlign("left"));
-    chunks.push(setBold(true));
-    for (const line of wrapText(order.comment.trim(), LINE_WIDTH)) {
-      chunks.push(textLine(line));
-    }
-    chunks.push(setBold(false));
+    appendStyledBlock(chunks, ["*** NOTE ***"], {
+      bold: true,
+      width: 2,
+      height: 2,
+      align: "center",
+    });
+    chunks.push(feed(1));
+    appendStyledBlock(chunks, wrapText(order.comment.trim(), effectiveWidth(2)), {
+      bold: true,
+      width: 2,
+      height: 2,
+    });
   }
 
   chunks.push(separator());
@@ -323,14 +384,15 @@ export function buildEscPosCustomerTicket(
   const chunks: Buffer[] = [];
 
   chunks.push(Buffer.from([ESC, 0x40])); // Init
+  chunks.push(resetStyle());
 
   // En-tête restaurant
-  chunks.push(setAlign("center"));
-  chunks.push(setBold(true));
-  chunks.push(setSize(2, 2));
-  chunks.push(textLine(info.restaurantName || "ASIAN NOUR"));
-  chunks.push(resetSize());
-  chunks.push(setBold(false));
+  appendStyledBlock(chunks, [info.restaurantName || "ASIAN NOUR"], {
+    bold: true,
+    width: 2,
+    height: 2,
+    align: "center",
+  });
   if (info.address?.trim()) {
     chunks.push(textLine(info.address.trim()));
   }
@@ -368,11 +430,11 @@ export function buildEscPosCustomerTicket(
 
   // Total
   chunks.push(separator());
-  chunks.push(setBold(true));
-  chunks.push(setSize(1, 2));
-  chunks.push(lineLR("TOTAL", formatMoney(order.total)));
-  chunks.push(resetSize());
-  chunks.push(setBold(false));
+  appendStyledBlock(chunks, [lineLRText("TOTAL", formatMoney(order.total), effectiveWidth(2))], {
+    bold: true,
+    width: 2,
+    height: 2,
+  });
 
   // Note éventuelle
   if (order.comment?.trim()) {
