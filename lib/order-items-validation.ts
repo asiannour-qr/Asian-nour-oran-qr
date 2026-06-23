@@ -1,10 +1,11 @@
 import prisma from "@/lib/prisma";
-import { buildColdMenuCartLabel, isColdMenuItem } from "@/lib/cold-menus";
+import { buildColdMenuCartLabel, COLD_DRINK_CART_SEP, isColdMenuItem } from "@/lib/cold-menus";
 import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
 import { isMenuItemHiddenFromCustomers } from "@/lib/menu-item-visibility";
 
-const COMPOSED_SEP = " — ";
-const COLD_DRINK_SEP = " — Boisson: ";
+const COMPOSED_SEP_UNICODE = " — ";
+const COMPOSED_SEP_ASCII = " - ";
+const COLD_DRINK_SEP_LEGACY = " — Boisson: ";
 
 export type IncomingOrderLine = {
   name: string;
@@ -90,7 +91,9 @@ function resolveComposedMenu(name: string, catalog: OrderCatalog): { price: numb
   let best: CatalogMenu | null = null;
   for (const menu of catalog.menus) {
     if (!menu.active) continue;
-    if (name === menu.name || name.startsWith(`${menu.name}${COMPOSED_SEP}`)) {
+    const withUnicode = name.startsWith(`${menu.name}${COMPOSED_SEP_UNICODE}`);
+    const withAscii = name.startsWith(`${menu.name}${COMPOSED_SEP_ASCII}`);
+    if (name === menu.name || withUnicode || withAscii) {
       if (!best || menu.name.length > best.name.length) best = menu;
     }
   }
@@ -98,17 +101,29 @@ function resolveComposedMenu(name: string, catalog: OrderCatalog): { price: numb
   return { price: best.priceCents };
 }
 
+function findColdDrinkSeparator(name: string): { index: number; length: number } | null {
+  for (const sep of [COLD_DRINK_CART_SEP, COLD_DRINK_SEP_LEGACY]) {
+    const index = name.indexOf(sep);
+    if (index >= 0) return { index, length: sep.length };
+  }
+  return null;
+}
+
 function resolveColdMenu(name: string, catalog: OrderCatalog): { price: number } | null {
-  const idx = name.indexOf(COLD_DRINK_SEP);
-  if (idx < 0) return null;
-  const menuPart = name.slice(0, idx).trim();
-  const drinkPart = name.slice(idx + COLD_DRINK_SEP.length).trim();
+  const sep = findColdDrinkSeparator(name);
+  if (!sep) return null;
+  const menuPart = name.slice(0, sep.index).trim();
+  const drinkPart = name.slice(sep.index + sep.length).trim();
   const menuItem = catalog.itemsByNorm.get(normName(menuPart));
   const drinkItem = catalog.itemsByNorm.get(normName(drinkPart));
   if (!menuItem || !drinkItem || !isColdMenuItem(menuItem)) return null;
   if (!isOrderableItem(menuItem) || !isOrderableItem(drinkItem)) return null;
   const expected = buildColdMenuCartLabel(menuItem.name, drinkItem.name);
-  if (normName(expected) !== normName(name)) return null;
+  if (normName(expected) !== normName(name)) {
+    // Ancien libellé avec tiret unicode (accepté si contenu identique)
+    const legacyExpected = `${menuItem.name}${COLD_DRINK_SEP_LEGACY}${drinkItem.name}`;
+    if (normName(legacyExpected) !== normName(name)) return null;
+  }
   return { price: menuItem.priceCents };
 }
 

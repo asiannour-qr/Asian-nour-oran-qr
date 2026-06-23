@@ -27,6 +27,9 @@ export function filterDrinkOptions<
     });
 }
 
+/** Séparateur ASCII — évite les « ? » sur imprimantes ESC/POS. */
+export const COLD_DRINK_CART_SEP = " - Boisson: ";
+
 export function buildColdMenuCartLabel(menuName: string, drinkName: string) {
-  return `${menuName} — Boisson: ${drinkName}`;
+  return `${menuName}${COLD_DRINK_CART_SEP}${drinkName}`;
 }

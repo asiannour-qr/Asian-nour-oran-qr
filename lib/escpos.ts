@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { COLD_DRINK_CART_SEP } from "@/lib/cold-menus";
 import { isComposedMenuCartLabel } from "@/lib/kitchen-item-label";
 import { getEscPosLineWidth } from "@/lib/printer-profile";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
@@ -93,6 +94,37 @@ function appendLines(chunks: Buffer[], lines: string[]): void {
   }
 }
 
+function appendKitchenStyledBlock(
+  chunks: Buffer[],
+  lines: string[],
+  options: { width?: number; height?: number; align?: "left" | "center" } = {}
+): void {
+  if (!lines.length) return;
+  chunks.push(resetStyle());
+  if (options.align === "center") chunks.push(setAlign("center"));
+  chunks.push(setSize(options.width ?? 1, options.height ?? 1));
+  appendLines(chunks, lines);
+  chunks.push(resetStyle());
+  chunks.push(feed(1));
+  if (options.align === "center") chunks.push(setAlign("left"));
+}
+
+/** Menus froids : « Asian Meli Melo - Boisson: Soft drink » (ou ancien tiret unicode). */
+function parseColdMenuLine(rawName: string): { title: string; drink: string | null } {
+  const legacySep = " — Boisson: ";
+  const corruptedSep = " ? Boisson: ";
+  for (const sep of [COLD_DRINK_CART_SEP, legacySep, corruptedSep]) {
+    const idx = rawName.indexOf(sep);
+    if (idx >= 0) {
+      return {
+        title: rawName.slice(0, idx).trim(),
+        drink: rawName.slice(idx + sep.length).trim(),
+      };
+    }
+  }
+  return { title: rawName.trim(), drink: null };
+}
+
 /** Menus composés admin : « Asian Classic — Entrée: … • Plat: … » */
 function parseComposedMenuName(rawName: string): { title: string; details: string[] } {
   const trimmed = rawName.trim();
@@ -112,37 +144,39 @@ function parseComposedMenuName(rawName: string): { title: string; details: strin
 }
 
 /**
- * Article cuisine — Xprinter XP-260M : pas de gras ESC E sur les lignes articles.
+ * Article cuisine — Xprinter XP-260M : pas de gras ESC E (caractères sautés / « ? »).
  */
 function appendKitchenItem(chunks: Buffer[], item: EscPosOrderItem): void {
+  chunks.push(resetStyle());
+
   const modifiers = Array.isArray(item.modifiers)
     ? item.modifiers.map((m) => sanitizeForPrinter(String(m))).filter(Boolean)
     : [];
 
   let title = sanitizeForPrinter(item.name);
   let composedDetails: string[] = [];
-  if (isComposedMenuCartLabel(item.name)) {
+
+  const cold = parseColdMenuLine(item.name);
+  if (cold.drink) {
+    title = sanitizeForPrinter(cold.title);
+    composedDetails = [`Boisson: ${sanitizeForPrinter(cold.drink)}`];
+  } else if (isComposedMenuCartLabel(item.name)) {
     const parsed = parseComposedMenuName(item.name);
     title = parsed.title;
     composedDetails = parsed.details;
   }
 
   const details = [...composedDetails, ...modifiers];
-
   const qty = Number.isFinite(item.qty) ? Math.max(1, item.qty) : 1;
   const headline = `${qty} x ${title.toUpperCase()}`;
 
-  appendStyledBlock(chunks, wrapText(headline, LINE_WIDTH), {
-    bold: false,
-    width: 1,
-    height: 1,
-  });
+  appendKitchenStyledBlock(chunks, wrapText(headline, LINE_WIDTH), { width: 1, height: 1 });
 
   for (const detail of details) {
     const detailLines = wrapText(detail, LINE_WIDTH - 2);
     detailLines.forEach((line, index) => {
       const text = index === 0 ? `> ${line}` : `  ${line}`;
-      appendStyledBlock(chunks, [text], { bold: false, width: 1, height: 1 });
+      appendKitchenStyledBlock(chunks, [text], { width: 1, height: 1 });
     });
   }
 
@@ -301,8 +335,7 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
   // En-tête
   const takeaway = isTakeawayOrder(order);
 
-  appendStyledBlock(chunks, ["CUISINE"], {
-    bold: true,
+  appendKitchenStyledBlock(chunks, ["CUISINE"], {
     width: 2,
     height: 2,
     align: "center",
@@ -311,30 +344,25 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
 
   // Infos essentielles
   if (takeaway) {
-    appendStyledBlock(chunks, ["A EMPORTER"], {
-      bold: true,
+    appendKitchenStyledBlock(chunks, ["A EMPORTER"], {
       width: 2,
       height: 2,
       align: "center",
     });
-    appendStyledBlock(chunks, [order.code ?? "-"], {
-      bold: true,
+    appendKitchenStyledBlock(chunks, [order.code ?? "-"], {
       width: 2,
       height: 2,
       align: "center",
     });
-    appendStyledBlock(chunks, [formatTime(order.createdAt)], {
-      bold: true,
+    appendKitchenStyledBlock(chunks, [formatTime(order.createdAt)], {
       width: 1,
       height: 2,
     });
   } else {
     chunks.push(resetStyle());
-    chunks.push(setBold(true));
     chunks.push(lineLR(`TABLE ${order.tableId}`, formatTime(order.createdAt)));
-    chunks.push(resetStyle());
-    appendStyledBlock(chunks, [`CMD ${order.id.slice(0, 8).toUpperCase()}`], {
-      bold: true,
+    chunks.push(feed(1));
+    appendKitchenStyledBlock(chunks, [`CMD ${order.id.slice(0, 8).toUpperCase()}`], {
       width: 1,
       height: 2,
     });
@@ -345,13 +373,11 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
     const displayGuest = kitchenGuestLabel(order.guestNames, personId);
 
     chunks.push(separator());
-    appendStyledBlock(chunks, [displayGuest.toUpperCase()], {
-      bold: true,
+    appendKitchenStyledBlock(chunks, [displayGuest.toUpperCase()], {
       width: 1,
       height: 2,
       align: "center",
     });
-    chunks.push(feed(1));
 
     for (const item of items) {
       appendKitchenItem(chunks, item);
@@ -361,15 +387,12 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
   // Commentaire mis en avant
   if (order.comment?.trim()) {
     chunks.push(separator());
-    appendStyledBlock(chunks, ["*** NOTE ***"], {
-      bold: true,
+    appendKitchenStyledBlock(chunks, ["*** NOTE ***"], {
       width: 2,
       height: 2,
       align: "center",
     });
-    chunks.push(feed(1));
-    appendStyledBlock(chunks, wrapText(order.comment.trim(), effectiveWidth(2)), {
-      bold: true,
+    appendKitchenStyledBlock(chunks, wrapText(order.comment.trim(), effectiveWidth(2)), {
       width: 2,
       height: 2,
     });
