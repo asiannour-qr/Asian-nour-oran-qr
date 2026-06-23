@@ -6,6 +6,8 @@ import {
   type EscPosOrderTicketInput,
 } from "@/lib/escpos";
 import { resolveOrderGuestNames } from "@/lib/guest-names-db";
+import { enrichItemsForKitchenTicket } from "@/lib/kitchen-item-label";
+import { loadOrderCatalog } from "@/lib/order-items-validation";
 import {
   CUSTOMER_PRINTER_ID,
   EXTRA_PRINTER_ID,
@@ -147,6 +149,25 @@ export async function printOrderTicketToConfiguredPrinter(
     throw new Error("Commande introuvable");
   }
 
+  const catalog = await loadOrderCatalog();
+  const ticketItems =
+    variant === "kitchen"
+      ? enrichItemsForKitchenTicket(
+          order.items.map((item) => ({
+            name: item.name,
+            qty: item.qty,
+            price: item.price,
+            personId: item.personId,
+          })),
+          catalog
+        )
+      : order.items.map((item) => ({
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+          personId: item.personId,
+        }));
+
   const ticketInput: EscPosOrderTicketInput = {
     id: order.id,
     tableId: order.tableId,
@@ -156,12 +177,7 @@ export async function printOrderTicketToConfiguredPrinter(
     type: order.type,
     code: order.code,
     createdAt: order.createdAt,
-    items: order.items.map((item) => ({
-      name: item.name,
-      qty: item.qty,
-      price: item.price,
-      personId: item.personId,
-    })),
+    items: ticketItems,
     guestNames: resolveOrderGuestNames(order),
   };
 

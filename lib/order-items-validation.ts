@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { buildColdMenuCartLabel, isColdMenuItem } from "@/lib/cold-menus";
+import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
 import { isMenuItemHiddenFromCustomers } from "@/lib/menu-item-visibility";
 
 const COMPOSED_SEP = " — ";
@@ -26,15 +27,16 @@ type CatalogItem = {
   hideWhenUnavailable: boolean;
 };
 
+export type OrderCatalog = {
+  itemsByNorm: Map<string, CatalogItem>;
+  allItems: CatalogItem[];
+  menus: CatalogMenu[];
+};
+
 type CatalogMenu = {
   name: string;
   priceCents: number;
   active: boolean;
-};
-
-type OrderCatalog = {
-  itemsByNorm: Map<string, CatalogItem>;
-  menus: CatalogMenu[];
 };
 
 function normName(value: string): string {
@@ -64,18 +66,22 @@ export async function loadOrderCatalog(): Promise<OrderCatalog> {
   ]);
 
   const itemsByNorm = new Map<string, CatalogItem>();
+  const allItems: CatalogItem[] = [];
   for (const it of menuItems) {
-    itemsByNorm.set(normName(it.name), {
+    const row: CatalogItem = {
       name: it.name,
       priceCents: it.priceCents,
       category: it.category,
       available: it.available,
       hideWhenUnavailable: it.hideWhenUnavailable,
-    });
+    };
+    allItems.push(row);
+    itemsByNorm.set(normName(it.name), row);
   }
 
   return {
     itemsByNorm,
+    allItems,
     menus: menus.map((m) => ({ name: m.name, priceCents: m.priceCents, active: m.active })),
   };
 }
@@ -115,6 +121,14 @@ function resolveLine(name: string, catalog: OrderCatalog): { price: number } | n
 
   const composed = resolveComposedMenu(trimmed, catalog);
   if (composed) return composed;
+
+  for (const item of catalog.allItems) {
+    const kitchenLabel = buildKitchenItemLabel(item.category, item.name);
+    if (normName(trimmed) === normName(kitchenLabel)) {
+      if (!isOrderableItem(item)) return null;
+      return { price: item.priceCents };
+    }
+  }
 
   const item = catalog.itemsByNorm.get(normName(trimmed));
   if (!item || !isOrderableItem(item)) return null;

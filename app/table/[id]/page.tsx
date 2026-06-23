@@ -41,6 +41,7 @@ import {
     isFormulaMenuCategory,
 } from "@/lib/menu-formula-nav";
 import { formatMoney } from "@/lib/currency";
+import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
 
 type MenuItem = {
     id: string;
@@ -2270,7 +2271,10 @@ export default function TablePage() {
                                                                     <button
                                                                         className="btn-soft text-xs px-2 py-1 shrink-0"
                                                                         onClick={() =>
-                                                                            addToCartLine(it.name, it.priceCents)
+                                                                            addToCartLine(
+                                                                                buildKitchenItemLabel(it.category, it.name),
+                                                                                it.priceCents
+                                                                            )
                                                                         }
                                                                     >
                                                                         + {getGuestNameForPersonId(activePerson)}

@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { isComposedMenuCartLabel } from "@/lib/kitchen-item-label";
 import { getEscPosLineWidth } from "@/lib/printer-profile";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
@@ -92,8 +93,8 @@ function appendLines(chunks: Buffer[], lines: string[]): void {
   }
 }
 
-/** Menus composés : « California — Plat: Poulet mayo • … » */
-function parseComposedItemName(rawName: string): { title: string; details: string[] } {
+/** Menus composés admin : « Asian Classic — Entrée: … • Plat: … » */
+function parseComposedMenuName(rawName: string): { title: string; details: string[] } {
   const trimmed = rawName.trim();
   const dashParts = trimmed.split(/\s+[—–]\s+/);
   if (dashParts.length < 2) {
@@ -111,14 +112,21 @@ function parseComposedItemName(rawName: string): { title: string; details: strin
 }
 
 /**
- * Article cuisine — Xprinter XP-260M : pas de gras ESC E sur les lignes articles
- * (saute le 2e caractère). Texte normal, majuscules, détails sur lignes séparées.
+ * Article cuisine — Xprinter XP-260M : pas de gras ESC E sur les lignes articles.
  */
 function appendKitchenItem(chunks: Buffer[], item: EscPosOrderItem): void {
-  const { title, details: composedDetails } = parseComposedItemName(item.name);
   const modifiers = Array.isArray(item.modifiers)
     ? item.modifiers.map((m) => sanitizeForPrinter(String(m))).filter(Boolean)
     : [];
+
+  let title = sanitizeForPrinter(item.name);
+  let composedDetails: string[] = [];
+  if (isComposedMenuCartLabel(item.name)) {
+    const parsed = parseComposedMenuName(item.name);
+    title = parsed.title;
+    composedDetails = parsed.details;
+  }
+
   const details = [...composedDetails, ...modifiers];
 
   const qty = Number.isFinite(item.qty) ? Math.max(1, item.qty) : 1;
