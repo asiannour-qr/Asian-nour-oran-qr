@@ -1,9 +1,10 @@
 import { formatMoney } from "@/lib/currency";
+import { getEscPosLineWidth } from "@/lib/printer-profile";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 const ESC = 0x1b;
 const GS = 0x1d;
-const LINE_WIDTH = 32; // Xprinter XP-260M 80mm, police A
+const LINE_WIDTH = getEscPosLineWidth(); // Xprinter XP-260M 80 mm
 
 export type EscPosOrderItem = {
   name: string;
@@ -36,11 +37,85 @@ export type EscPosRestaurantInfo = {
   phone?: string | null;
 };
 
+/** ASCII imprimable — tirets / puces unicode convertis avant filtrage. */
 function stripForEscPos(value: string): string {
   return value
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
+    .replace(/[\u2013\u2014\u2015]/g, "-")
+    .replace(/\u2022/g, "*")
     .replace(/[^\x20-\x7E]/g, "?");
+}
+
+function wrapText(text: string, maxWidth: number): string[] {
+  const cleaned = stripForEscPos(text).trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= maxWidth) return [cleaned];
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+    if (current) lines.push(current);
+    if (word.length <= maxWidth) {
+      current = word;
+    } else {
+      let rest = word;
+      while (rest.length > maxWidth) {
+        lines.push(rest.slice(0, maxWidth));
+        rest = rest.slice(maxWidth);
+      }
+      current = rest;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+/** Menus composés : « California — Plat: Poulet mayo • … » */
+function parseComposedKitchenName(rawName: string): { title: string; details: string[] } {
+  const normalized = stripForEscPos(rawName);
+  const dashIdx = normalized.indexOf(" - ");
+  if (dashIdx <= 0) {
+    return { title: normalized.trim(), details: [] };
+  }
+  const title = normalized.slice(0, dashIdx).trim();
+  const rest = normalized.slice(dashIdx + 3).trim();
+  const details = rest
+    .split("*")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return { title, details };
+}
+
+function pushKitchenItemLines(chunks: Buffer[], qty: number, rawName: string): void {
+  const { title, details } = parseComposedKitchenName(rawName);
+  const qtyLabel = `${qty} x `;
+
+  chunks.push(setBold(true));
+  if (details.length === 0) {
+    for (const line of wrapText(`${qtyLabel}${title}`, LINE_WIDTH)) {
+      chunks.push(textLine(line));
+    }
+  } else {
+    for (const line of wrapText(`${qtyLabel}${title}`, LINE_WIDTH)) {
+      chunks.push(textLine(line));
+    }
+    chunks.push(setBold(false));
+    for (const detail of details) {
+      for (const line of wrapText(detail, LINE_WIDTH - 3)) {
+        chunks.push(textLine(`   ${line}`));
+      }
+    }
+    return;
+  }
+  chunks.push(setBold(false));
 }
 
 function textLine(value: string): Buffer {
@@ -185,9 +260,7 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
     chunks.push(textLine(formatTime(order.createdAt)));
   } else {
     chunks.push(setBold(true));
-    chunks.push(setSize(1, 2));
     chunks.push(lineLR(`TABLE ${order.tableId}`, formatTime(order.createdAt)));
-    chunks.push(resetSize());
     chunks.push(setBold(false));
     chunks.push(textLine(`Cmd ${order.id.slice(0, 8).toUpperCase()}`));
   }
@@ -205,17 +278,16 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
     chunks.push(feed(1));
 
     for (const item of items) {
-      chunks.push(setBold(true));
-      chunks.push(setSize(1, 2));
-      chunks.push(textLine(`${item.qty} x ${item.name}`));
-      chunks.push(resetSize());
-      chunks.push(setBold(false));
+      // Pas de double hauteur sur les lignes longues — Xprinter XP-260M saute des caractères.
+      pushKitchenItemLines(chunks, item.qty, item.name);
 
       const modifiers = Array.isArray(item.modifiers)
         ? item.modifiers.filter((m): m is string => Boolean(m && m.trim()))
         : [];
       for (const mod of modifiers) {
-        chunks.push(textLine(`   - ${mod}`));
+        for (const line of wrapText(mod, LINE_WIDTH - 6)) {
+          chunks.push(textLine(`   - ${line}`));
+        }
       }
     }
   }
@@ -228,9 +300,11 @@ export function buildEscPosKitchenTicket(order: EscPosOrderTicketInput): Buffer 
     chunks.push(textLine("*** NOTE ***"));
     chunks.push(setBold(false));
     chunks.push(setAlign("left"));
-    chunks.push(setSize(1, 2));
-    chunks.push(textLine(order.comment.trim()));
-    chunks.push(resetSize());
+    chunks.push(setBold(true));
+    for (const line of wrapText(order.comment.trim(), LINE_WIDTH)) {
+      chunks.push(textLine(line));
+    }
+    chunks.push(setBold(false));
   }
 
   chunks.push(separator());
@@ -281,7 +355,16 @@ export function buildEscPosCustomerTicket(
 
   // Articles consolidés + prix (reçu client, sans découpage convive)
   for (const item of consolidateItems(order.items)) {
-    chunks.push(lineLR(`${item.qty} x ${item.name}`, formatMoney(item.price * item.qty)));
+    const label = `${item.qty} x ${stripForEscPos(item.name)}`;
+    const price = formatMoney(item.price * item.qty);
+    if (label.length + price.length + 1 <= LINE_WIDTH) {
+      chunks.push(lineLR(label, price));
+    } else {
+      for (const line of wrapText(label, LINE_WIDTH)) {
+        chunks.push(textLine(line));
+      }
+      chunks.push(lineLR("", price));
+    }
   }
 
   // Total
