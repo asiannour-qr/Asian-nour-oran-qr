@@ -1,10 +1,9 @@
 import { formatMoney } from "@/lib/currency";
-import { getEscPosLineWidth } from "@/lib/printer-profile";
 import { RESTAURANT_TZ } from "@/lib/restaurant-time";
 
 const ESC = 0x1b;
 const GS = 0x1d;
-const LINE_WIDTH = getEscPosLineWidth(); // Xprinter XP-260M 80 mm
+const LINE_WIDTH = 32; // Xprinter XP-260M 80 mm
 
 export type EscPosOrderItem = {
   name: string;
