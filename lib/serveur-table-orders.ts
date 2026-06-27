@@ -9,7 +9,22 @@ export type ServeurOrderLite = {
 };
 
 const OPEN_STATUSES = new Set(["NEW", "IN_PROGRESS", "READY"]);
+export const KITCHEN_OPEN_STATUSES = OPEN_STATUSES;
 export const MAX_TABLE_TICKETS = 3;
+
+/** Commande encore active en cuisine (non servie / non annulée). */
+export function tableHasOpenKitchenOrders(
+  allOrders: ServeurOrderLite[],
+  tableId: string
+): boolean {
+  return allOrders.some(
+    (o) =>
+      o.tableId === tableId &&
+      o.type !== "TAKEAWAY" &&
+      o.tableId !== "EMPORTER" &&
+      OPEN_STATUSES.has(o.status)
+  );
+}
 
 type OccupancyMeta = {
   occupiedAt: string;

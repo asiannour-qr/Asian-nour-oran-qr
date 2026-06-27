@@ -12,6 +12,7 @@ import { useOrderAlertAudio } from "@/lib/use-order-alert-audio";
 import {
   filterRelevantTableOrders,
   MAX_TABLE_TICKETS,
+  tableHasOpenKitchenOrders,
   type ServeurOrderLite,
 } from "@/lib/serveur-table-orders";
 import { formatMoney } from "@/lib/currency";
@@ -59,7 +60,10 @@ export default function ServeurPage() {
   const [error, setError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [serveurTab, setServeurTab] = useState<ServeurTab>("tables");
-  const [confirmReleaseTable, setConfirmReleaseTable] = useState<string | null>(null);
+  const [confirmReleaseTable, setConfirmReleaseTable] = useState<{
+    tableId: string;
+    hasOpenKitchenOrders: boolean;
+  } | null>(null);
   const knownPendingIdsRef = useRef<Set<string>>(new Set());
   const pendingBootstrappedRef = useRef(false);
 
@@ -769,7 +773,15 @@ export default function ServeurPage() {
                     <button
                       type="button"
                       className="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-60"
-                      onClick={() => setConfirmReleaseTable(selectedTable)}
+                      onClick={() =>
+                        setConfirmReleaseTable({
+                          tableId: selectedTable,
+                          hasOpenKitchenOrders: tableHasOpenKitchenOrders(
+                            tableOrders[selectedTable] ?? [],
+                            selectedTable
+                          ),
+                        })
+                      }
                       disabled={releasing}
                     >
                       {releasing ? "Libération…" : "Libérer la table (clients partis)"}
@@ -784,13 +796,23 @@ export default function ServeurPage() {
       <ConfirmActionModal
         open={confirmReleaseTable !== null}
         tone="danger"
-        title={`Libérer la table ${confirmReleaseTable ?? ""} ?`}
-        message="Confirmez que les clients sont partis. La table sera réinitialisée pour le prochain service."
-        confirmLabel="Libérer la table"
+        title={
+          confirmReleaseTable?.hasOpenKitchenOrders
+            ? `Table ${confirmReleaseTable.tableId} — commande en cuisine`
+            : `Libérer la table ${confirmReleaseTable?.tableId ?? ""} ?`
+        }
+        message={
+          confirmReleaseTable?.hasOpenKitchenOrders
+            ? "Commande en cuisine ! Libérer quand même ? La table sera réinitialisée pour le prochain service."
+            : "Confirmez que les clients sont partis. La table sera réinitialisée pour le prochain service."
+        }
+        confirmLabel={
+          confirmReleaseTable?.hasOpenKitchenOrders ? "Libérer quand même" : "Libérer la table"
+        }
         loading={releasingTable !== null}
         onCancel={() => setConfirmReleaseTable(null)}
         onConfirm={() => {
-          if (confirmReleaseTable) void releaseTableOccupancy(confirmReleaseTable);
+          if (confirmReleaseTable) void releaseTableOccupancy(confirmReleaseTable.tableId);
           setConfirmReleaseTable(null);
         }}
       />
