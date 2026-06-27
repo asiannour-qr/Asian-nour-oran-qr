@@ -51,13 +51,13 @@ Source unique : `lib/table-contract.ts` → `getStaffTableDeviceId()`.
 1. Login `/kitchen/login` → cookie `kitchen`.
 2. `/serveur` → lien `/table/{id}?staff=1&order=1`.
 3. Auto-claim : `POST /master` `{ force: true, deviceId: staff-serv-{id} }`.
-4. « Redonner la main » → `DELETE /master` (staff) → retour `/serveur`.
+4. « Redonner la main » → `DELETE /master` (staff) + vidage brouillon → retour `/serveur`.
 
 ## Timeouts verrous (lib/table-master.ts)
 
 | Constante | Valeur | Usage |
 |-----------|--------|-------|
-| `STAFF_MASTER_IDLE_MS` | 45 s | Verrou staff abandonné |
+| `STAFF_MASTER_IDLE_MS` | 2 min | Verrou staff abandonné |
 | `CLIENT_MASTER_IDLE_MS` | 3 min | Verrou convive sans activité |
 | `TABLE_MASTER_TTL_MS` | 4 h | Expiration absolue |
 

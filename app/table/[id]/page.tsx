@@ -133,6 +133,7 @@ export default function TablePage() {
         loading: true,
     });
     const [claimingMaster, setClaimingMaster] = useState(false);
+    const [releasingMaster, setReleasingMaster] = useState(false);
     const [staffClaimError, setStaffClaimError] = useState<string | null>(null);
     const staffClaimInFlightRef = useRef(false);
     const staffClaimAttemptsRef = useRef(0);
@@ -244,6 +245,15 @@ export default function TablePage() {
         }
         void refreshMasterStatus();
     }, [activeDeviceId, refreshMasterStatus, staffMode, tableId]);
+
+    useEffect(() => {
+        if (!staffMode || !activeDeviceId) return;
+        void refreshMasterStatus();
+        const id = setInterval(() => {
+            void refreshMasterStatus();
+        }, 2500);
+        return () => clearInterval(id);
+    }, [staffMode, activeDeviceId, refreshMasterStatus]);
 
     useEffect(() => {
         if (orderMode || staffMode || !activeDeviceId) return;
@@ -464,25 +474,55 @@ export default function TablePage() {
         }
     }, [tableId]);
 
+    const callReleaseMasterApi = useCallback(async () => {
+        if (!activeDeviceId) {
+            return { ok: false as const, status: 0, message: "Appareil non prêt." };
+        }
+        try {
+            const res = await fetch(`/api/tables/${tableId}/master`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ deviceId: activeDeviceId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            return {
+                ok: res.ok as boolean,
+                status: res.status,
+                message: typeof data?.message === "string" ? data.message : undefined,
+            };
+        } catch {
+            return { ok: false as const, status: 0, message: "Erreur réseau." };
+        }
+    }, [activeDeviceId, tableId]);
+
     const canModifyCart = staffMode
         ? masterStatus.isMaster
         : masterStatus.isMaster && !readOnlyMode;
+    const canReleaseStaffTable =
+        staffMode &&
+        (masterStatus.isMaster || masterStatus.masterType === "staff" || masterStatus.hasMaster);
     const canSyncDraft = Boolean(activeDeviceId) && masterStatus.isMaster;
     const staffConnecting =
         staffMode && !masterStatus.isMaster && (masterStatus.loading || claimingMaster);
 
     const releaseMaster = useCallback(async () => {
-        if (!activeDeviceId) return;
-        await pushDraftCartNow();
+        if (!activeDeviceId || releasingMaster) return;
+        setReleasingMaster(true);
         try {
-            const res = await fetch(`/api/tables/${tableId}/master`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId: activeDeviceId }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                toast.error(data?.message || "Impossible de libérer la commande.");
+            if (masterStatusRef.current.isMaster) {
+                await Promise.race([
+                    pushDraftCartNow(),
+                    new Promise<void>((resolve) => window.setTimeout(resolve, 2500)),
+                ]);
+            }
+            const result = await callReleaseMasterApi();
+            if (!result.ok) {
+                const message =
+                    staffMode && result.status === 401
+                        ? "Session serveur expirée — retournez à l'écran serveur pour vous reconnecter."
+                        : result.message || "Impossible de libérer la commande.";
+                toast.error(message);
                 return;
             }
             setMasterStatus({ hasMaster: false, isMaster: false, masterType: null, loading: false });
@@ -501,29 +541,40 @@ export default function TablePage() {
             );
         } catch {
             toast.error("Erreur lors de la libération.");
+        } finally {
+            setReleasingMaster(false);
         }
-    }, [activeDeviceId, pushDraftCartNow, router, staffMode, tableId]);
+    }, [
+        activeDeviceId,
+        callReleaseMasterApi,
+        pushDraftCartNow,
+        releasingMaster,
+        router,
+        staffMode,
+    ]);
 
     const releaseMasterSilent = useCallback(async () => {
-        if (!activeDeviceId || !masterStatusRef.current.isMaster) return;
+        if (!activeDeviceId) return;
+        if (!staffMode && !masterStatusRef.current.isMaster) return;
         try {
-            if (staffMode) {
-                await pushDraftCartNow();
-            } else {
+            if (staffMode || masterStatusRef.current.isMaster) {
+                if (masterStatusRef.current.isMaster) {
+                    await Promise.race([
+                        pushDraftCartNow(),
+                        new Promise<void>((resolve) => window.setTimeout(resolve, 1500)),
+                    ]);
+                }
+                await callReleaseMasterApi();
+            }
+            if (!staffMode) {
                 clearOrderingSessionActive(tableId);
                 await sessionCleanupRef.current.clearDraft();
                 sessionCleanupRef.current.reset();
             }
-            await fetch(`/api/tables/${tableId}/master`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId: activeDeviceId }),
-                keepalive: true,
-            });
         } catch {
             // best effort
         }
-    }, [activeDeviceId, pushDraftCartNow, staffMode, tableId]);
+    }, [activeDeviceId, callReleaseMasterApi, pushDraftCartNow, staffMode, tableId]);
 
     const showLanding = useCallback(() => {
         if (staffMode) {
@@ -1948,7 +1999,7 @@ export default function TablePage() {
                     </div>
                 )}
 
-                {staffMode && canModifyCart && (
+                {staffMode && canReleaseStaffTable && (
                     <div className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900 flex flex-wrap items-center justify-between gap-3">
                         <span>
                             🍽️ <strong>Mode serveur</strong> — vous avez la priorité sur les téléphones clients.
@@ -1958,10 +2009,25 @@ export default function TablePage() {
                         </span>
                         <button
                             type="button"
-                            className="btn-ghost text-sm shrink-0 border border-violet-400/60 bg-white/70 hover:bg-white"
+                            className="btn-ghost text-sm shrink-0 border border-violet-400/60 bg-white/70 hover:bg-white disabled:opacity-60"
+                            disabled={releasingMaster || claimingMaster}
                             onClick={() => void releaseMaster()}
                         >
-                            Redonner la main à la table
+                            {releasingMaster ? "Libération…" : "Redonner la main à la table"}
+                        </button>
+                    </div>
+                )}
+
+                {staffMode && !staffConnecting && masterStatus.hasMaster && !masterStatus.isMaster && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-3">
+                        <span>Verrou serveur actif — libérez la table pour les convives.</span>
+                        <button
+                            type="button"
+                            className="btn-ghost text-sm shrink-0 border border-amber-400/60 bg-white/70 hover:bg-white disabled:opacity-60"
+                            disabled={releasingMaster}
+                            onClick={() => void releaseMaster()}
+                        >
+                            {releasingMaster ? "Libération…" : "Forcer la libération"}
                         </button>
                     </div>
                 )}

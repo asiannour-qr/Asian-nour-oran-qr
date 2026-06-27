@@ -4,7 +4,7 @@ import { isStaffDeviceId } from "@/lib/staff-session";
 
 export const TABLE_MASTER_TTL_MS = 4 * 60 * 60 * 1000;
 /** Sans activité serveur sur la table, le verrou staff est considéré abandonné. */
-export const STAFF_MASTER_IDLE_MS = 45 * 1000;
+export const STAFF_MASTER_IDLE_MS = 2 * 60 * 1000;
 /** Sans signal du téléphone maître convive (page fermée / appli en arrière-plan), libération auto. */
 export const CLIENT_MASTER_IDLE_MS = 3 * 60 * 1000;
 

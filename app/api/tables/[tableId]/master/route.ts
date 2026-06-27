@@ -11,7 +11,7 @@ import {
   clearTableMaster,
 } from "@/lib/table-master";
 import { assertStaffSession, isStaffDeviceId } from "@/lib/staff-session";
-import { getTableDraftCart } from "@/lib/table-draft-cart";
+import { clearTableDraftCart, getTableDraftCart } from "@/lib/table-draft-cart";
 
 function readDeviceId(req: Request, body?: { deviceId?: unknown }): string {
   const fromBody = typeof body?.deviceId === "string" ? body.deviceId.trim() : "";
@@ -146,6 +146,7 @@ export async function DELETE(req: Request, { params }: { params: { tableId: stri
       const unauthorized = assertStaffSession();
       if (unauthorized) return unauthorized;
       await clearTableMaster(tableId);
+      await clearTableDraftCart(tableId);
       return NextResponse.json({ ok: true, hasMaster: false, isMaster: false, released: true });
     }
 

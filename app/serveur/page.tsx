@@ -267,8 +267,16 @@ export default function ServeurPage() {
       if (releasingTable) return;
       setReleasingTable(tableId);
       try {
-        const res = await fetch(`/api/kitchen/tables/${tableId}/release`, { method: "POST" });
+        const res = await fetch(`/api/kitchen/tables/${tableId}/release`, {
+          method: "POST",
+          credentials: "same-origin",
+        });
         const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          const next = encodeURIComponent(window.location.pathname + window.location.search);
+          window.location.assign(`/kitchen/login?next=${next}`);
+          return;
+        }
         if (!res.ok) throw new Error(data?.message || "Libération impossible");
         toast.success(
           data?.released === false
