@@ -282,13 +282,17 @@ export default function ServeurPage() {
           return;
         }
         if (!res.ok) throw new Error(data?.message || "Libération impossible");
+        const closedOrders =
+          typeof data?.closedOrders === "number" ? data.closedOrders : 0;
         toast.success(
-          data?.released === false
-            ? `Table ${tableId} réinitialisée`
-            : `Table ${tableId} libérée`
+          closedOrders > 0
+            ? `Table ${tableId} libérée — ${closedOrders} ticket(s) clôturé(s) en cuisine`
+            : data?.released === false
+              ? `Table ${tableId} réinitialisée`
+              : `Table ${tableId} libérée`
         );
         setSelectedTable(null);
-        void fetchOccupancy();
+        await fetchOccupancy();
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : "Erreur");
       } finally {

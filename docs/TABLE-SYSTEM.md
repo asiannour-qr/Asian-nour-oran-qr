@@ -35,7 +35,15 @@ Source unique : `lib/table-contract.ts` → `getStaffTableDeviceId()`.
 - Seul le **maître courant** peut PUT (sauf rattrapage client documenté dans la route).
 - DELETE sans auth : vide le brouillon (reset accueil table).
 
-### Health check
+### Libération table serveur
+
+`POST /api/kitchen/tables/[tableId]/release` :
+
+1. Passe en **SERVED** les commandes sur place encore ouvertes (NEW / IN_PROGRESS / READY)
+2. Supprime l'occupation (`TableOccupancy`)
+3. Vide le verrou maître et le brouillon panier
+
+L'écran serveur repasse la table en **Libre** dès la libération confirmée.
 
 `GET /api/health/table-system` → vérifie que les deux tables Prisma répondent.
 
