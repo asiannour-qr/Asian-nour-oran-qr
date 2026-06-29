@@ -645,7 +645,7 @@ export default function ServeurPage() {
                   Un code personnage sera attribué automatiquement à la validation.
                 </p>
               </div>
-              <Link href="/emporter" className="btn-primary">
+              <Link href="/emporter?staff=1" className="btn-primary">
                 🥡 Prendre une commande à emporter
               </Link>
             </section>

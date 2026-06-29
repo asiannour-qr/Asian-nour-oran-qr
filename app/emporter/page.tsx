@@ -67,9 +67,15 @@ export default function EmporterPage() {
   const [trackedStatus, setTrackedStatus] = useState<string>("NEW");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
+  const [isStaff, setIsStaff] = useState(false);
   const cartScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // En mode serveur (tablette dédiée), on ne reprend pas l'écran de
+    // confirmation client : après envoi on revient à l'accueil serveur.
+    const staff = new URLSearchParams(window.location.search).get("staff") === "1";
+    setIsStaff(staff);
+    if (staff) return;
     try {
       const raw = sessionStorage.getItem(EMPORTER_TRACKING_KEY);
       if (!raw) return;
@@ -302,6 +308,13 @@ export default function EmporterPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
         throw new Error(data?.message || `Commande refusée (${res.status})`);
+      }
+      if (isStaff) {
+        // Tablette serveur : retour à l'accueil serveur (la commande apparaît
+        // dans « À valider en caisse » avec son code personnage).
+        toast.success(`Commande ${data.code} créée — à valider en caisse`);
+        window.location.assign("/serveur");
+        return;
       }
       setConfirmation({ code: data.code, id: data.id });
       try {
