@@ -68,7 +68,15 @@ export default function EmporterPage() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
   const [isStaff, setIsStaff] = useState(false);
+  const [showScrollTopFab, setShowScrollTopFab] = useState(false);
   const cartScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToPageTop = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }, []);
 
   useEffect(() => {
     // En mode serveur (tablette dédiée), on ne reprend pas l'écran de
@@ -282,6 +290,17 @@ export default function EmporterPage() {
   }, []);
 
   const clearEntireCart = useCallback(() => setCart([]), []);
+
+  // Bouton « Haut de la carte » : apparaît après un défilement significatif
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onScroll = () => {
+      setShowScrollTopFab(window.scrollY > 320);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Isoler le scroll du panier
   useEffect(() => {
@@ -623,6 +642,30 @@ export default function EmporterPage() {
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-[var(--color-accent)] text-xs font-bold">
               {itemCount}
             </span>
+          </button>
+        )}
+
+        {showScrollTopFab && !drawerOpen && (
+          <button
+            type="button"
+            onClick={scrollToPageTop}
+            className="fixed bottom-6 left-4 z-50 inline-flex items-center gap-2 rounded-full border border-[rgba(190,127,57,0.45)] bg-[rgba(255,252,247,0.96)] px-4 py-2.5 text-sm font-medium text-[var(--color-heading)] shadow-[0_8px_24px_rgba(61,47,33,0.18)] backdrop-blur-sm transition hover:bg-white hover:shadow-[0_10px_28px_rgba(61,47,33,0.22)] active:translate-y-px sm:bottom-8 sm:left-6"
+            aria-label="Retour en haut de la carte"
+          >
+            <svg
+              className="h-4 w-4 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 19V5" />
+              <path d="m5 12 7-7 7 7" />
+            </svg>
+            Haut de la carte
           </button>
         )}
       </main>
