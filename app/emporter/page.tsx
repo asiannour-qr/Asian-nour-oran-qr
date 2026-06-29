@@ -14,6 +14,7 @@ import {
   MenuComposerModal,
 } from "@/app/components/MenuComposerModal";
 import { isColdMenuItem } from "@/lib/cold-menus";
+import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
 import {
   COLD_MENUS_SECTION_ID,
   HOT_MENUS_SECTION_ID,
@@ -583,7 +584,7 @@ export default function EmporterPage() {
                             ) : (
                               <button
                                 className="btn-soft text-xs px-2 py-1 shrink-0"
-                                onClick={() => addToCart(it.name, it.priceCents)}
+                                onClick={() => addToCart(buildKitchenItemLabel(it.category, it.name), it.priceCents)}
                               >
                                 + Ajouter
                               </button>

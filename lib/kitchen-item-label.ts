@@ -24,6 +24,8 @@ export function kitchenCategoryPrefix(category: string): string | null {
     [/les originaux/, "Original"],
     [/^sushis?\b/, "Sushi"],
     [/yakitori/, "Yakitori"],
+    [/chira[sc]hi/, "Chirashi"],
+    [/poke/, "Poke"],
   ];
 
   for (const [pattern, prefix] of rules) {
