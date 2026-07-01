@@ -20,7 +20,7 @@ import {
 import { sendEscPosToPrinter } from "@/lib/printer-tcp";
 import { getSettings } from "@/lib/settings";
 import { sanitizeStaffSupplements, supplementsTotalCents } from "@/lib/supplements";
-import { getTableOccupancy } from "@/lib/table-occupancy";
+import { getTableOccupancy, ordersCreatedSinceOccupancy } from "@/lib/table-occupancy";
 import { KITCHEN_OPEN_STATUSES } from "@/lib/serveur-table-orders";
 
 export type TicketVariant = "kitchen" | "customer";
@@ -179,7 +179,10 @@ export async function printTableCustomerTicketToConfiguredPrinter(
       tableId,
       type: { not: "TAKEAWAY" },
       ...(occupancy
-        ? { status: { not: "CANCELED" }, createdAt: { gte: occupancy.occupiedAt } }
+        ? {
+            status: { not: "CANCELED" },
+            createdAt: { gte: ordersCreatedSinceOccupancy(occupancy.occupiedAt) },
+          }
         : { status: { in: [...KITCHEN_OPEN_STATUSES] } }),
     },
     include: { items: true },

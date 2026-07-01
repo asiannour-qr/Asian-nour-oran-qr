@@ -1,3 +1,5 @@
+import { ordersCreatedSinceOccupancy } from "@/lib/table-occupancy";
+
 export type ServeurOrderLite = {
   id: string;
   tableId: string;
@@ -51,7 +53,7 @@ export function filterRelevantTableOrders(
 
   let relevant: ServeurOrderLite[];
   if (options.isOccupied && options.occupancy?.occupiedAt) {
-    const since = new Date(options.occupancy.occupiedAt).getTime() - 5000;
+    const since = ordersCreatedSinceOccupancy(new Date(options.occupancy.occupiedAt)).getTime();
     relevant = dineIn.filter((o) => new Date(o.createdAt ?? 0).getTime() >= since);
   } else {
     relevant = dineIn.filter((o) => OPEN_STATUSES.has(o.status));
