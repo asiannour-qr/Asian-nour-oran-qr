@@ -52,7 +52,12 @@ function supplementSignature(supps: SupplementDef[]): string {
 const EMPORTER_TRACKING_KEY = "emporter:confirmation";
 
 // Catégories réservées à la composition des menus (non vendues à l'unité)
-const HIDDEN_MENU_CATEGORIES = new Set(["Boissons Kid", "Desserts Kid"]);
+const HIDDEN_MENU_CATEGORIES = new Set([
+  "Boissons Kid",
+  "Desserts Kid",
+  "Entrée Kid’s",
+  "Plats Starter Kid",
+]);
 
 function slugifyCategory(label: string, fallback: string) {
   const base = label

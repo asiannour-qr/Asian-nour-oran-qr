@@ -284,12 +284,13 @@ export default function ServeurPage() {
         if (!res.ok) throw new Error(data?.message || "Libération impossible");
         const closedOrders =
           typeof data?.closedOrders === "number" ? data.closedOrders : 0;
+        const ticketNote = data?.customerTicketPrinted ? " — ticket client envoyé en caisse" : "";
         toast.success(
-          closedOrders > 0
+          (closedOrders > 0
             ? `Table ${tableId} libérée — ${closedOrders} ticket(s) clôturé(s) en cuisine`
             : data?.released === false
               ? `Table ${tableId} réinitialisée`
-              : `Table ${tableId} libérée`
+              : `Table ${tableId} libérée`) + ticketNote
         );
         setSelectedTable(null);
         await fetchOccupancy();

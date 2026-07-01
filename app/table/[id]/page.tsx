@@ -104,7 +104,12 @@ const CAT_ALIASES: Record<string, string | string[]> = {
     "Goûter": "Desserts",
 };
 
-const HIDDEN_MENU_CATEGORIES = new Set(["Boissons Kid", "Desserts Kid"]);
+const HIDDEN_MENU_CATEGORIES = new Set([
+    "Boissons Kid",
+    "Desserts Kid",
+    "Entrée Kid’s",
+    "Plats Starter Kid",
+]);
 
 function slugifyCategory(value: string, fallback: string) {
     const base = value

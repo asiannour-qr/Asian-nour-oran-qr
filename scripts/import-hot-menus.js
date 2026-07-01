@@ -59,21 +59,32 @@ const HOT_MENU_DEFS = [
     priceCents: 890,
     position: 60,
     groups: [
-      { name: "Entrée (2 pièces)", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
-      { name: "Yakitori (paire)", categoryFilter: "Yakitoris (2 pièces)", minChoices: 1, maxChoices: 1 },
       {
-        name: "Accompagnement Kid’s",
-        categoryFilter: "Accompagnements|Plats Starter",
+        name: "Nems ou Yakitori poulet",
+        categoryFilter: "Entrée Kid’s",
         minChoices: 1,
         maxChoices: 1,
       },
-      { name: "Dessert enfant", categoryFilter: "Desserts Kid", minChoices: 1, maxChoices: 1 },
-      { name: "Boisson enfant", categoryFilter: "Boissons Kid", minChoices: 1, maxChoices: 1 },
+      {
+        name: "Plat Starter bébé",
+        categoryFilter: "Plats Starter Kid",
+        minChoices: 1,
+        maxChoices: 1,
+      },
+      { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
 ];
 
 const REQUIRED_ITEMS = [
+  // Choix entrée du menu Asian Kid's (catégorie dédiée, masquée sur la carte)
+  { name: "2 Nems poulet", category: "Entrée Kid’s", priceCents: 0, position: 1 },
+  { name: "2 Yakitoris poulet", category: "Entrée Kid’s", priceCents: 0, position: 2 },
+  // Plats starter bébé du menu Asian Kid's (catégorie dédiée, masquée sur la carte)
+  { name: "Nouilles sautées légumes (bébé)", category: "Plats Starter Kid", priceCents: 0, position: 1 },
+  { name: "Kao Pad Thaï légumes (bébé)", category: "Plats Starter Kid", priceCents: 0, position: 2 },
+  { name: "Riz cantonais (bébé)", category: "Plats Starter Kid", priceCents: 0, position: 3 },
+  // Anciens articles Kid conservés (n'apparaissent plus dans le menu, sans effet de bord)
   { name: "Compote", category: "Desserts Kid", priceCents: 0, position: 1 },
   { name: "Capri Sun", category: "Boissons Kid", priceCents: 0, position: 1 },
 ];

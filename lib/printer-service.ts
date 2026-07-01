@@ -20,8 +20,36 @@ import {
 import { sendEscPosToPrinter } from "@/lib/printer-tcp";
 import { getSettings } from "@/lib/settings";
 import { sanitizeStaffSupplements, supplementsTotalCents } from "@/lib/supplements";
+import { getTableOccupancy } from "@/lib/table-occupancy";
+import { KITCHEN_OPEN_STATUSES } from "@/lib/serveur-table-orders";
 
 export type TicketVariant = "kitchen" | "customer";
+
+type CustomerTicketOrderItem = {
+  name: string;
+  qty: number;
+  price?: number | null;
+  personId?: string | null;
+  supplements?: unknown;
+};
+
+/** Transforme les lignes d'une commande en lignes de reçu client (prix suppléments inclus). */
+function toCustomerTicketItems(items: CustomerTicketOrderItem[]) {
+  return items.map((item) => {
+    const supp = sanitizeStaffSupplements(item.supplements);
+    const suppTotal = supplementsTotalCents(supp);
+    const name =
+      supp.length > 0
+        ? `${item.name} (+ ${supp.map((s) => s.label).join(", ")})`
+        : item.name;
+    return {
+      name,
+      qty: item.qty,
+      price: (item.price ?? 0) + suppTotal,
+      personId: item.personId,
+    };
+  });
+}
 
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -134,6 +162,65 @@ export async function printTestTicketToConfiguredPrinter(
   return { ip: config.ip, port: config.port, target };
 }
 
+/**
+ * Ticket CLIENT cumulé pour une table : additionne toutes les commandes de la
+ * session d'occupation en cours (depuis l'occupation, ou à défaut les tickets
+ * encore ouverts) en un seul reçu. Utilisé sur place (QR + serveur confondus).
+ */
+export async function printTableCustomerTicketToConfiguredPrinter(
+  tableId: string,
+  options?: { force?: boolean }
+): Promise<void> {
+  await getPrinterConnection(targetForVariant("customer"));
+
+  const occupancy = await getTableOccupancy(tableId);
+  const orders = await prisma.order.findMany({
+    where: {
+      tableId,
+      type: { not: "TAKEAWAY" },
+      ...(occupancy
+        ? { status: { not: "CANCELED" }, createdAt: { gte: occupancy.occupiedAt } }
+        : { status: { in: [...KITCHEN_OPEN_STATUSES] } }),
+    },
+    include: { items: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (orders.length === 0) {
+    throw new Error("Aucune commande à imprimer pour cette table");
+  }
+
+  const items = orders.flatMap((o) => toCustomerTicketItems(o.items));
+  const total = orders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const comments = Array.from(
+    new Set(orders.map((o) => o.comment?.trim()).filter((c): c is string => Boolean(c)))
+  );
+
+  const ticketInput: EscPosOrderTicketInput = {
+    id: orders[orders.length - 1].id,
+    tableId,
+    total,
+    comment: comments.length > 0 ? comments.join(" / ") : null,
+    status: "SERVED",
+    type: "DINE_IN",
+    code: null,
+    createdAt: occupancy?.occupiedAt ?? orders[0].createdAt,
+    items,
+    guestNames: null,
+  };
+
+  const settings = await getSettings();
+  const payload = buildEscPosCustomerTicket(ticketInput, {
+    restaurantName: settings.restaurantName,
+    address: settings.address,
+    phone: settings.phone,
+  });
+
+  const label = `Ticket client — Table ${tableId}`;
+  // force: le reçu évolue à chaque ajout d'article → jamais de déduplication.
+  await deliverPayload(payload, label, targetForVariant("customer"), { force: true });
+}
+
 export async function printOrderTicketToConfiguredPrinter(
   orderId: string,
   variant: TicketVariant = "kitchen",
@@ -148,6 +235,13 @@ export async function printOrderTicketToConfiguredPrinter(
 
   if (!order) {
     throw new Error("Commande introuvable");
+  }
+
+  // Reçu client sur place : on imprime la note cumulée de toute la table,
+  // pas seulement la commande ciblée (une seule note jusqu'à libération).
+  if (variant === "customer" && order.type !== "TAKEAWAY") {
+    await printTableCustomerTicketToConfiguredPrinter(order.tableId, options);
+    return;
   }
 
   const catalog = await loadOrderCatalog();
