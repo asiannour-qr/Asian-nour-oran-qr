@@ -50,8 +50,8 @@ const HOT_MENU_DEFS = [
     priceCents: 185000, // 1 850 DZD
     position: 50,
     groups: [
-      { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
-      { name: "Plat Silver", categoryFilter: "Plats Silver", minChoices: 1, maxChoices: 1 },
+      { name: "Entrée ou Yakitori", categoryFilter: "Entrée ou Yakitoris", minChoices: 1, maxChoices: 1 },
+      { name: "Plat Starter", categoryFilter: "Plats Starter", minChoices: 1, maxChoices: 1 },
       { name: "Boisson", categoryFilter: "Boissons", minChoices: 1, maxChoices: 1 },
     ],
   },
