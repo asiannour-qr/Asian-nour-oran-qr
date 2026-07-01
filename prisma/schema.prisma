@@ -138,3 +138,53 @@ model TableDraftCart {
   guestNames   Json?
   updatedAt    DateTime @updatedAt
 }
+
+// ============================ Module RH & Planning ============================
+// Piloté côté gérant (session ADMIN). Employés = données, pas de comptes.
+
+enum ShiftStatus {
+  PLANNED
+  ABSENT
+  REPLACED
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  role      String // poste : Sushiman, Wokman, Serveur, Piston…
+  isExtra   Boolean  @default(false) // true = pool de remplaçants
+  active    Boolean  @default(true)
+  notes     String?
+  shifts    Shift[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shift {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime // jour du créneau (00:00, fuseau du site)
+  role       String // poste couvert
+  startMin   Int // minutes depuis minuit (ex. 690 = 11h30)
+  endMin     Int
+  status     ShiftStatus @default(PLANNED)
+  absence    Absence?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([date])
+  @@index([employeeId])
+}
+
+model Absence {
+  id           String   @id @default(cuid())
+  shiftId      String   @unique
+  shift        Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  reason       String // Maladie, Imprévu, Congé…
+  note         String?
+  replacedById String? // Employee.id (extra) retenu
+  resolved     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
