@@ -1,12 +1,13 @@
 // scripts/import-hot-menus.js
 // Idempotent upsert des menus chauds « Asian ... » avec Prisma.
+// ORAN — prix en DZD stockés ×100 (ex. 2 500 DZD => priceCents 250000).
 
 const { PrismaClient } = require("@prisma/client");
 
 const HOT_MENU_DEFS = [
   {
     name: "Asian Classic",
-    priceCents: 1690,
+    priceCents: 250000, // 2 500 DZD
     position: 10,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -16,7 +17,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Classic +",
-    priceCents: 1890,
+    priceCents: 275000, // 2 750 DZD
     position: 20,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -26,7 +27,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Royal",
-    priceCents: 1890,
+    priceCents: 235000, // 2 350 DZD
     position: 30,
     groups: [
       { name: "Entrée ou Yakitori", categoryFilter: "Entrée ou Yakitoris", minChoices: 1, maxChoices: 1 },
@@ -36,7 +37,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Classe B",
-    priceCents: 1590,
+    priceCents: 210000, // 2 100 DZD
     position: 40,
     groups: [
       { name: "Entrée ou Yakitori", categoryFilter: "Entrée ou Yakitoris", minChoices: 1, maxChoices: 1 },
@@ -46,7 +47,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Express",
-    priceCents: 1390,
+    priceCents: 185000, // 1 850 DZD
     position: 50,
     groups: [
       { name: "Entrée", categoryFilter: "Entrées", minChoices: 1, maxChoices: 1 },
@@ -56,7 +57,7 @@ const HOT_MENU_DEFS = [
   },
   {
     name: "Asian Kid’s",
-    priceCents: 890,
+    priceCents: 120000, // 1 200 DZD
     position: 60,
     groups: [
       {
@@ -320,9 +321,9 @@ if (require.main === module) {
         `✅ Menus chauds importés (${summary.totalMenus} menus, ${totalGroups} groupes synchronisés, ${summary.menusCreated} créés)`
       );
       for (const menu of summary.menuSummaries) {
-        const euro = (menu.priceCents / 100).toFixed(2);
+        const dzd = Math.round(menu.priceCents / 100);
         console.log(
-          ` - ${menu.name} (${euro}€) • groupes: ${menu.groups.length} (créés: ${menu.groupsCreated}, mis à jour: ${menu.groupsUpdated})`
+          ` - ${menu.name} (${dzd} DZD) • groupes: ${menu.groups.length} (créés: ${menu.groupsCreated}, mis à jour: ${menu.groupsUpdated})`
         );
       }
     })
