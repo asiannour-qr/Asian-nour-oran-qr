@@ -210,6 +210,7 @@ export async function printTableCustomerTicketToConfiguredPrinter(
     createdAt: occupancy?.occupiedAt ?? orders[0].createdAt,
     items,
     guestNames: null,
+    mergedSession: true,
   };
 
   const settings = await getSettings();

@@ -27,6 +27,8 @@ export type EscPosOrderTicketInput = {
   createdAt: Date | string;
   items: EscPosOrderItem[];
   guestNames?: Record<string, string> | null;
+  /** Note cumulée de toute la table (plusieurs envois cuisine fusionnés). */
+  mergedSession?: boolean;
 };
 
 function isTakeawayOrder(order: { type?: string | null }): boolean {
@@ -439,7 +441,9 @@ export function buildEscPosCustomerTicket(
     chunks.push(lineLR("A emporter", order.code ?? "-"));
   } else {
     chunks.push(lineLR("Table", order.tableId));
-    chunks.push(lineLR("Commande", order.id.slice(0, 8).toUpperCase()));
+    if (!order.mergedSession) {
+      chunks.push(lineLR("Commande", order.id.slice(0, 8).toUpperCase()));
+    }
   }
   chunks.push(lineLR("Date", formatDate(order.createdAt)));
   chunks.push(lineLR("Heure", formatTime(order.createdAt)));

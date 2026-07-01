@@ -381,7 +381,8 @@ const escapeHtml = useCallback((value: string) => {
 
   const handlePrint = useCallback(
     (order: Order, variant: "kitchen" | "customer" = "kitchen") => {
-      if (printerConfiguredRef.current) {
+      // Ticket client sur place : toujours via l'API (note cumulée de la table).
+      if (variant === "customer" || printerConfiguredRef.current) {
         void printOrderViaTcp(order, variant, false, true);
         return;
       }
