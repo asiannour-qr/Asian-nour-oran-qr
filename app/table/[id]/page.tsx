@@ -42,6 +42,8 @@ import {
 } from "@/lib/menu-formula-nav";
 import { formatMoney } from "@/lib/currency";
 import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
+import SupplementPicker, { type SupplementDef } from "@/app/components/SupplementPicker";
+import { isSupplementableCategory } from "@/lib/supplements";
 
 type MenuItem = {
     id: string;
@@ -53,7 +55,18 @@ type MenuItem = {
     imageUrl?: string | null;
     available?: boolean;
 };
-type CartLine = { id: string; name: string; priceCents: number; qty: number; personId: string };
+type CartLine = {
+    id: string;
+    name: string;
+    priceCents: number;
+    qty: number;
+    personId: string;
+    supplements?: SupplementDef[];
+};
+
+function supplementSignature(supps: SupplementDef[]): string {
+    return supps.map((s) => `${s.label}:${s.priceCents}`).join(",");
+}
 type MenuGroup = { id: string; name: string; categoryFilter: string; minChoices: number; maxChoices: number; position: number };
 type MenuDef = { id: string; name: string; priceCents: number; imageUrl?: string | null; groups?: MenuGroup[] };
 type ComposeStep = {
@@ -328,6 +341,17 @@ export default function TablePage() {
     const [peopleCount, setPeopleCount] = useState<number>(1);
     const [composeState, setComposeState] = useState<ComposeState | null>(null);
     const [coldMenuPick, setColdMenuPick] = useState<MenuItem | null>(null);
+    const [allowedSupplements, setAllowedSupplements] = useState<SupplementDef[]>([]);
+    const [supplementTarget, setSupplementTarget] = useState<MenuItem | null>(null);
+
+    useEffect(() => {
+        fetch("/api/supplements", { cache: "no-store" })
+            .then((r) => r.json())
+            .then((data) => {
+                if (Array.isArray(data?.supplements)) setAllowedSupplements(data.supplements);
+            })
+            .catch(() => {});
+    }, []);
     const [composeErrors, setComposeErrors] = useState<Record<string, string>>({});
     const [activePerson, setActivePerson] = useState<string>("P1");
     const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
@@ -354,7 +378,7 @@ export default function TablePage() {
     masterStatusRef.current = masterStatus;
     const draftPayloadRef = useRef<{
         deviceId: string;
-        items: Array<{ id: string; name: string; priceCents: number; qty: number; personId: string }>;
+        items: Array<{ id: string; name: string; priceCents: number; qty: number; personId: string; supplements?: SupplementDef[] }>;
         peopleCount: number;
         tableComment: string | null;
         guestNames: Record<string, string>;
@@ -383,6 +407,7 @@ export default function TablePage() {
                         priceCents: Number(line.priceCents) || 0,
                         qty: Number(line.qty) || 1,
                         personId: String(line.personId || "P1"),
+                        supplements: Array.isArray(line.supplements) ? line.supplements : undefined,
                     }))
                 );
                 applied = true;
@@ -1116,6 +1141,7 @@ export default function TablePage() {
                 priceCents: l.priceCents,
                 qty: l.qty,
                 personId: l.personId,
+                supplements: l.supplements,
             })),
             peopleCount,
             tableComment: tableComment.trim() || null,
@@ -1550,13 +1576,21 @@ export default function TablePage() {
         });
     }
 
-    function addToCartLine(name: string, priceCents: number, personId?: string) {
+    function addToCartLine(
+        name: string,
+        priceCents: number,
+        personId?: string,
+        supplements?: SupplementDef[]
+    ) {
         if (!canModifyCart) {
             toast.error("Seul le téléphone maître peut ajouter des plats au panier.");
             return;
         }
         const target = personId || activePerson || "P1";
-        const key = `${name}|${priceCents}`;
+        const supps = supplements ?? [];
+        const suppTotal = supps.reduce((s, x) => s + x.priceCents, 0);
+        const unitPrice = priceCents + suppTotal;
+        const key = `${name}|${priceCents}|${supplementSignature(supps)}`;
         setCart((prev) => {
             const i = prev.findIndex((l) => l.id === key && l.personId === target);
             if (i >= 0) {
@@ -1564,9 +1598,29 @@ export default function TablePage() {
                 copy[i] = { ...copy[i], qty: copy[i].qty + 1 };
                 return copy;
             }
-            return [...prev, { id: key, name, priceCents, qty: 1, personId: target }];
+            return [
+                ...prev,
+                {
+                    id: key,
+                    name,
+                    priceCents: unitPrice,
+                    qty: 1,
+                    personId: target,
+                    supplements: supps.length > 0 ? supps : undefined,
+                },
+            ];
         });
         toastAddedToCart(name);
+    }
+
+    function incLine(id: string, personId: string) {
+        if (!canModifyCart) {
+            toast.error("Seul le téléphone maître peut modifier le panier.");
+            return;
+        }
+        setCart((prev) =>
+            prev.map((l) => (l.id === id && l.personId === personId ? { ...l, qty: l.qty + 1 } : l))
+        );
     }
 
     function decFromCart(id: string, personId: string) {
@@ -1833,6 +1887,7 @@ export default function TablePage() {
                     qty: Number(l.qty),
                     price: Number.isFinite(l.priceCents) ? l.priceCents : undefined,
                     personId: l.personId,
+                    supplements: l.supplements ?? undefined,
                 })),
             };
 
@@ -2334,17 +2389,29 @@ export default function TablePage() {
                                                                         Choisir boisson
                                                                     </button>
                                                                 ) : (
-                                                                    <button
-                                                                        className="btn-soft text-xs px-2 py-1 shrink-0"
-                                                                        onClick={() =>
-                                                                            addToCartLine(
-                                                                                buildKitchenItemLabel(it.category, it.name),
-                                                                                it.priceCents
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        + {getGuestNameForPersonId(activePerson)}
-                                                                    </button>
+                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                        {isSupplementableCategory(it.category) &&
+                                                                            (staffMode || allowedSupplements.length > 0) && (
+                                                                                <button
+                                                                                    className="btn-ghost text-xs px-2 py-1"
+                                                                                    onClick={() => setSupplementTarget(it)}
+                                                                                    title="Ajouter un supplément"
+                                                                                >
+                                                                                    + Suppl.
+                                                                                </button>
+                                                                            )}
+                                                                        <button
+                                                                            className="btn-soft text-xs px-2 py-1"
+                                                                            onClick={() =>
+                                                                                addToCartLine(
+                                                                                    buildKitchenItemLabel(it.category, it.name),
+                                                                                    it.priceCents
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            + {getGuestNameForPersonId(activePerson)}
+                                                                        </button>
+                                                                    </div>
                                                                 )
                                                             ) : null}
                                                         </div>
@@ -2528,6 +2595,24 @@ export default function TablePage() {
                 />
             )}
 
+            {supplementTarget && (
+                <SupplementPicker
+                    itemName={supplementTarget.name}
+                    mode={staffMode ? "staff" : "client"}
+                    allowed={allowedSupplements}
+                    onClose={() => setSupplementTarget(null)}
+                    onConfirm={(supps) => {
+                        addToCartLine(
+                            buildKitchenItemLabel(supplementTarget.category, supplementTarget.name),
+                            supplementTarget.priceCents,
+                            activePerson,
+                            supps
+                        );
+                        setSupplementTarget(null);
+                    }}
+                />
+            )}
+
             {showOrderUi && showScrollTopFab && !cartDrawerOpen && (
                 <button
                     type="button"
@@ -2628,6 +2713,13 @@ export default function TablePage() {
                                                             >
                                                                 <div className="flex-1">
                                                                     <div className="font-medium text-sm leading-snug">{line.name}</div>
+                                                                    {line.supplements?.length ? (
+                                                                        <ul className="text-xs text-[var(--color-accent-strong)] mt-0.5 space-y-0.5">
+                                                                            {line.supplements.map((s, i) => (
+                                                                                <li key={i}>+ {s.label} ({formatMoney(s.priceCents)})</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    ) : null}
                                                                     <div className="text-xs surface-muted-text">{formatMoney(line.priceCents)}</div>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
@@ -2641,7 +2733,7 @@ export default function TablePage() {
                                                                     <span className="w-8 text-center text-sm font-semibold">{line.qty}</span>
                                                                     <button
                                                                         className="px-2 py-1 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent-soft)] transition"
-                                                                        onClick={() => addToCartLine(line.name, line.priceCents, line.personId)}
+                                                                        onClick={() => incLine(line.id, line.personId)}
                                                                         title="Ajouter"
                                                                     >
                                                                         +

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { DEFAULT_MENU_CARD_IMAGE } from "@/lib/settings";
 import { SITE_CONFIG } from "@/lib/site";
+import { currencySuffix, formatMoneyInputValue } from "@/lib/currency";
 
 type DayHours = {
   ouvert: boolean;
@@ -26,6 +27,8 @@ const JOURS_LABELS: Record<string, string> = {
   dimanche: "Dimanche",
 };
 
+type SupplementDef = { label: string; priceCents: number };
+
 type Settings = {
   restaurantName: string;
   address: string | null;
@@ -35,7 +38,15 @@ type Settings = {
   autoPrintEnabled: boolean;
   openingHours: OpeningHours;
   menuCardImageUrl: string | null;
+  clientSupplements: SupplementDef[];
 };
+
+/** Parse une saisie de prix (DZD entier ou € décimal) en centimes. */
+function parsePriceToCents(input: string): number {
+  const n = parseFloat(String(input).replace(",", ".").trim());
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
 
 const DEFAULT_HOURS: OpeningHours = Object.fromEntries(
   JOURS.map((j) => [j, { ouvert: j !== "dimanche", debut: "11:30", fin: "22:00" }])
@@ -80,6 +91,17 @@ export default function AdminSettingsPage() {
   const [pendingCardPreview, setPendingCardPreview] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [supRows, setSupRows] = useState<{ label: string; price: string }[]>([]);
+
+  useEffect(() => {
+    if (!settings) return;
+    setSupRows(
+      (settings.clientSupplements ?? []).map((s) => ({
+        label: s.label,
+        price: formatMoneyInputValue(s.priceCents),
+      }))
+    );
+  }, [settings]);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -154,6 +176,14 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     if (!settings) return;
     save({ openingHours: settings.openingHours });
+  }
+
+  function handleSupplementsSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const cleaned = supRows
+      .map((r) => ({ label: r.label.trim(), priceCents: parsePriceToCents(r.price) }))
+      .filter((r) => r.label.length > 0);
+    save({ clientSupplements: cleaned });
   }
 
   async function handleMenuCardSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -363,6 +393,75 @@ export default function AdminSettingsPage() {
             save({ autoPrintEnabled: v });
           }}
         />
+      </section>
+
+      {/* ── Suppléments client (QR & emporter) ───────────── */}
+      <section className="card space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Suppléments payants (client &amp; emporter)</h2>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Liste proposée au client sur chaque plat (hors boissons et desserts). En mode serveur,
+            les suppléments restent libres. Montant en {currencySuffix()}.
+          </p>
+        </div>
+
+        <form onSubmit={handleSupplementsSubmit} className="space-y-3">
+          {supRows.length === 0 && (
+            <p className="text-sm text-[var(--color-text-muted)] italic">
+              Aucun supplément — ajoutez-en un ci-dessous.
+            </p>
+          )}
+          {supRows.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={row.label}
+                onChange={(e) =>
+                  setSupRows((rows) =>
+                    rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r))
+                  )
+                }
+                placeholder="Supplément poulet"
+                className="input flex-1"
+              />
+              <div className="relative w-32 shrink-0">
+                <input
+                  value={row.price}
+                  onChange={(e) =>
+                    setSupRows((rows) =>
+                      rows.map((r, j) => (j === i ? { ...r, price: e.target.value } : r))
+                    )
+                  }
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="input w-full pr-10 text-right"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)]">
+                  {currencySuffix()}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-ghost text-red-600 shrink-0"
+                aria-label="Supprimer"
+                onClick={() => setSupRows((rows) => rows.filter((_, j) => j !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              className="btn-soft"
+              onClick={() => setSupRows((rows) => [...rows, { label: "", price: "" }])}
+            >
+              + Ajouter un supplément
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? "Sauvegarde…" : "Sauvegarder les suppléments"}
+            </button>
+          </div>
+        </form>
       </section>
 
       {/* ── Horaires d'ouverture ─────────────────────────── */}

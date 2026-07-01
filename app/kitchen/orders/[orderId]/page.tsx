@@ -39,6 +39,13 @@ export default async function OrderPage({
                     ({guestNameFromMap(guestNames ?? undefined, it.personId)})
                   </em>
                 ) : null}
+                {Array.isArray(it.supplements) && it.supplements.length ? (
+                  <ul className="text-xs text-[var(--color-accent-strong)] mt-0.5">
+                    {(it.supplements as { label: string; priceCents: number }[]).map((s, i) => (
+                      <li key={i}>+ {s.label} ({formatMoney(s.priceCents)})</li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
               <span className="tabular-nums text-sm surface-muted-text">
                 {formatMoney(it.price ?? 0)}

@@ -19,6 +19,7 @@ import {
 } from "@/lib/printer-config";
 import { sendEscPosToPrinter } from "@/lib/printer-tcp";
 import { getSettings } from "@/lib/settings";
+import { sanitizeStaffSupplements, supplementsTotalCents } from "@/lib/supplements";
 
 export type TicketVariant = "kitchen" | "customer";
 
@@ -153,20 +154,32 @@ export async function printOrderTicketToConfiguredPrinter(
   const ticketItems =
     variant === "kitchen"
       ? enrichItemsForKitchenTicket(
-          order.items.map((item) => ({
-            name: item.name,
-            qty: item.qty,
-            price: item.price,
-            personId: item.personId,
-          })),
+          order.items.map((item) => {
+            const supp = sanitizeStaffSupplements(item.supplements);
+            return {
+              name: item.name,
+              qty: item.qty,
+              price: item.price,
+              personId: item.personId,
+              modifiers: supp.length > 0 ? supp.map((s) => s.label) : undefined,
+            };
+          }),
           catalog
         )
-      : order.items.map((item) => ({
-          name: item.name,
-          qty: item.qty,
-          price: item.price,
-          personId: item.personId,
-        }));
+      : order.items.map((item) => {
+          const supp = sanitizeStaffSupplements(item.supplements);
+          const suppTotal = supplementsTotalCents(supp);
+          const name =
+            supp.length > 0
+              ? `${item.name} (+ ${supp.map((s) => s.label).join(", ")})`
+              : item.name;
+          return {
+            name,
+            qty: item.qty,
+            price: (item.price ?? 0) + suppTotal,
+            personId: item.personId,
+          };
+        });
 
   const ticketInput: EscPosOrderTicketInput = {
     id: order.id,

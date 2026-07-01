@@ -17,6 +17,9 @@ const BodySchema = z.object({
       z.object({
         name: z.string().min(1),
         qty: z.number().int().min(1),
+        supplements: z
+          .array(z.object({ label: z.string(), priceCents: z.number() }))
+          .optional(),
       })
     )
     .min(1, "Il faut au moins 1 article"),
@@ -60,7 +63,9 @@ export async function POST(req: Request) {
     rawItems.map((it) => ({
       name: String(it.name),
       qty: it.qty,
-    }))
+      supplements: it.supplements,
+    })),
+    { context: "client" }
   );
   if (resolved.ok === false) {
     recordPublicAction("order-submit", ip);
@@ -86,6 +91,7 @@ export async function POST(req: Request) {
               price: it.price,
               qty: it.qty,
               personId: null,
+              supplements: it.supplements.length > 0 ? it.supplements : undefined,
             })),
           },
         },

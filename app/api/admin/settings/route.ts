@@ -3,6 +3,7 @@ import { assertAdminSession } from "@/lib/admin-session";
 import { getSettings, upsertSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings";
 import { clampTableCount } from "@/lib/table-count";
+import { sanitizeSupplementDefs } from "@/lib/supplements";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,6 +45,9 @@ export async function PUT(req: Request) {
   if (typeof body.kitchenSoundEnabled === "boolean") patch.kitchenSoundEnabled = body.kitchenSoundEnabled;
   if (typeof body.autoPrintEnabled === "boolean") patch.autoPrintEnabled = body.autoPrintEnabled;
   if (body.openingHours && typeof body.openingHours === "object") patch.openingHours = body.openingHours;
+  if (Array.isArray(body.clientSupplements)) {
+    patch.clientSupplements = sanitizeSupplementDefs(body.clientSupplements);
+  }
 
   try {
     const updated = await upsertSettings(patch);

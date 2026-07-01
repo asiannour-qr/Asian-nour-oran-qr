@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { sanitizeStaffSupplements, type SupplementDef } from "@/lib/supplements";
 
 export function isDraftCartStorageMissingError(err: unknown): boolean {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -15,6 +16,7 @@ export type DraftCartItem = {
   priceCents: number;
   qty: number;
   personId: string;
+  supplements?: SupplementDef[];
 };
 
 export type TableDraftCartRecord = {
@@ -38,12 +40,14 @@ function sanitizeItems(raw: unknown): DraftCartItem[] {
     const priceCents = Number(row.priceCents ?? row.price ?? 0);
     const personId = String(row.personId ?? "P1").trim() || "P1";
     if (!name || !id || !Number.isFinite(qty) || qty <= 0) continue;
+    const supplements = sanitizeStaffSupplements(row.supplements);
     items.push({
       id,
       name,
       priceCents: Number.isFinite(priceCents) ? Math.max(0, Math.round(priceCents)) : 0,
       qty: Math.round(qty),
       personId,
+      ...(supplements.length > 0 ? { supplements } : {}),
     });
   }
   return items;

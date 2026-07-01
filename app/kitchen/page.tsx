@@ -22,6 +22,7 @@ type OrderItem = {
   personId?: string | null;
   guest?: string | null;
   modifiers?: string[] | null;
+  supplements?: { label: string; priceCents: number }[] | null;
 };
 type Order = {
   id: string;
@@ -189,8 +190,12 @@ const escapeHtml = useCallback((value: string) => {
             const modifiers = Array.isArray(it?.modifiers)
               ? (it.modifiers as (string | null | undefined)[]).filter((m): m is string => Boolean(m))
               : [];
-            const modifiersHtml = modifiers.length
-              ? modifiers.map((m) => `<div class="small muted mod">– ${escapeHtml(m)}</div>`).join("")
+            const supplLabels = Array.isArray(it?.supplements)
+              ? it.supplements.map((s) => s?.label).filter((l): l is string => Boolean(l))
+              : [];
+            const allMods = [...modifiers, ...supplLabels];
+            const modifiersHtml = allMods.length
+              ? allMods.map((m) => `<div class="small muted mod">– ${escapeHtml(m)}</div>`).join("")
               : "";
             return `
               <div class="kitchen-item">${escapeHtml(String(it.qty ?? 0))} × ${escapeHtml(it.name ?? "")}</div>
@@ -752,6 +757,13 @@ const escapeHtml = useCallback((value: string) => {
                         <div className="font-medium leading-snug">
                           {`${it.qty ?? 1} × ${it.name}`}
                         </div>
+                        {it.supplements?.length ? (
+                          <ul className="text-xs text-[var(--color-accent-strong)] mt-0.5 space-y-0.5">
+                            {it.supplements.map((s, i) => (
+                              <li key={i}>+ {s.label}</li>
+                            ))}
+                          </ul>
+                        ) : null}
                         <div className="text-xs surface-muted-text">
                           {guestNameFromMap(o.guestNames, it.personId ?? "P1")}
                         </div>
@@ -858,6 +870,13 @@ const escapeHtml = useCallback((value: string) => {
                         <li key={it.id} className="flex items-center justify-between gap-3 border-b border-[rgba(120,110,98,0.08)] pb-2 last:border-0">
                           <div className="flex-1">
                             <div className="font-medium leading-snug">{`${it.qty ?? 1} × ${it.name}`}</div>
+                            {it.supplements?.length ? (
+                              <ul className="text-xs text-[var(--color-accent-strong)] mt-0.5 space-y-0.5">
+                                {it.supplements.map((s, i) => (
+                                  <li key={i}>+ {s.label}</li>
+                                ))}
+                              </ul>
+                            ) : null}
                             <div className="text-xs surface-muted-text">
                               {guestNameFromMap(o.guestNames, it.personId ?? "P1")}
                             </div>

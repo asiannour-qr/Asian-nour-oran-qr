@@ -2,6 +2,14 @@ import prisma from "@/lib/prisma";
 import { buildColdMenuCartLabel, COLD_DRINK_CART_SEP, isColdMenuItem } from "@/lib/cold-menus";
 import { buildKitchenItemLabel } from "@/lib/kitchen-item-label";
 import { isMenuItemHiddenFromCustomers } from "@/lib/menu-item-visibility";
+import { getSettings } from "@/lib/settings";
+import {
+  isSupplementableCategory,
+  matchClientSupplements,
+  sanitizeStaffSupplements,
+  supplementsTotalCents,
+  type SupplementDef,
+} from "@/lib/supplements";
 
 const COMPOSED_SEP_UNICODE = " — ";
 const COMPOSED_SEP_ASCII = " - ";
@@ -11,6 +19,7 @@ export type IncomingOrderLine = {
   name: string;
   qty: number;
   personId?: string | null;
+  supplements?: unknown;
 };
 
 export type ValidatedOrderLine = {
@@ -18,6 +27,7 @@ export type ValidatedOrderLine = {
   qty: number;
   price: number;
   personId?: string | null;
+  supplements: SupplementDef[];
 };
 
 type CatalogItem = {
@@ -127,31 +137,32 @@ function resolveColdMenu(name: string, catalog: OrderCatalog): { price: number }
   return { price: menuItem.priceCents };
 }
 
-function resolveLine(name: string, catalog: OrderCatalog): { price: number } | null {
+function resolveLine(name: string, catalog: OrderCatalog): { price: number; category: string } | null {
   const trimmed = name.trim();
   if (!trimmed) return null;
 
   const cold = resolveColdMenu(trimmed, catalog);
-  if (cold) return cold;
+  if (cold) return { price: cold.price, category: "" };
 
   const composed = resolveComposedMenu(trimmed, catalog);
-  if (composed) return composed;
+  if (composed) return { price: composed.price, category: "" };
 
   for (const item of catalog.allItems) {
     const kitchenLabel = buildKitchenItemLabel(item.category, item.name);
     if (normName(trimmed) === normName(kitchenLabel)) {
       if (!isOrderableItem(item)) return null;
-      return { price: item.priceCents };
+      return { price: item.priceCents, category: item.category };
     }
   }
 
   const item = catalog.itemsByNorm.get(normName(trimmed));
   if (!item || !isOrderableItem(item)) return null;
-  return { price: item.priceCents };
+  return { price: item.priceCents, category: item.category };
 }
 
 export async function validateAndResolveOrderItems(
-  rawItems: IncomingOrderLine[]
+  rawItems: IncomingOrderLine[],
+  opts?: { context?: "client" | "staff" }
 ): Promise<
   | { ok: true; items: ValidatedOrderLine[]; total: number }
   | { ok: false; code: string; message: string }
@@ -160,7 +171,11 @@ export async function validateAndResolveOrderItems(
     return { ok: false, code: "EMPTY_CART", message: "Panier vide" };
   }
 
+  const context = opts?.context ?? "client";
   const catalog = await loadOrderCatalog();
+  // Liste autorisée (mode client uniquement) — en mode serveur, suppléments libres.
+  const allowedSupplements: SupplementDef[] =
+    context === "client" ? (await getSettings()).clientSupplements : [];
   const validated: ValidatedOrderLine[] = [];
 
   for (const raw of rawItems) {
@@ -179,10 +194,34 @@ export async function validateAndResolveOrderItems(
       };
     }
 
+    let supplements: SupplementDef[] = [];
+    if (context === "staff") {
+      supplements = sanitizeStaffSupplements(raw.supplements);
+    } else {
+      const matched = matchClientSupplements(raw.supplements, allowedSupplements);
+      if (matched === null) {
+        return {
+          ok: false,
+          code: "INVALID_SUPPLEMENT",
+          message: `Supplément non autorisé pour « ${name} »`,
+        };
+      }
+      supplements = matched;
+    }
+
+    if (supplements.length > 0 && !isSupplementableCategory(resolved.category)) {
+      return {
+        ok: false,
+        code: "SUPPLEMENT_NOT_ALLOWED",
+        message: `Pas de supplément possible sur « ${name} »`,
+      };
+    }
+
     validated.push({
       name,
       qty,
       price: resolved.price,
+      supplements,
       personId:
         raw.personId == null || String(raw.personId).trim() === ""
           ? null
@@ -190,6 +229,9 @@ export async function validateAndResolveOrderItems(
     });
   }
 
-  const total = validated.reduce((sum, it) => sum + it.price * it.qty, 0);
+  const total = validated.reduce(
+    (sum, it) => sum + (it.price + supplementsTotalCents(it.supplements)) * it.qty,
+    0
+  );
   return { ok: true, items: validated, total };
 }

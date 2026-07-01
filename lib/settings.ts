@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { SITE_CONFIG } from "@/lib/site";
 import { DEFAULT_TABLE_COUNT } from "@/lib/table-count";
+import { DEFAULT_CLIENT_SUPPLEMENTS, sanitizeSupplementDefs, type SupplementDef } from "@/lib/supplements";
 
 export const SETTINGS_ID = "default";
 
@@ -44,6 +45,7 @@ export type Settings = {
   autoPrintEnabled: boolean;
   openingHours: OpeningHours;
   menuCardImageUrl: string | null;
+  clientSupplements: SupplementDef[];
 };
 
 export function resolveMenuCardImageUrl(settings?: Pick<Settings, "menuCardImageUrl"> | null): string {
@@ -66,6 +68,10 @@ export async function getSettings(): Promise<Settings> {
     openingHours:
       (row?.openingHours as OpeningHours | null) ?? DEFAULT_OPENING_HOURS,
     menuCardImageUrl: row?.menuCardImageUrl ?? null,
+    clientSupplements:
+      row?.clientSupplements != null
+        ? sanitizeSupplementDefs(row.clientSupplements)
+        : DEFAULT_CLIENT_SUPPLEMENTS,
   };
 }
 
@@ -85,6 +91,7 @@ export async function upsertSettings(patch: Partial<Settings>): Promise<Settings
       autoPrintEnabled: merged.autoPrintEnabled,
       openingHours: merged.openingHours as object,
       menuCardImageUrl: merged.menuCardImageUrl,
+      clientSupplements: merged.clientSupplements as object,
     },
     update: {
       restaurantName: merged.restaurantName,
@@ -95,6 +102,7 @@ export async function upsertSettings(patch: Partial<Settings>): Promise<Settings
       autoPrintEnabled: merged.autoPrintEnabled,
       openingHours: merged.openingHours as object,
       menuCardImageUrl: merged.menuCardImageUrl,
+      clientSupplements: merged.clientSupplements as object,
     },
   });
 

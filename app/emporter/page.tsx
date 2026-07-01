@@ -23,6 +23,8 @@ import {
   isFormulaMenuCategory,
 } from "@/lib/menu-formula-nav";
 import { formatMoney } from "@/lib/currency";
+import SupplementPicker, { type SupplementDef } from "@/app/components/SupplementPicker";
+import { isSupplementableCategory } from "@/lib/supplements";
 
 type MenuItem = {
   id: string;
@@ -35,7 +37,17 @@ type MenuItem = {
   available?: boolean;
 };
 
-type CartLine = { id: string; name: string; priceCents: number; qty: number };
+type CartLine = {
+  id: string;
+  name: string;
+  priceCents: number;
+  qty: number;
+  supplements?: SupplementDef[];
+};
+
+function supplementSignature(supps: SupplementDef[]): string {
+  return supps.map((s) => `${s.label}:${s.priceCents}`).join(",");
+}
 
 const EMPORTER_TRACKING_KEY = "emporter:confirmation";
 
@@ -69,6 +81,8 @@ export default function EmporterPage() {
   const [activeFormulaId, setActiveFormulaId] = useState<string | null>(HOT_MENUS_SECTION_ID);
   const [isStaff, setIsStaff] = useState(false);
   const [showScrollTopFab, setShowScrollTopFab] = useState(false);
+  const [allowedSupplements, setAllowedSupplements] = useState<SupplementDef[]>([]);
+  const [supplementTarget, setSupplementTarget] = useState<MenuItem | null>(null);
   const cartScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToPageTop = useCallback(() => {
@@ -109,6 +123,15 @@ export default function EmporterPage() {
       })
       .catch(() => toast.error("Impossible de charger la carte"))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/supplements", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.supplements)) setAllowedSupplements(data.supplements);
+      })
+      .catch(() => {});
   }, []);
 
   // Sections par catégorie (Boissons en dernier), avec ancres pour la navigation
@@ -264,17 +287,37 @@ export default function EmporterPage() {
   const itemCount = useMemo(() => cart.reduce((s, l) => s + l.qty, 0), [cart]);
   const hasCartItems = cart.length > 0;
 
-  const addToCart = useCallback((name: string, priceCents: number) => {
-    setCart((prev) => {
-      const idx = prev.findIndex((l) => l.name === name && l.priceCents === priceCents);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
-        return copy;
-      }
-      return [...prev, { id: `${name}-${priceCents}`, name, priceCents, qty: 1 }];
-    });
-    toastAddedToCart(name);
+  const addToCart = useCallback(
+    (name: string, basePriceCents: number, supplements?: SupplementDef[]) => {
+      const supps = supplements ?? [];
+      const suppTotal = supps.reduce((s, x) => s + x.priceCents, 0);
+      const unitPrice = basePriceCents + suppTotal;
+      const id = `${name}|${basePriceCents}|${supplementSignature(supps)}`;
+      setCart((prev) => {
+        const idx = prev.findIndex((l) => l.id === id);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
+          return copy;
+        }
+        return [
+          ...prev,
+          {
+            id,
+            name,
+            priceCents: unitPrice,
+            qty: 1,
+            supplements: supps.length > 0 ? supps : undefined,
+          },
+        ];
+      });
+      toastAddedToCart(name);
+    },
+    []
+  );
+
+  const incLine = useCallback((id: string) => {
+    setCart((prev) => prev.map((l) => (l.id === id ? { ...l, qty: l.qty + 1 } : l)));
   }, []);
 
   const decFromCart = useCallback((id: string) => {
@@ -321,7 +364,11 @@ export default function EmporterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           comment: comment.trim() || null,
-          items: cart.map((l) => ({ name: l.name, price: l.priceCents, qty: l.qty })),
+          items: cart.map((l) => ({
+            name: l.name,
+            qty: l.qty,
+            supplements: l.supplements ?? undefined,
+          })),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -614,12 +661,24 @@ export default function EmporterPage() {
                                 Choisir boisson
                               </button>
                             ) : (
-                              <button
-                                className="btn-soft text-xs px-2 py-1 shrink-0"
-                                onClick={() => addToCart(buildKitchenItemLabel(it.category, it.name), it.priceCents)}
-                              >
-                                + Ajouter
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isSupplementableCategory(it.category) &&
+                                  allowedSupplements.length > 0 && (
+                                    <button
+                                      className="btn-ghost text-xs px-2 py-1"
+                                      onClick={() => setSupplementTarget(it)}
+                                      title="Ajouter un supplément"
+                                    >
+                                      + Suppl.
+                                    </button>
+                                  )}
+                                <button
+                                  className="btn-soft text-xs px-2 py-1"
+                                  onClick={() => addToCart(buildKitchenItemLabel(it.category, it.name), it.priceCents)}
+                                >
+                                  + Ajouter
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -684,6 +743,23 @@ export default function EmporterPage() {
         />
       )}
 
+      {supplementTarget && (
+        <SupplementPicker
+          itemName={supplementTarget.name}
+          mode="client"
+          allowed={allowedSupplements}
+          onClose={() => setSupplementTarget(null)}
+          onConfirm={(supps) => {
+            addToCart(
+              buildKitchenItemLabel(supplementTarget.category, supplementTarget.name),
+              supplementTarget.priceCents,
+              supps
+            );
+            setSupplementTarget(null);
+          }}
+        />
+      )}
+
       {coldMenuPick && (
         <ColdMenuDrinkModal
           menu={coldMenuPick}
@@ -743,6 +819,13 @@ export default function EmporterPage() {
                     >
                       <div className="flex-1">
                         <div className="font-medium text-sm leading-snug">{line.name}</div>
+                        {line.supplements?.length ? (
+                          <ul className="text-xs text-[var(--color-accent-strong)] mt-0.5 space-y-0.5">
+                            {line.supplements.map((s, i) => (
+                              <li key={i}>+ {s.label} ({formatMoney(s.priceCents)})</li>
+                            ))}
+                          </ul>
+                        ) : null}
                         <div className="text-xs surface-muted-text">{formatMoney(line.priceCents)}</div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -755,7 +838,7 @@ export default function EmporterPage() {
                         <span className="w-8 text-center text-sm font-semibold">{line.qty}</span>
                         <button
                           className="px-2 py-1 rounded-full border border-[var(--color-border)]"
-                          onClick={() => addToCart(line.name, line.priceCents)}
+                          onClick={() => incLine(line.id)}
                         >
                           +
                         </button>

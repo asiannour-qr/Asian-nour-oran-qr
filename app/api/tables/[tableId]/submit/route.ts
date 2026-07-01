@@ -22,6 +22,9 @@ const BodySchema = z.object({
         name: z.string().min(1),
         qty: z.number().int().min(1),
         personId: z.string().optional().nullable(),
+        supplements: z
+          .array(z.object({ label: z.string(), priceCents: z.number() }))
+          .optional(),
       })
     )
     .min(1, "Il faut au moins 1 item"),
@@ -120,7 +123,9 @@ export async function POST(req: Request, { params }: { params: { tableId: string
         name: String(it.name),
         qty: it.qty,
         personId: it.personId ?? null,
-      }))
+        supplements: it.supplements,
+      })),
+      { context: canBypassOpeningHours(deviceId) ? "staff" : "client" }
     );
     if (resolved.ok === false) {
       recordPublicAction("order-submit", ip);
@@ -154,6 +159,7 @@ export async function POST(req: Request, { params }: { params: { tableId: string
             price: it.price,
             qty: it.qty,
             personId: it.personId ?? null,
+            supplements: it.supplements.length > 0 ? it.supplements : undefined,
           })),
         },
       },
