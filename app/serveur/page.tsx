@@ -284,14 +284,26 @@ export default function ServeurPage() {
         if (!res.ok) throw new Error(data?.message || "Libération impossible");
         const closedOrders =
           typeof data?.closedOrders === "number" ? data.closedOrders : 0;
-        const ticketNote = data?.customerTicketPrinted ? " — ticket client envoyé en caisse" : "";
-        toast.success(
-          (closedOrders > 0
-            ? `Table ${tableId} libérée — ${closedOrders} ticket(s) clôturé(s) en cuisine`
-            : data?.released === false
-              ? `Table ${tableId} réinitialisée`
-              : `Table ${tableId} libérée`) + ticketNote
-        );
+        const ticketPrinted = data?.customerTicketPrinted === true;
+        const ticketError =
+          typeof data?.customerTicketError === "string" ? data.customerTicketError : null;
+
+        if (closedOrders > 0 && !ticketPrinted) {
+          toast.error(
+            ticketError
+              ? `Table ${tableId} libérée — ticket client NON imprimé : ${ticketError}`
+              : `Table ${tableId} libérée — ticket client NON imprimé (vérifiez l'agent d'impression)`
+          );
+        } else {
+          const ticketNote = ticketPrinted ? " — ticket client envoyé en caisse" : "";
+          toast.success(
+            (closedOrders > 0
+              ? `Table ${tableId} libérée — ${closedOrders} ticket(s) clôturé(s) en cuisine`
+              : data?.released === false
+                ? `Table ${tableId} réinitialisée`
+                : `Table ${tableId} libérée`) + ticketNote
+          );
+        }
         setSelectedTable(null);
         await fetchOccupancy();
       } catch (err: unknown) {

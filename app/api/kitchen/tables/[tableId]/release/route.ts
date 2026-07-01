@@ -23,14 +23,24 @@ export async function POST(
 
   try {
     // Ticket client cumulé imprimé automatiquement avant clôture (passage en caisse).
-    // On l'imprime tant que l'occupation existe encore pour agréger toute la session.
     let customerTicketPrinted = false;
-    try {
-      await printTableCustomerTicketToConfiguredPrinter(tableId, { force: true });
-      customerTicketPrinted = true;
-    } catch (printErr) {
-      // Pas de commande à imprimer ou imprimante indisponible : on n'empêche pas la libération.
-      console.warn("[kitchen/tables/release] ticket client non imprimé:", printErr);
+    let customerTicketError: string | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await printTableCustomerTicketToConfiguredPrinter(tableId, { force: true });
+        customerTicketPrinted = true;
+        customerTicketError = null;
+        break;
+      } catch (printErr) {
+        customerTicketError =
+          printErr instanceof Error ? printErr.message : String(printErr);
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+    }
+    if (!customerTicketPrinted) {
+      console.warn("[kitchen/tables/release] ticket client non imprimé:", customerTicketError);
     }
 
     const closedOrders = await closeOpenDineInOrdersForTable(tableId);
@@ -42,6 +52,7 @@ export async function POST(
       released,
       closedOrders,
       customerTicketPrinted,
+      customerTicketError,
       message: released ? "Table libérée" : "Table réinitialisée",
     });
   } catch (error: unknown) {
