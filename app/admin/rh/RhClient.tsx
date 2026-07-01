@@ -416,13 +416,20 @@ function TeamList({
 }: {
   people: Employee[]; roles: string[]; isExtra: boolean; onChanged: () => void;
 }) {
+  const listId = isExtra ? "rh-roles-extra" : "rh-roles-team";
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState(roles[0] ?? "");
+  const [role, setRole] = useState(isExtra ? "Polyvalent" : roles[0] ?? "");
   const [busy, setBusy] = useState(false);
 
+  // édition inline
+  const [editId, setEditId] = useState<string | null>(null);
+  const [eName, setEName] = useState("");
+  const [ePhone, setEPhone] = useState("");
+  const [eRole, setERole] = useState("");
+
   async function add() {
-    if (!name.trim()) return;
+    if (!name.trim() || !role.trim()) return;
     setBusy(true);
     const res = await fetch("/api/admin/rh/employees", {
       method: "POST",
@@ -433,6 +440,20 @@ function TeamList({
     if (res.ok) { setName(""); setPhone(""); onChanged(); }
   }
 
+  function startEdit(p: Employee) {
+    setEditId(p.id); setEName(p.name); setEPhone(p.phone ?? ""); setERole(p.role);
+  }
+
+  async function saveEdit(id: string) {
+    if (!eName.trim() || !eRole.trim()) return;
+    const res = await fetch(`/api/admin/rh/employees/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: eName, phone: ePhone, role: eRole }),
+    });
+    if (res.ok) { setEditId(null); onChanged(); }
+  }
+
   async function remove(id: string) {
     const res = await fetch(`/api/admin/rh/employees/${id}`, { method: "DELETE" });
     if (res.ok) onChanged();
@@ -440,29 +461,46 @@ function TeamList({
 
   return (
     <div className="rounded-xl border border-black/10 bg-white p-4">
-      <div className="flex flex-wrap gap-2 items-end mb-4">
-        <div><label className="block text-xs text-black/50">Nom</label><input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border border-black/15 px-3 py-2" placeholder="Nom" /></div>
+      <datalist id={listId}>
+        {roles.map((r) => <option key={r} value={r} />)}
+      </datalist>
+
+      <div className="flex flex-wrap gap-2 items-end mb-1">
+        <div><label className="block text-xs text-black/50">Nom</label><input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border border-black/15 px-3 py-2" placeholder="Ex. Karim" /></div>
         <div><label className="block text-xs text-black/50">Téléphone</label><input value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-lg border border-black/15 px-3 py-2" placeholder="06…" /></div>
         <div><label className="block text-xs text-black/50">Poste</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} className="rounded-lg border border-black/15 px-3 py-2">
-            {roles.map((r) => <option key={r}>{r}</option>)}
-          </select>
+          <input list={listId} value={role} onChange={(e) => setRole(e.target.value)} className="rounded-lg border border-black/15 px-3 py-2" placeholder="Choisir ou créer" />
         </div>
         <button onClick={add} disabled={busy} className="rounded-lg bg-[#7a5640] text-white px-4 py-2 font-semibold disabled:opacity-50">Ajouter</button>
       </div>
+      <p className="text-[11px] text-black/40 mb-4">Astuce : tapez un poste qui n&apos;existe pas encore pour le créer.</p>
+
       <div className="divide-y divide-black/5">
         {people.length === 0 && <div className="text-black/40 text-sm py-4">Personne pour l&apos;instant.</div>}
         {people.map((p) => (
-          <div key={p.id} className="flex items-center justify-between py-2.5">
-            <div>
-              <div className="font-medium">{p.name}</div>
-              <div className="text-xs text-black/50">{p.role}{p.phone ? ` · ${p.phone}` : ""}</div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {p.phone && <a href={`tel:${p.phone}`} className="rounded-lg border border-black/15 px-2 py-1 text-sm hover:bg-black/5">Appeler</a>}
-              {waLink(p.phone) && <a href={waLink(p.phone)!} target="_blank" rel="noopener" className="rounded-lg bg-emerald-600 text-white px-2 py-1 text-sm hover:bg-emerald-700">WhatsApp</a>}
-              <button onClick={() => remove(p.id)} className="rounded-lg border border-black/15 px-2 py-1 text-sm text-red-600 hover:bg-red-50">Retirer</button>
-            </div>
+          <div key={p.id} className="py-2.5">
+            {editId === p.id ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <div><label className="block text-xs text-black/50">Nom</label><input value={eName} onChange={(e) => setEName(e.target.value)} className="rounded-lg border border-black/15 px-3 py-1.5" /></div>
+                <div><label className="block text-xs text-black/50">Téléphone</label><input value={ePhone} onChange={(e) => setEPhone(e.target.value)} className="rounded-lg border border-black/15 px-3 py-1.5" placeholder="06…" /></div>
+                <div><label className="block text-xs text-black/50">Poste</label><input list={listId} value={eRole} onChange={(e) => setERole(e.target.value)} className="rounded-lg border border-black/15 px-3 py-1.5" /></div>
+                <button onClick={() => saveEdit(p.id)} className="rounded-lg bg-[#7a5640] text-white px-3 py-1.5 text-sm font-semibold">Enregistrer</button>
+                <button onClick={() => setEditId(null)} className="rounded-lg border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5">Annuler</button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{p.name}</div>
+                  <div className="text-xs text-black/50">{p.role}{p.phone ? ` · ${p.phone}` : ""}</div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => startEdit(p)} className="rounded-lg border border-black/15 px-2 py-1 text-sm hover:bg-black/5">Éditer</button>
+                  {p.phone && <a href={`tel:${p.phone}`} className="rounded-lg border border-black/15 px-2 py-1 text-sm hover:bg-black/5">Appeler</a>}
+                  {waLink(p.phone) && <a href={waLink(p.phone)!} target="_blank" rel="noopener" className="rounded-lg bg-emerald-600 text-white px-2 py-1 text-sm hover:bg-emerald-700">WhatsApp</a>}
+                  <button onClick={() => remove(p.id)} className="rounded-lg border border-black/15 px-2 py-1 text-sm text-red-600 hover:bg-red-50">Retirer</button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
